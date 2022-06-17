@@ -413,5 +413,24 @@ namespace ICSharpCode.Decompiler
 			Array.Sort(ary, MethodDefComparer.Instance);
 			return ary;
 		}
+
+		static readonly UTF8String multicastDelegateString = new UTF8String("MulticastDelegate");
+
+		internal static bool IsNormalDelegate(this TypeDef td)
+		{
+			if (!td.BaseType.Compare(systemString, multicastDelegateString))
+				return false;
+
+			if (td.HasFields)
+				return false;
+			if (td.HasProperties)
+				return false;
+			if (td.HasEvents)
+				return false;
+			if (td.Methods.Any(m => m.Body != null))
+				return false;
+
+			return true;
+		}
 	}
 }

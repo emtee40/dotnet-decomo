@@ -29,6 +29,8 @@ using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
+using ICSharpCode.Decompiler.Util;
+
 using IMethod = ICSharpCode.Decompiler.TypeSystem.IMethod;
 using PrimitiveType = ICSharpCode.Decompiler.CSharp.Syntax.PrimitiveType;
 
@@ -476,6 +478,28 @@ namespace ICSharpCode.Decompiler
 		public override void DebugEnd(AstNode node, int? end)
 		{
 			var state = debugStack.Pop();
+			if (currentMethodDebugInfoBuilder != null) {
+				foreach (var ilSpan in ILSpan.OrderAndCompact(GetILSpans(state)))
+					currentMethodDebugInfoBuilder.Add(new SourceStatement(ilSpan, new TextSpan(state.StartSpan, (end ?? output.NextPosition) - state.StartSpan)));
+			}
+			else if (multiMappings != null) {
+				foreach (var mm in multiMappings) {
+					foreach (var ilSpan in ILSpan.OrderAndCompact(mm.Item2))
+						mm.Item1.Add(new SourceStatement(ilSpan, new TextSpan(state.StartSpan, (end ?? output.NextPosition) - state.StartSpan)));
+				}
+			}
+		}
+
+		static IEnumerable<ILSpan> GetILSpans(DebugState state)
+		{
+			foreach (var node in state.Nodes) {
+				foreach (var ann in node.Annotations) {
+					if (ann is not IList<ILSpan> list)
+						continue;
+					foreach (var ilSpan in list)
+						yield return ilSpan;
+				}
+			}
 		}
 
 		public override int? GetLocation()

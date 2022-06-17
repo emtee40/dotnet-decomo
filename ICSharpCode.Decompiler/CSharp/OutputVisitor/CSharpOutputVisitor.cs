@@ -3220,7 +3220,12 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				Space(policy.SpaceAroundAssignment);
 				WriteToken(Roles.Assign, BoxedTextColor.Operator);
 				Space(policy.SpaceAroundAssignment);
+				if (ownerIsProp)
+					DebugStart(variableInitializer);
+				WriteModifiers(variableInitializer.GetChildrenByRole(VariableInitializer.ModifierRole), null);
 				variableInitializer.Initializer.AcceptVisitor(this);
+				if (ownerIsProp)
+					DebugEnd(variableInitializer);
 			}
 			EndNode(variableInitializer);
 		}

@@ -139,6 +139,8 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		}
 
 		private string[] internalsVisibleTo;
+		static readonly UTF8String systemRuntimeCompilerServicesString = new UTF8String("System.Runtime.CompilerServices");
+		static readonly UTF8String internalsVisibleToAttributeString = new UTF8String("InternalsVisibleToAttribute");
 
 		private string[] GetInternalsVisibleTo()
 		{
@@ -149,9 +151,11 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 			if (metadata.Assembly != null) {
 				var list = new List<string>();
-				foreach (var attr in metadata.Assembly.CustomAttributes) {
-					if (attr.IsKnownAttribute(KnownAttribute.InternalsVisibleTo) && attr.ConstructorArguments.Count == 1 &&
-						attr.ConstructorArguments[0].Value is UTF8String s) {
+				foreach (var attr in metadata.Assembly.CustomAttributes)
+				{
+					if (attr.AttributeType.Compare(systemRuntimeCompilerServicesString, internalsVisibleToAttributeString) &&
+						attr.ConstructorArguments.Count == 1 && attr.ConstructorArguments[0].Value is UTF8String s)
+					{
 						list.Add(GetShortName(s));
 					}
 				}

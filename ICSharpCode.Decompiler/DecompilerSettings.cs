@@ -2001,6 +2001,17 @@ namespace ICSharpCode.Decompiler
 		}
 		bool useSourceCodeOrder = true;
 
+		public bool AllowFieldInitializers {
+			get { return allowFieldInitializers; }
+			set {
+				if (allowFieldInitializers != value) {
+					allowFieldInitializers = value;
+					OnPropertyChanged(nameof(AllowFieldInitializers));
+				}
+			}
+		}
+		bool allowFieldInitializers = true;
+
 		public bool OneCustomAttributePerLine {
 			get { return oneCustomAttributePerLine; }
 			set {
@@ -2089,11 +2100,21 @@ namespace ICSharpCode.Decompiler
 			if (ShowXmlDocumentation != other.ShowXmlDocumentation) return false;
 			if (IntroduceIncrementAndDecrement != other.IntroduceIncrementAndDecrement) return false;
 			if (MakeAssignmentExpressions != other.MakeAssignmentExpressions) return false;
+			if (ShowTokenAndRvaComments != other.ShowTokenAndRvaComments) return false;
 			if (DecompilationObject0 != other.DecompilationObject0) return false;
 			if (DecompilationObject1 != other.DecompilationObject1) return false;
 			if (DecompilationObject2 != other.DecompilationObject2) return false;
 			if (DecompilationObject3 != other.DecompilationObject3) return false;
 			if (DecompilationObject4 != other.DecompilationObject4) return false;
+			if (SortMembers != other.SortMembers) return false;
+			if (ForceShowAllMembers != other.ForceShowAllMembers) return false;
+			if (SortSystemUsingStatementsFirst != other.SortSystemUsingStatementsFirst) return false;
+			if (MaxStringLength != other.MaxStringLength) return false;
+			if (SortCustomAttributes != other.SortCustomAttributes) return false;
+			if (UseSourceCodeOrder != other.UseSourceCodeOrder) return false;
+			if (AllowFieldInitializers != other.AllowFieldInitializers) return false;
+			if (OneCustomAttributePerLine != other.OneCustomAttributePerLine) return false;
+			if (HexadecimalNumbers != other.HexadecimalNumbers) return false;
 
 			//TODO: CSharpFormattingOptions. This isn't currently used but it has a ton of properties
 
@@ -2125,9 +2146,20 @@ namespace ICSharpCode.Decompiler
 				h ^= ShowXmlDocumentation			? 0 : 0x00010000U;
 				h ^= IntroduceIncrementAndDecrement	? 0 : 0x00008000U;
 				h ^= MakeAssignmentExpressions		? 0 : 0x00004000U;
+				h ^= ShowTokenAndRvaComments		? 0 : 0x00000800U;
+				h ^= SortMembers					? 0 : 0x00000400U;
+				h ^= ForceShowAllMembers			? 0 : 0x00000200U;
+				h ^= SortSystemUsingStatementsFirst	? 0 : 0x00000100U;
+				h ^= SortCustomAttributes			? 0 : 0x00000040U;
+				h ^= UseSourceCodeOrder				? 0 : 0x00000020U;
+				h ^= AllowFieldInitializers			? 0 : 0x00000010U;
+				h ^= OneCustomAttributePerLine		? 0 : 0x00000008U;
+				h ^= HexadecimalNumbers				? 0 : 0x00000002U;
 
 				for (int i = 0; i < decompilationObjects.Length; i++)
 					h ^= (uint)decompilationObjects[i] << (i * 8);
+
+				h ^= (uint)MaxStringLength;
 
 				//TODO: CSharpFormattingOptions. This isn't currently used but it has a ton of properties
 
@@ -2158,6 +2190,16 @@ namespace ICSharpCode.Decompiler
 			other.ShowXmlDocumentation = this.ShowXmlDocumentation;
 			other.IntroduceIncrementAndDecrement = this.IntroduceIncrementAndDecrement;
 			other.MakeAssignmentExpressions = this.MakeAssignmentExpressions;
+			other.ShowTokenAndRvaComments = this.ShowTokenAndRvaComments;
+			other.SortMembers = this.SortMembers;
+			other.ForceShowAllMembers = this.ForceShowAllMembers;
+			other.SortSystemUsingStatementsFirst = this.SortSystemUsingStatementsFirst;
+			other.MaxStringLength = this.MaxStringLength;
+			other.SortCustomAttributes = this.SortCustomAttributes;
+			other.UseSourceCodeOrder = this.UseSourceCodeOrder;
+			other.AllowFieldInitializers = this.AllowFieldInitializers;
+			other.OneCustomAttributePerLine = this.OneCustomAttributePerLine;
+			other.HexadecimalNumbers = this.HexadecimalNumbers;
 			//TODO: CSharpFormattingOptions
 			return other;
 		}

@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -377,5 +377,31 @@ namespace ICSharpCode.Decompiler.Util
 
 		public static T Last<T>(this IList<T> list) => list[list.Count - 1];
 		#endregion
+
+		#if !NETCORE
+		public static int EnsureCapacity<T>(this List<T> list, int capacity)
+		{
+			if (capacity < 0)
+				throw new ArgumentOutOfRangeException(nameof(capacity));
+			if (list.Capacity < capacity)
+			{
+				const int DefaultCapacity = 4;
+				const int MaxLength = 0X7FFFFFC7;
+
+				int newcapacity = list.Capacity == 0 ? DefaultCapacity : 2 * list.Capacity;
+
+				if ((uint)newcapacity > MaxLength)
+					newcapacity = MaxLength;
+
+				if (newcapacity < capacity)
+					newcapacity = capacity;
+
+				list.Capacity = newcapacity;
+			}
+
+			return list.Capacity;
+		}
+
+		#endif
 	}
 }

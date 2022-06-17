@@ -410,11 +410,14 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 							case TypeKind.Dynamic:
 							case TypeKind.NInt:
 							case TypeKind.NUInt:
-								astType = new PrimitiveType(type.Name);
+								astType = new PrimitiveType(type.Name).WithAnnotation(BoxedTextColor.Keyword);
 								break;
 							case TypeKind.UnboundTypeArgument:
 								astType = MakeSimpleType(type.Name).WithAnnotation(BoxedTextColor.TypeGenericParameter)
 																   .WithAnnotation(SimpleType.DummyTypeGenericParam);
+								break;
+							case TypeKind.ArgList:
+								astType = MakeSimpleType(type.Name).WithAnnotation(BoxedTextColor.Keyword);
 								break;
 							default:
 								astType = MakeSimpleType(type.Name);
@@ -1787,7 +1790,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 					break;
 				case TypeKind.Delegate:
 					IMethod invoke = typeDefinition.GetDelegateInvokeMethod();
-					if (invoke != null)
+					if (invoke != null && typeDefinition.MetadataToken.IsNormalDelegate())
 					{
 						return ConvertDelegate(invoke, modifiers);
 					}

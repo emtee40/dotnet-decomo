@@ -143,7 +143,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 		/// Writes all specials between the current position (in the positionStack) and the specified node.
 		/// Advances the current position.
 		/// </summary>
-		void WriteSpecialsUpToNode(AstNode node)
+		public override void WriteSpecialsUpToNode(AstNode node)
 		{
 			if (positionStack.Count == 0)
 			{

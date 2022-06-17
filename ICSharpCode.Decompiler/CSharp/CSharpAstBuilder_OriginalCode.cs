@@ -25,6 +25,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (method != null) {
 				if (method.IsGetter || method.IsSetter || method.IsAddOn || method.IsRemoveOn)
 					return true;
+				if (settings.ForceShowAllMembers)
+					return false;
 				if (settings.LocalFunctions && LocalFunctionDecompiler.IsLocalFunctionMethod(null, method))
 					return true;
 				if (settings.AnonymousMethods && method.HasGeneratedName() && method.IsCompilerGenerated())
@@ -35,6 +37,8 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			TypeDef type = member as TypeDef;
 			if (type != null) {
+				if (settings.ForceShowAllMembers)
+					return false;
 				if (type.DeclaringType != null) {
 					if (settings.LocalFunctions && LocalFunctionDecompiler.IsLocalFunctionDisplayClass(null, type))
 						return true;
@@ -62,6 +66,8 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			FieldDef field = member as FieldDef;
 			if (field != null) {
+				if (settings.ForceShowAllMembers)
+					return false;
 				if (field.IsCompilerGenerated()) {
 					if (settings.AnonymousMethods && IsAnonymousMethodCacheField(field))
 						return true;
@@ -404,115 +410,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			return false;
 		}
 
-		public static List<IAstTransform> GetAstTransforms()
-		{
-			return new List<IAstTransform> {
-				new PatternStatementTransform(),
-				new ReplaceMethodCallsWithOperators(), // must run before DeclareVariables.EnsureExpressionStatementsAreValid
-				new IntroduceUnsafeModifier(),
-				new AddCheckedBlocks(),
-				new DeclareVariables(), // should run after most transforms that modify statements
-				new TransformFieldAndConstructorInitializers(), // must run after DeclareVariables
-				new DecimalConstantTransform(),
-				new PrettifyAssignments(), // must run after DeclareVariables
-				new IntroduceUsingDeclarations(),
-				new IntroduceExtensionMethods(), // must run after IntroduceUsingDeclarations
-				new IntroduceQueryExpressions(), // must run after IntroduceExtensionMethods
-				new CombineQueryExpressions(),
-				new NormalizeBlockStatements(),
-				new FlattenSwitchBlocks(),
-			};
-		}
-
-		public static List<IILTransform> GetILTransforms()
-		{
-			return new List<IILTransform> {
-				new ControlFlowSimplification(),
-				// Run SplitVariables only after ControlFlowSimplification duplicates return blocks,
-				// so that the return variable is split and can be inlined.
-				new SplitVariables(),
-				new ILInlining(),
-				new InlineReturnTransform(), // must run before DetectPinnedRegions
-				new RemoveInfeasiblePathTransform(),
-				new DetectPinnedRegions(), // must run after inlining but before non-critical control flow transforms
-				new YieldReturnDecompiler(), // must run after inlining but before loop detection
-				new AsyncAwaitDecompiler(),  // must run after inlining but before loop detection
-				new DetectCatchWhenConditionBlocks(), // must run after inlining but before loop detection
-				new DetectExitPoints(),
-				new LdLocaDupInitObjTransform(),
-				new EarlyExpressionTransforms(),
-				new SplitVariables(), // split variables once again, because the stobj(ldloca V, ...) may open up new replacements
-				// RemoveDeadVariableInit must run after EarlyExpressionTransforms so that stobj(ldloca V, ...)
-				// is already collapsed into stloc(V, ...).
-				new RemoveDeadVariableInit(),
-				new ControlFlowSimplification(), //split variables may enable new branch to leave inlining
-				new DynamicCallSiteTransform(),
-				new SwitchDetection(),
-				new SwitchOnStringTransform(),
-				new SwitchOnNullableTransform(),
-				new SplitVariables(), // split variables once again, because SwitchOnNullableTransform eliminates ldloca
-				new IntroduceRefReadOnlyModifierOnLocals(),
-				new BlockILTransform { // per-block transforms
-					PostOrderTransforms = {
-						// Even though it's a post-order block-transform as most other transforms,
-						// let's keep LoopDetection separate for now until there's a compelling
-						// reason to combine it with the other block transforms.
-						// If we ran loop detection after some if structures are already detected,
-						// we might make our life introducing good exit points more difficult.
-						new LoopDetection()
-					}
-				},
-				// re-run DetectExitPoints after loop detection
-				new DetectExitPoints(),
-				new PatternMatchingTransform(), // must run after LoopDetection and before ConditionDetection
-				new BlockILTransform { // per-block transforms
-					PostOrderTransforms = {
-						new ConditionDetection(),
-						new LockTransform(),
-						new UsingTransform(),
-						// CachedDelegateInitialization must run after ConditionDetection and before/in LoopingBlockTransform
-						// and must run before NullCoalescingTransform
-						new CachedDelegateInitialization(),
-						new StatementTransform(
-							// per-block transforms that depend on each other, and thus need to
-							// run interleaved (statement by statement).
-							// Pretty much all transforms that open up new expression inlining
-							// opportunities belong in this category.
-							new ILInlining(),
-							// Inlining must be first, because it doesn't trigger re-runs.
-							// Any other transform that opens up new inlining opportunities should call RequestRerun().
-							new ExpressionTransforms(),
-							new DynamicIsEventAssignmentTransform(),
-							new TransformAssignment(), // inline and compound assignments
-							new NullCoalescingTransform(),
-							new NullableLiftingStatementTransform(),
-							new NullPropagationStatementTransform(),
-							new TransformArrayInitializers(),
-							new TransformCollectionAndObjectInitializers(),
-							new TransformExpressionTrees(),
-							new IndexRangeTransform(),
-							new DeconstructionTransform(),
-							new NamedArgumentTransform(),
-							new UserDefinedLogicTransform()
-						),
-					}
-				},
-				new ProxyCallReplacer(),
-				new FixRemainingIncrements(),
-				new FixLoneIsInst(),
-				new CopyPropagation(),
-				new DelegateConstruction(),
-				new LocalFunctionDecompiler(),
-				new TransformDisplayClassUsage(),
-				new HighLevelLoopTransform(),
-				new ReduceNestingTransform(),
-				new RemoveRedundantReturn(),
-				new IntroduceDynamicTypeOnLocals(),
-				new IntroduceNativeIntTypeOnLocals(),
-				new AssignVariableNames(),
-			};
-		}
-
 		internal static void AddAnnotationsToDeclaration(ICSharpCode.Decompiler.TypeSystem.IMethod method, EntityDeclaration entityDecl, ILFunction function)
 		{
 			int i = 0;
@@ -548,12 +445,12 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		void AddDefinesForConditionalAttributes(ILFunction function, DecompileRun decompileRun)
+		void AddDefinesForConditionalAttributes(ILFunction function)
 		{
 			foreach (var call in function.Descendants.OfType<CallInstruction>()) {
 				var attr = call.Method.GetAttribute(KnownAttribute.Conditional, inherit: true);
 				var symbolName = attr?.FixedArguments.FirstOrDefault().Value as string;
-				if (symbolName == null || !decompileRun.DefinedSymbols.Add(symbolName))
+				if (symbolName == null || !currentDecompileRun.DefinedSymbols.Add(symbolName))
 					continue;
 				syntaxTree.InsertChildAfter(null, new PreProcessorDirective(PreProcessorDirectiveType.Define, symbolName), Roles.PreProcessorDirective);
 			}

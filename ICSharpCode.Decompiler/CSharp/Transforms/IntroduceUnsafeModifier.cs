@@ -49,7 +49,15 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 			if (result && node is EntityDeclaration && !(node is Accessor))
 			{
-				((EntityDeclaration)node).Modifiers |= Modifiers.Unsafe;
+				var ed = (EntityDeclaration)node;
+				ed.Modifiers |= Modifiers.Unsafe;
+
+				// Make sure the comments are still shown before the method and its modifiers
+				var comments = ed.GetChildrenByRole(Roles.Comment).Reverse().ToArray();
+				foreach (var c in comments) {
+					c.Remove();
+					ed.InsertChildAfter(null, c, Roles.Comment);
+				}
 				return false;
 			}
 			return result;
@@ -120,7 +128,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			{
 				PointerReferenceExpression pre = new PointerReferenceExpression();
 				pre.Target = uoe.Expression.Detach();
-				pre.MemberName = memberReferenceExpression.MemberName;
+				pre.MemberNameToken = (Identifier)memberReferenceExpression.MemberNameToken.Clone();
 				memberReferenceExpression.TypeArguments.MoveTo(pre.TypeArguments);
 				pre.CopyAnnotationsFrom(uoe);
 				pre.RemoveAnnotations<ResolveResult>(); // only copy the ResolveResult from the MRE

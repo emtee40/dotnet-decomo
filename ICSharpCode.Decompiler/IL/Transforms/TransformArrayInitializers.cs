@@ -622,16 +622,22 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var block = new Block(BlockKind.ArrayInitializer);
 			block.Instructions.Add(new StLoc(v, new NewArr(elementType, arrayLength.Select(l => (ILInstruction)new LdcI4(l)).ToArray())));
 			int step = arrayLength.Length + 1;
+
+			var indices = new List<ILInstruction>();
+
 			for (int i = 0; i < values.Length / step; i++)
 			{
 				// values array is filled backwards
 				var value = values[step * i];
-				var indices = new List<ILInstruction>();
+
+				indices.EnsureCapacity(step - 1);
 				for (int j = step - 1; j >= 1; j--)
 				{
 					indices.Add(values[step * i + j]);
 				}
+
 				block.Instructions.Add(StElem(new LdLoc(v), indices.ToArray(), value, elementType));
+				indices.Clear();
 			}
 			block.FinalInstruction = new LdLoc(v);
 			return block;
@@ -772,6 +778,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var totalLength = arrayLength.Aggregate(1, (t, l) => t * l);
 			if (initialValue.Length < (totalLength * elementSize))
 				return false;
+
+			output.EnsureCapacity(totalLength + totalLength * arrayLength.Length);
 
 			for (int i = 0; i < totalLength; i++)
 			{

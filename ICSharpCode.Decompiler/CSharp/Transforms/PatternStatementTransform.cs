@@ -763,8 +763,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					if (!property.CanSet && !context.Settings.GetterOnlyAutomaticProperties)
 						return null;
 					parent.RemoveAnnotations<MemberResolveResult>();
+					parent.RemoveAnnotations<dnlib.DotNet.IField>();
+					parent.WithAnnotation(property.MetadataToken);
 					parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, property));
-					return Identifier.Create(property.Name);
+					return Identifier.Create(property.Name).WithAnnotation(property.MetadataToken);
 				}
 			}
 			return null;
@@ -781,6 +783,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (@event != null && currentMethod.AccessorOwner != @event)
 			{
 				parent.RemoveAnnotations<MemberResolveResult>();
+				parent.RemoveAnnotations<dnlib.DotNet.IField>();
+				parent.WithAnnotation(@event.MetadataToken);
 				parent.AddAnnotation(new MemberResolveResult(mrr.TargetResult, @event));
 				return identifier;
 			}

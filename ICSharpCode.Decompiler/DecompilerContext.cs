@@ -23,6 +23,7 @@ namespace ICSharpCode.Decompiler
 			this.SettingsVersion = settingsVersion;
 			this.CurrentModule = currentModule;
 			this.CalculateILSpans = calculateILSpans;
+			this.Cache = new DecompilerCache(this);
 			this.MetadataTextColorProvider = metadataTextColorProvider ?? CSharpMetadataTextColorProvider.Instance;
 		}
 
@@ -64,6 +65,7 @@ namespace ICSharpCode.Decompiler
 			this.CurrentMethodIsAsync = false;
 			this.CurrentMethodIsYieldReturn = false;
 			this.UsingNamespaces.Clear();
+			this.Cache.Reset();
 		}
 
 		public MetadataTextColorProvider MetadataTextColorProvider;
@@ -75,6 +77,7 @@ namespace ICSharpCode.Decompiler
 		public readonly int SettingsVersion;
 		public bool CurrentMethodIsAsync;
 		public bool CurrentMethodIsYieldReturn;
+		public readonly DecompilerCache Cache;
 		public bool CalculateILSpans;
 		public bool AsyncMethodBodyDecompilation;
 		public readonly List<string> UsingNamespaces;

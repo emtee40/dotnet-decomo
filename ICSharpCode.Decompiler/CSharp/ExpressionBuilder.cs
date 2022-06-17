@@ -2986,9 +2986,11 @@ namespace ICSharpCode.Decompiler.CSharp
 					// tupleType.ElementTypes are more accurate w.r.t. nullability/dynamic than inst.Field.Type
 					var rr = new MemberResolveResult(translatedTarget.ResolveResult, inst.Field,
 						returnTypeOverride: tupleType.ElementTypes[position - 1]);
-					// TODO: MemberRef annotation
-					expr = new MemberReferenceExpression(translatedTarget, elementName)
-						.WithRR(rr).WithILInstruction(inst);
+
+					expr = new MemberReferenceExpression {
+						Target = translatedTarget,
+						MemberNameToken = Identifier.Create(elementName).WithAnnotation(inst.Field.OriginalMember)
+					}.WithAnnotation(inst.Field.OriginalMember).WithRR(rr).WithILInstruction(inst);
 				}
 				else
 				{

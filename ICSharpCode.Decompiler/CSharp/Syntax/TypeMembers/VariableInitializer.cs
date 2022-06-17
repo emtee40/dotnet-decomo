@@ -114,6 +114,8 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			}
 		}
 
+		public static readonly Role<CSharpModifierToken> ModifierRole = EntityDeclaration.ModifierRole;
+
 		public VariableInitializer()
 		{
 		}

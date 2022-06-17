@@ -5,6 +5,7 @@ using dnlib.DotNet;
 using dnSpy.Contracts.Decompiler;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.IL;
 
 namespace ICSharpCode.Decompiler.CSharp
 {
@@ -12,14 +13,15 @@ namespace ICSharpCode.Decompiler.CSharp
 	{
 		private struct AsyncMethodBodyResult
 		{
-			public AsyncMethodBodyResult(EntityDeclaration methodNode, MethodDef method, BlockStatement body, MethodDebugInfoBuilder builder, bool currentMethodIsAsync, bool currentMethodIsYieldReturn)
+			public AsyncMethodBodyResult(EntityDeclaration methodNode, MethodDef method, BlockStatement body, MethodDebugInfoBuilder builder, ILFunction function)
 			{
 				this.MethodNode = methodNode;
 				this.Method = method;
 				this.Body = body;
 				this.Builder = builder;
-				this.CurrentMethodIsAsync = currentMethodIsAsync;
-				this.CurrentMethodIsYieldReturn = currentMethodIsYieldReturn;
+				this.IlFunction = function;
+				this.CurrentMethodIsAsync = function.IsAsync;
+				this.CurrentMethodIsYieldReturn = function.IsIterator;
 			}
 
 			public readonly EntityDeclaration MethodNode;
@@ -29,6 +31,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			public readonly BlockStatement Body;
 
 			public readonly MethodDebugInfoBuilder Builder;
+
+			public readonly ILFunction IlFunction;
 
 			public readonly bool CurrentMethodIsAsync;
 
@@ -63,11 +67,18 @@ namespace ICSharpCode.Decompiler.CSharp
 				for (int i = 0; i < methodBodyTasks.Count; i++) {
 					var result = methodBodyTasks[i].GetAwaiter().GetResult();
 					context.CancellationToken.ThrowIfCancellationRequested();
-					if (result.CurrentMethodIsAsync)
-						result.MethodNode.Modifiers |= Modifiers.Async;
+
 					result.MethodNode.AddChild(result.Body, Roles.Body);
-					result.MethodNode.AddAnnotation(result.Builder);
-					//ConvertAttributes(result.MethodNode, result.Method, result.CurrentMethodIsAsync, result.CurrentMethodIsYieldReturn);
+
+					if (result.Builder is not null)
+						result.MethodNode.AddAnnotation(result.Builder);
+
+					if (result.IlFunction is not null)
+					{
+						AddAnnotationsToDeclaration(result.IlFunction.Method, result.MethodNode, result.IlFunction);
+						AddDefinesForConditionalAttributes(result.IlFunction);
+						CleanUpMethodDeclaration(result.MethodNode, result.Body, result.IlFunction);
+					}
 
 					comments.Clear();
 					comments.AddRange(result.MethodNode.GetChildrenByRole(Roles.Comment));
