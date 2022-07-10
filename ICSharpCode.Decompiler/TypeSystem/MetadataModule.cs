@@ -344,9 +344,9 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			}
 		}
 
-		IMethod ResolveMethodDefinition(MethodDef methodDefHandle, bool expandVarArgs)
+		IMethod ResolveMethodDefinition(MethodDef methodDefHandle, bool expandVarArgs, IMDTokenProvider originalMember = null)
 		{
-			var method = GetDefinition(methodDefHandle);
+			var method = GetDefinitionInternal(methodDefHandle).WithOriginalMember(originalMember);
 			if (expandVarArgs && methodDefHandle.CallingConvention == CallingConvention.VarArg) {
 				method = new VarArgInstanceMethod(method, EmptyList<IType>.Instance);
 			}
@@ -362,10 +362,10 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			IMethod method;
 			if (methodSpec.Method is MethodDef methodDef) {
 				// generic instance of a methoddef (=generic method in non-generic class in current assembly)
-				method = ResolveMethodDefinition(methodDef, expandVarArgs)
+				method = ResolveMethodDefinition(methodDef, expandVarArgs, methodSpec)
 					.Specialize(new TypeParameterSubstitution(null, methodTypeArgs));
 			} else {
-				method = ResolveMethodReference((MemberRef)methodSpec.Method, context, methodTypeArgs, expandVarArgs);
+				method = ResolveMethodReference((MemberRef)methodSpec.Method, context, methodTypeArgs, expandVarArgs, methodSpec);
 			}
 
 			return method;
@@ -379,13 +379,13 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		/// Method type arguments are provided by the caller.
 		/// </remarks>
 		IMethod ResolveMethodReference(MemberRef memberRef, GenericContext context,
-			IReadOnlyList<IType> methodTypeArguments = null, bool expandVarArgs = true)
+			IReadOnlyList<IType> methodTypeArguments = null, bool expandVarArgs = true, IMDTokenProvider originalMember = null)
 		{
 			IReadOnlyList<IType> classTypeArguments = null;
 			IMethod method;
 			GenericContext vaRAgCtx;
 			if (memberRef.Class is MethodDef methodDef) {
-				method = GetDefinitionInternal(methodDef).WithOriginalMember(memberRef);
+				method = GetDefinitionInternal(methodDef).WithOriginalMember(originalMember ?? memberRef);
 				vaRAgCtx = context;
 			}
 			else {
@@ -400,7 +400,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 				var resolved = memberRef.ResolveMethod();
 				if (resolved is not null && Compilation.GetOrAddModule(resolved.Module) is MetadataModule mod)
-					method = mod.GetDefinitionInternal(resolved).WithOriginalMember(memberRef);
+					method = mod.GetDefinitionInternal(resolved).WithOriginalMember(originalMember ?? memberRef);
 				else
 				{
 					var symbolKind = memberRef.Name == ".ctor" || memberRef.Name == ".cctor"

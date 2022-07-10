@@ -1,8 +1,6 @@
 ﻿A 'small' TODO list for features/improvements/issues that need to be resolved for this port.
 
 - Try to reduce 'string' object allocations by using a 'StringBuilder' instead, especially in the TypeSystem
-- Add support for dnSpy async method body decompilation option (Should greatly improve performance).
-- Add a new API for dnSpy to use since the 'CSharpDecompiler' one is not very suited for dnSpy.
 - Implement all the MethodBodyDebugInfoBuilder and other dnSpy debug info specific classes and annotations.
 - Add all the relevant dnSpy specific options into the decompiler, for example: always showing compiler generated members.
 - If decompilation of a method body fails, we should just write the exception as a multi line comment inside the body instead of crashing the entire decompiler.

@@ -400,8 +400,8 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 						astType = ConvertTypeHelper(pt.GenericType, pt.TypeArguments);
 						break;
 					case ITypeParameter tp:
-						var simpleType = MakeSimpleType(tp.Name).WithAnnotation(tp.MDGenericParam);
-						simpleType.IdentifierToken.WithAnnotation(tp.MDGenericParam);
+						var simpleType = MakeSimpleType(tp.Name).WithAnnotation(tp.MDGenericParam).WithAnnotation(tp.OriginalMember);
+						simpleType.IdentifierToken.WithAnnotation(tp.MDGenericParam).WithAnnotation(tp.OriginalMember);
 						astType = simpleType;
 						break;
 					default:

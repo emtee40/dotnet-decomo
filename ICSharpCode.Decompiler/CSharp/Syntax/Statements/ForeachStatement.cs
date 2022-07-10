@@ -81,13 +81,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			set { SetChildByRole(Roles.EmbeddedStatement, value); }
 		}
 
-		public AstNode HiddenInitializer { get; set; }
-
-		public AstNode HiddenGetEnumeratorNode { get; set; }
-
-		public AstNode HiddenMoveNextNode { get; set; }
-
-		public AstNode HiddenGetCurrentNode { get; set; }
+		public AstNode HiddenInitializer { get; set; }			// |foreach| (var c in args)
+		public AstNode HiddenGetEnumeratorNode { get; set; }	// foreach (var c in |args|)
+		public AstNode HiddenMoveNextNode { get; set; }			// foreach (var c |in| args)
+		public AstNode HiddenGetCurrentNode { get; set; }		// foreach (|var c| in args)
 
 		public override void AcceptVisitor(IAstVisitor visitor)
 		{

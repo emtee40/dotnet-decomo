@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -447,6 +447,8 @@ namespace ICSharpCode.Decompiler.CSharp
 
 				case DecompilationObject.Fields:
 					foreach (FieldDef fieldDef in GetFields(typeDef)) {
+						if (typeDef.IsEnum && !fieldDef.IsStatic)
+							continue;
 						if (MemberIsHidden(fieldDef, context.Settings)) continue;
 						astType.AddChild(CreateField(fieldDef), Roles.TypeMemberRole);
 					}
