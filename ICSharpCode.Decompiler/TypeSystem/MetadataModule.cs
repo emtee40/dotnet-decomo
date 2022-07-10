@@ -346,7 +346,9 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 		IMethod ResolveMethodDefinition(MethodDef methodDefHandle, bool expandVarArgs, IMDTokenProvider originalMember = null)
 		{
-			var method = GetDefinitionInternal(methodDefHandle).WithOriginalMember(originalMember);
+			IMethod method = originalMember is not null
+				? GetDefinitionInternal(methodDefHandle).WithOriginalMember(originalMember)
+				: GetDefinitionInternal(methodDefHandle);
 			if (expandVarArgs && methodDefHandle.CallingConvention == CallingConvention.VarArg) {
 				method = new VarArgInstanceMethod(method, EmptyList<IType>.Instance);
 			}
