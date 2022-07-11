@@ -24,6 +24,8 @@ namespace ICSharpCode.Decompiler
 
 		public UsingScope UsingScope => usingScope.Value;
 
+		public DecompilerContext Context { get; set; }
+
 		public DecompileRun(DecompilerSettings settings)
 		{
 			this.Settings = settings ?? throw new ArgumentNullException(nameof(settings));

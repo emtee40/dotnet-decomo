@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -99,7 +99,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			currentTypeResolveContext =
 				new SimpleTypeResolveContext(typeSystem.MainModule).WithCurrentTypeDefinition(
 					typeSystem.MainModule.GetDefinition(context.CurrentType));
-			currentDecompileRun = new DecompileRun(context.Settings) { CancellationToken = context.CancellationToken };
+			currentDecompileRun = new DecompileRun(context.Settings) { CancellationToken = context.CancellationToken, Context = context};
 		}
 
 		public void AddAssembly(ModuleDef moduleDefinition, bool decompileAsm, bool decompileMod)

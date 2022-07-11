@@ -17,6 +17,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using dnSpy.Contracts.Decompiler;
@@ -78,6 +79,28 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		public List<ILSpan> endILSpans = new List<ILSpan>(1);
+
+		public override List<ILSpan> EndILSpans {
+			get { return endILSpans; }
+		}
+
+		public override ILSpan GetAllILSpans(ref long index, ref bool done) {
+			if (index < ILSpans.Count)
+				return ILSpans[(int)index++];
+			int i = (int)index - ILSpans.Count;
+			if (i < endILSpans.Count) {
+				index++;
+				return endILSpans[i];
+			}
+			done = true;
+			return default(ILSpan);
+		}
+
+		public override bool SafeToAddToEndILSpans {
+			get { return true; }
+		}
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
@@ -129,6 +152,8 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			var clone = new SwitchInstruction(value.Clone());
 			clone.AddILRange(this);
+			clone.ILSpans.AddRange(ILSpans);
+			clone.endILSpans.AddRange(endILSpans);
 			clone.Value = value.Clone();
 			clone.Sections.AddRange(this.Sections.Select(h => (SwitchSection)h.Clone()));
 			return clone;

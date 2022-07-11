@@ -136,7 +136,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 				else if (CompatibleExitInstruction(inst, this.CurrentExit))
 				{
-					inst.ReplaceWith(new Leave(this.Container).WithILRange(inst));
+					Leave replacement = new Leave(this.Container).WithILRange(inst);
+					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					inst.ReplaceWith(replacement);
 				}
 			}
 		}
@@ -193,7 +195,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				{
 					if (exit.IsConnected && CompatibleExitInstruction(newExit, exit))
 					{
-						exit.ReplaceWith(new Leave(container).WithILRange(exit));
+						Leave replacement = new Leave(container).WithILRange(exit);
+						exit.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+						exit.ReplaceWith(replacement);
 					}
 				}
 				ILInstruction inst = container;

@@ -378,6 +378,89 @@ namespace ICSharpCode.Decompiler.IL
 
 		public IEnumerable<Interval> ILRanges => new[] { ILRange };
 
+		public readonly List<ILSpan> ILSpans = new List<ILSpan>(1);
+
+		public virtual List<ILSpan> EndILSpans {
+			get { return ILSpans; }
+		}
+		public virtual ILSpan GetAllILSpans(ref long index, ref bool done) {
+			if (index < ILSpans.Count)
+				return ILSpans[(int)index++];
+			done = true;
+			return default;
+		}
+
+		public bool HasEndILSpans {
+			get { return ILSpans != EndILSpans; }
+		}
+
+		public virtual bool SafeToAddToEndILSpans {
+			get { return true; }
+		}
+
+		public IEnumerable<ILSpan> GetSelfAndChildrenRecursiveILSpans()
+		{
+			foreach (var node in GetSelfAndChildrenRecursive<ILInstruction>()) {
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = node.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					yield return b;
+				}
+			}
+		}
+
+		public void AddSelfAndChildrenRecursiveILSpans(List<ILSpan> coll)
+		{
+			foreach (var a in GetSelfAndChildrenRecursive<ILInstruction>()) {
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = a.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					coll.Add(b);
+				}
+			}
+		}
+
+		public List<ILSpan> GetSelfAndChildrenRecursiveILSpans_OrderAndJoin() {
+			// The current callers save the list as an annotation so always create a new list here
+			// instead of having them pass in a cached list.
+			var list = new List<ILSpan>();
+			AddSelfAndChildrenRecursiveILSpans(list);
+			return ILSpan.OrderAndCompactList(list);
+		}
+
+		public List<T> GetSelfAndChildrenRecursive<T>(Func<T, bool>? predicate = null) where T : ILInstruction
+		{
+			List<T> result = new List<T>(16);
+			AccumulateSelfAndChildrenRecursive(result, predicate);
+			return result;
+		}
+
+		public List<T> GetSelfAndChildrenRecursive<T>(List<T> result, Func<T, bool>? predicate = null) where T : ILInstruction
+		{
+			result.Clear();
+			AccumulateSelfAndChildrenRecursive(result, predicate);
+			return result;
+		}
+
+		void AccumulateSelfAndChildrenRecursive<T>(List<T> list, Func<T, bool>? predicate) where T : ILInstruction
+		{
+			if (this is T thisAsT && (predicate == null || predicate(thisAsT)))
+				list.Add(thisAsT);
+
+			foreach (ILInstruction? child in this.Children)
+			{
+				if (child is null)
+					break;
+				child.AccumulateSelfAndChildrenRecursive(list, predicate);
+			}
+		}
+
 		public void WriteILRange(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			ILRange.WriteTo(output, options);

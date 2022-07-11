@@ -93,6 +93,8 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			BlockContainer clone = new BlockContainer();
 			clone.AddILRange(this);
+			clone.ILSpans.AddRange(ILSpans);
+			clone.endILSpans.AddRange(endILSpans);
 			clone.Blocks.AddRange(this.Blocks.Select(block => (Block)block.Clone()));
 			// Adjust branch instructions to point to the new container
 			foreach (var branch in clone.Descendants.OfType<Branch>())
@@ -255,6 +257,28 @@ namespace ICSharpCode.Decompiler.IL
 			get {
 				return InstructionFlags.ControlFlow;
 			}
+		}
+
+		public List<ILSpan> endILSpans = new List<ILSpan>(1);
+
+		public override List<ILSpan> EndILSpans {
+			get { return endILSpans; }
+		}
+
+		public override ILSpan GetAllILSpans(ref long index, ref bool done) {
+			if (index < ILSpans.Count)
+				return ILSpans[(int)index++];
+			int i = (int)index - ILSpans.Count;
+			if (i < endILSpans.Count) {
+				index++;
+				return endILSpans[i];
+			}
+			done = true;
+			return default(ILSpan);
+		}
+
+		public override bool SafeToAddToEndILSpans {
+			get { return true; }
 		}
 
 		internal override bool CanInlineIntoSlot(int childIndex, ILInstruction expressionBeingMoved)

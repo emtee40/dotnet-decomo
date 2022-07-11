@@ -44,6 +44,10 @@ namespace ICSharpCode.Decompiler.IL
 
 		public bool IsRefStruct { get; set; }
 
+		public override bool SafeToAddToEndILSpans {
+			get { return false; }
+		}
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);

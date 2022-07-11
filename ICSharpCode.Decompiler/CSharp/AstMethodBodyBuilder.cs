@@ -51,7 +51,8 @@ namespace ICSharpCode.Decompiler.CSharp
 
 				var ilTransformContext = new ILTransformContext(function, typeSystem, localSettings) {
 					CancellationToken = context.CancellationToken,
-					DecompileRun = decompileRun
+					DecompileRun = decompileRun,
+					CalculateILSpans = context.CalculateILSpans
 				};
 				foreach (var transform in GetILTransforms())
 				{

@@ -80,10 +80,14 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					{
 						if (SemanticHelper.IsPure(stloc.Value.Flags))
 						{
+							if (context.CalculateILSpans)
+								ILSpanUtils.AddILSpans(block, block.Instructions, i);
 							block.Instructions.RemoveAt(i--);
 						}
 						else
 						{
+							if (context.CalculateILSpans)
+								stloc.Value.ILSpans.AddRange(stloc.ILSpans);
 							stloc.ReplaceWith(stloc.Value);
 						}
 					}
@@ -132,7 +136,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 							{
 								if (descendant.MatchLdLoc(v))
 								{
-									descendant.ReplaceWith(new LdLoc(temp).WithILRange(descendant));
+									var newLdloc = new LdLoc(temp).WithILRange(descendant);
+									newLdloc.ILSpans.AddRange(descendant.ILSpans);
+									descendant.ReplaceWith(newLdloc);
 								}
 							}
 						}
@@ -784,11 +790,6 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					var children = inst.Parent.Children;
 					children[inst.ChildIndex] = new Conv(inst, oldVar.StackType.ToPrimitiveType(), false, Sign.None);
 				}
-			}
-			else if (inst.MatchLdStr(out var val) && val == "Is this ILSpy?")
-			{
-				inst.ReplaceWith(new LdStr("This is ILSpy!")); // easter egg ;)
-				return;
 			}
 			foreach (var child in inst.Children)
 			{

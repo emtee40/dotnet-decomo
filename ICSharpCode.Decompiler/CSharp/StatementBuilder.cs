@@ -23,6 +23,8 @@ using System.Linq;
 using dnSpy.Contracts.Text;
 using System.Threading;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
 using ICSharpCode.Decompiler.CSharp.Transforms;
@@ -137,7 +139,12 @@ namespace ICSharpCode.Decompiler.CSharp
 			var condition = exprBuilder.TranslateCondition(inst.Condition);
 			var trueStatement = Convert(inst.TrueInst);
 			var falseStatement = inst.FalseInst.OpCode == OpCode.Nop ? null : Convert(inst.FalseInst);
-			return new IfElseStatement(condition, trueStatement, falseStatement).WithILInstruction(inst);
+			IfElseStatement ifElseStatement = new IfElseStatement(condition, trueStatement, falseStatement);
+			if (decompileRun.Context.CalculateILSpans)
+				ifElseStatement.Condition.AddAnnotation(inst.ILSpans);
+			//if (trueStatement is BlockStatement trueStmt && decompileRun.Context.CalculateILSpans)
+				//trueStmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : inst.FalseInst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin(), trueStmt.HiddenEnd);
+			return ifElseStatement.WithILInstruction(inst);
 		}
 
 		internal IEnumerable<ConstantResolveResult> CreateTypedCaseLabel(long i, IType type, List<(string Key, int Value)> map = null)
@@ -223,6 +230,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			IL.SwitchSection defaultSection = inst.GetDefaultSection();
 
 			var stmt = new SwitchStatement() { Expression = value };
+			if (decompileRun.Context.CalculateILSpans)
+				stmt.Expression.AddAnnotation(inst.ILSpans);
+			stmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(inst.EndILSpans), stmt.HiddenEnd);
+
 			Dictionary<IL.SwitchSection, Syntax.SwitchSection> translationDictionary = new Dictionary<IL.SwitchSection, Syntax.SwitchSection>();
 			// initialize C# switch sections.
 			foreach (var section in inst.Sections)
@@ -355,16 +366,16 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (inst.TargetBlock == continueTarget)
 			{
 				continueCount++;
-				return new ContinueStatement().WithILInstruction(inst);
+				return new ContinueStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 			}
 			if (caseLabelMapping != null && caseLabelMapping.TryGetValue(inst.TargetBlock, out var label))
 			{
 				if (label == null)
-					return new GotoDefaultStatement().WithILInstruction(inst);
+					return new GotoDefaultStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 				return new GotoCaseStatement() { LabelExpression = exprBuilder.ConvertConstantValue(label, allowImplicitConversion: true) }
-					.WithILInstruction(inst);
+					   .WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 			}
-			return new GotoStatement(EnsureUniqueLabel(inst.TargetBlock)).WithILInstruction(inst);
+			return new GotoStatement(EnsureUniqueLabel(inst.TargetBlock)).WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 		}
 
 		/// <summary>Target container that a 'break;' statement would break out of</summary>
@@ -375,7 +386,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		protected internal override TranslatedStatement VisitLeave(Leave inst)
 		{
 			if (inst.TargetContainer == breakTarget)
-				return new BreakStatement().WithILInstruction(inst);
+				return new BreakStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 			if (inst.TargetContainer == currentReturnContainer)
 			{
 				if (currentIsIterator)
@@ -384,10 +395,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				{
 					var expr = exprBuilder.Translate(inst.Value, typeHint: currentResultType)
 						.ConvertTo(currentResultType, exprBuilder, allowImplicitConversion: true);
-					return new ReturnStatement(expr).WithILInstruction(inst);
+					return new ReturnStatement(expr).WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 				}
 				else
-					return new ReturnStatement().WithILInstruction(inst);
+					return new ReturnStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 			}
 			if (!endContainerLabels.TryGetValue(inst.TargetContainer, out string label))
 			{
@@ -403,17 +414,17 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 				endContainerLabels.Add(inst.TargetContainer, label);
 			}
-			return new GotoStatement(label).WithILInstruction(inst);
+			return new GotoStatement(label).WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 		}
 
 		protected internal override TranslatedStatement VisitThrow(Throw inst)
 		{
-			return new ThrowStatement(exprBuilder.Translate(inst.Argument)).WithILInstruction(inst);
+			return new ThrowStatement(exprBuilder.Translate(inst.Argument)).WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 		}
 
 		protected internal override TranslatedStatement VisitRethrow(Rethrow inst)
 		{
-			return new ThrowStatement().WithILInstruction(inst);
+			return new ThrowStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 		}
 
 		protected internal override TranslatedStatement VisitYieldReturn(YieldReturn inst)
@@ -441,6 +452,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			var tryCatch = new TryCatchStatement();
 			tryCatch.TryBlock = ConvertAsBlock(inst.TryBlock);
+			tryCatch.TryBlock.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(inst.ILSpans), tryCatch.TryBlock.HiddenStart);
 			foreach (var handler in inst.Handlers)
 			{
 				var catchClause = new CatchClause();
@@ -451,7 +463,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					catchClause.AddAnnotation(new ILVariableResolveResult(v, v.Type));
 					if (v.StoreCount > 1 || v.LoadCount > 0 || v.AddressCount > 0)
 					{
-						catchClause.VariableName = v.Name;
+						catchClause.VariableNameToken = Identifier.Create(v.Name).WithAnnotation(GetParameterColor(v));
 						catchClause.Type = exprBuilder.ConvertType(v.Type);
 					}
 					else if (!v.Type.IsKnownType(KnownTypeCode.Object))
@@ -462,6 +474,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (!handler.Filter.MatchLdcI4(1))
 					catchClause.Condition = exprBuilder.TranslateCondition(handler.Filter);
 				catchClause.Body = ConvertAsBlock(handler.Body);
+				catchClause.AddAnnotation(!decompileRun.Context.CalculateILSpans ? null : handler.StlocILSpans);
 				tryCatch.CatchClauses.Add(catchClause);
 			}
 			return tryCatch.WithILInstruction(inst);
@@ -1141,6 +1154,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						initExpr = new UnaryOperatorExpression(UnaryOperatorType.AddressOf, dirExpr.Expression.Detach())
 							.WithRR(new ResolveResult(inst.Variable.Type));
 					}
+					dirExpr.AddAllRecursiveILSpansTo(initExpr);
 				}
 				if (initExpr.GetResolveResult()?.Type.Kind == TypeKind.Pointer
 					&& !IsAddressOfMoveableVar(initExpr)
@@ -1198,6 +1212,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				return Default(block);
 			// Block without container
 			BlockStatement blockStatement = new BlockStatement();
+			if(block.EndILSpans.Count > 0)
+				Debugger.Break();
+			blockStatement.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(block.ILSpans), blockStatement.HiddenStart);
+			blockStatement.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(block.EndILSpans), blockStatement.HiddenEnd);
 			foreach (var inst in block.Instructions)
 			{
 				blockStatement.Add(Convert(inst));
@@ -1411,6 +1429,8 @@ namespace ICSharpCode.Decompiler.CSharp
 					{
 						// skip the final 'leave' instruction and just fall out of the BlockStatement
 						blockStatement.AddAnnotation(new ImplicitReturnAnnotation(leave));
+						blockStatement.HiddenEnd =
+							ILSpanAnnotationExtensions.CreateHidden(leave.ILSpans, blockStatement.HiddenEnd);
 						continue;
 					}
 					var stmt = Convert(inst);

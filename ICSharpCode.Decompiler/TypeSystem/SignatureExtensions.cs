@@ -18,10 +18,12 @@ namespace ICSharpCode.Decompiler.TypeSystem
 					return corLibTypeSig.TypeDefOrRef.DecodeSignature(module, context, IsValueType(corLibTypeSig));
 				case GenericMVar mVar:
 					// TODO: store OriginalMember
-					return context.GetMethodTypeParameter((int)mVar.Number);
+					ITypeParameter methodTypeParameter = context.GetMethodTypeParameter((int)mVar.Number);
+					return methodTypeParameter;
 				case GenericVar tVar:
 					// TODO: store OriginalMember
-					return context.GetClassTypeParameter((int)tVar.Number);
+					ITypeParameter classTypeParameter = context.GetClassTypeParameter((int)tVar.Number);
+					return classTypeParameter;
 				case FnPtrSig fnPtr: {
 					// pointers to member functions are not supported even in C# 9
 					if (!fnPtr.Signature.HasThis && fnPtr.Signature is MethodBaseSig mSig) {

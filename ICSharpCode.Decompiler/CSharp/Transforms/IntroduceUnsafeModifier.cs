@@ -106,6 +106,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					indexer.Arguments.Add(bop.Right.Detach());
 					indexer.CopyAnnotationsFrom(unaryOperatorExpression);
 					indexer.CopyAnnotationsFrom(bop);
+					indexer.AddAnnotation(unaryOperatorExpression.GetAllRecursiveILSpans());
 					unaryOperatorExpression.ReplaceWith(indexer);
 				}
 				return true;
@@ -133,6 +134,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				pre.CopyAnnotationsFrom(uoe);
 				pre.RemoveAnnotations<ResolveResult>(); // only copy the ResolveResult from the MRE
 				pre.CopyAnnotationsFrom(memberReferenceExpression);
+				pre.AddAnnotation(memberReferenceExpression.GetAllRecursiveILSpans());
 				memberReferenceExpression.ReplaceWith(pre);
 			}
 			var rr = memberReferenceExpression.GetResolveResult();

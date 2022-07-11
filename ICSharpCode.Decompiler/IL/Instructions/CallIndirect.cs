@@ -63,9 +63,11 @@ namespace ICSharpCode.Decompiler.IL
 
 		public override ILInstruction Clone()
 		{
-			return new CallIndirect(IsInstance, HasExplicitThis, FunctionPointerType,
+			CallIndirect callIndirect = new CallIndirect(IsInstance, HasExplicitThis, FunctionPointerType,
 				functionPointer.Clone(), this.Arguments.Select(inst => inst.Clone())
-			).WithILRange(this);
+			);
+			callIndirect.ILSpans.AddRange(ILSpans);
+			return callIndirect.WithILRange(this);
 		}
 
 		public override StackType ResultType => FunctionPointerType.ReturnType.GetStackType();

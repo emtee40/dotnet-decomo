@@ -595,6 +595,13 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					var vds = new VariableDeclarationStatement(v.ILVariable != null && v.ILVariable.Kind == VariableKind.Parameter ? BoxedTextColor.Parameter : BoxedTextColor.Local, type, v.Name, assignment.Right.Detach());
 					var init = vds.Variables.Single();
 					init.AddAnnotation(assignment.Left.GetResolveResult());
+
+					if (assignment.Parent is ExpressionStatement es) {
+						vds.AddAnnotation(es.GetAllRecursiveILSpans());
+					} else {
+						vds.AddAnnotation(assignment.GetAllRecursiveILSpans());
+					}
+
 					foreach (object annotation in assignment.Left.Annotations.Concat(assignment.Annotations))
 					{
 						if (!(annotation is ResolveResult))

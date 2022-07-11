@@ -84,6 +84,10 @@ namespace ICSharpCode.Decompiler.IL
 			return InstructionFlags.ControlFlow | condition.Flags | SemanticHelper.CombineBranches(trueInst.Flags, falseInst.Flags);
 		}
 
+		public override bool SafeToAddToEndILSpans {
+			get { return false; }
+		}
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);

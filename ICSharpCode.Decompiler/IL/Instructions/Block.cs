@@ -101,6 +101,8 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			Block clone = new Block(Kind);
 			clone.AddILRange(this);
+			clone.ILSpans.AddRange(ILSpans);
+			clone.endILSpans.AddRange(endILSpans);
 			clone.Instructions.AddRange(this.Instructions.Select(inst => inst.Clone()));
 			clone.FinalInstruction = this.FinalInstruction.Clone();
 			return clone;
@@ -289,6 +291,28 @@ namespace ICSharpCode.Decompiler.IL
 			get {
 				return InstructionFlags.None;
 			}
+		}
+
+		public List<ILSpan> endILSpans = new List<ILSpan>(1);
+
+		public override List<ILSpan> EndILSpans {
+			get { return endILSpans; }
+		}
+
+		public override ILSpan GetAllILSpans(ref long index, ref bool done) {
+			if (index < ILSpans.Count)
+				return ILSpans[(int)index++];
+			int i = (int)index - ILSpans.Count;
+			if (i < endILSpans.Count) {
+				index++;
+				return endILSpans[i];
+			}
+			done = true;
+			return default(ILSpan);
+		}
+
+		public override bool SafeToAddToEndILSpans {
+			get { return true; }
 		}
 
 		/// <summary>

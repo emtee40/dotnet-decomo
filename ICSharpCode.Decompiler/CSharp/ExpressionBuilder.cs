@@ -22,6 +22,8 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+
+using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
 using ICSharpCode.Decompiler.CSharp.Resolver;
@@ -159,6 +161,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				TypeHint = typeHint ?? SpecialType.UnknownType
 			};
 			var cexpr = inst.AcceptVisitor(this, context);
+			cexpr.Expression.AddAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin());
 #if DEBUG
 			if (inst.ResultType != StackType.Void && cexpr.Type.Kind != TypeKind.Unknown && inst.ResultType != StackType.Unknown && cexpr.Type.Kind != TypeKind.None)
 			{
@@ -206,7 +209,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				expr = expr.ConvertTo(FindType(StackType.I4, expr.Type.GetSign()), this);
 			}
-			return expr.ConvertToBoolean(this, negate);
+
+			var booleanExpr = expr.ConvertToBoolean(this, negate);
+			booleanExpr.Expression.AddAnnotation(condition.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin());
+			return booleanExpr;
 		}
 
 		internal ExpressionWithResolveResult ConvertVariable(ILVariable variable)

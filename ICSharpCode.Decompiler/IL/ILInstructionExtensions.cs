@@ -29,5 +29,18 @@ namespace ICSharpCode.Decompiler.IL
 				return null;
 			return instruction.Parent.Children[instruction.ChildIndex + 1];
 		}
+
+		public static bool IsPrefixed(this ILInstruction instruction)
+		{
+			if (instruction is CallInstruction callInstruction)
+				return callInstruction.IsTail;
+			if (instruction is LdElema ldElema)
+				return ldElema.IsReadOnly;
+			if (instruction is ISupportsUnalignedPrefix unalignedPrefix)
+				return unalignedPrefix.UnalignedPrefix != 0;
+			if (instruction is ISupportsVolatilePrefix volatilePrefix)
+				return volatilePrefix.IsVolatile;
+			return false;
+		}
 	}
 }

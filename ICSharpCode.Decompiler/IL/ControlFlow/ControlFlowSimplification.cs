@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2014 Daniel Grunwald
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -47,7 +47,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				context.CancellationToken.ThrowIfCancellationRequested();
 
-				RemoveNopInstructions(block);
+				RemoveNopInstructions(block, context);
 				RemoveDeadStackStores(block, context);
 
 				InlineVariableInReturnBlock(block, context);
@@ -59,7 +59,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			CleanUpEmptyBlocks(function, context);
 		}
 
-		private static void RemoveNopInstructions(Block block)
+		private static void RemoveNopInstructions(Block block, ILTransformContext context)
 		{
 			// Move ILRanges of special nop instructions to the previous non-nop instruction.
 			for (int i = block.Instructions.Count - 1; i > 0; i--)
@@ -67,6 +67,15 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				if (block.Instructions[i] is Nop nop && nop.Kind == NopKind.Pop)
 				{
 					block.Instructions[i - 1].AddILRange(nop);
+					if (context.CalculateILSpans)
+						block.Instructions[i - 1].ILSpans.AddRange(nop.ILSpans);
+				}
+			}
+
+			for (var i = 0; i < block.Instructions.Count; i++) {
+				if (block.Instructions[i] is Nop nop && nop.Kind == NopKind.Normal && context.CalculateILSpans)
+				{
+					ILSpanUtils.NopMergeILSpans(block, ref i);
 				}
 			}
 
@@ -88,11 +97,15 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					if (aggressive ? SemanticHelper.IsPure(stloc.Value.Flags) : IsSimple(stloc.Value))
 					{
 						Debug.Assert(SemanticHelper.IsPure(stloc.Value.Flags));
+						if (context.CalculateILSpans)
+							ILSpanUtils.AddILSpans(block, block.Instructions, i);
 						block.Instructions.RemoveAt(i++);
 					}
 					else
 					{
 						stloc.Value.AddILRange(stloc);
+						if (context.CalculateILSpans)
+							stloc.Value.ILSpans.AddRange(stloc.ILSpans);
 						stloc.ReplaceWith(stloc.Value);
 					}
 				}
@@ -119,7 +132,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			//   ret(v)
 			// (where 'v' has no other uses)
 			// Simplify these to a simple `ret(<inst>)` so that they match the release build version.
-			// 
+			//
 			if (block.Instructions.Count == 2 && block.Instructions[1].MatchReturn(out ILInstruction value))
 			{
 				var ret = (Leave)block.Instructions[1];
@@ -129,6 +142,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					context.Step("Inline variable in return block", block);
 					inst.AddILRange(ret.Value);
 					inst.AddILRange(block.Instructions[0]);
+					if (context.CalculateILSpans)
+					{
+						inst.ILSpans.AddRange(ret.Value.ILSpans);
+						inst.ILSpans.AddRange(block.Instructions[0].ILSpans);
+					}
 					ret.Value = inst;
 					block.Instructions.RemoveAt(0);
 				}
@@ -155,6 +173,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					var nextBranch = (Branch)targetBlock.Instructions[0];
 					branch.TargetBlock = nextBranch.TargetBlock;
 					branch.AddILRange(nextBranch);
+					if (context.CalculateILSpans) //TODO: verify
+						branch.ILSpans.AddRange(nextBranch.ILSpans);
 					if (targetBlock.IncomingEdgeCount == 0)
 						targetBlock.Instructions.Clear(); // mark the block for deletion
 					targetBlock = branch.TargetBlock;
@@ -165,7 +185,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					{
 						// Replace branches to 'return blocks' with the return instruction
 						context.Step("Replace branch to return with return", branch);
-						branch.ReplaceWith(targetBlock.Instructions[0].Clone());
+						var clonedReturn = targetBlock.Instructions[0].Clone();
+						if (context.CalculateILSpans)
+							clonedReturn.ILSpans.AddRange(branch.ILSpans);
+						branch.ReplaceWith(clonedReturn);
 					}
 					else if (branch.TargetContainer != branch.Ancestors.OfType<BlockContainer>().First())
 					{
@@ -267,6 +290,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 			block.Instructions.Remove(br);
 			block.Instructions.AddRange(targetBlock.Instructions);
+			if (context.CalculateILSpans)
+				block.Instructions[0].ILSpans.AddRange(br.ILSpans);
 			targetBlock.Instructions.Clear(); // mark targetBlock for deletion
 			return true;
 		}

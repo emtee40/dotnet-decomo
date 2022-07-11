@@ -197,6 +197,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				// Assign the ranges of the stloc instruction:
 				stloc.Value.AddILRange(stloc);
+				if (context.CalculateILSpans)
+					stloc.Value.ILSpans.AddRange(stloc.ILSpans);
 				// Remove the stloc instruction:
 				Debug.Assert(block.Instructions[pos] == stloc);
 				block.Instructions.RemoveAt(pos);
@@ -210,6 +212,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// Remove completely if the instruction has no effects
 					// (except for reading locals)
 					context.Step("Remove dead store without side effects", stloc);
+					if (context.CalculateILSpans)
+						ILSpanUtils.AddILSpans(block, block.Instructions, pos);
 					block.Instructions.RemoveAt(pos);
 					return true;
 				}
@@ -218,6 +222,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					context.Step("Remove dead store, but keep expression", stloc);
 					// Assign the ranges of the stloc instruction:
 					stloc.Value.AddILRange(stloc);
+					if (context.CalculateILSpans)
+						stloc.Value.ILSpans.AddRange(stloc.ILSpans);
 					// Remove the stloc, but keep the inner expression
 					stloc.ReplaceWith(stloc.Value);
 					return true;
@@ -263,6 +269,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step($"Inline variable '{v.Name}'", inlinedExpression);
 				// Assign the ranges of the ldloc instruction:
 				inlinedExpression.AddILRange(loadInst);
+				if (context.CalculateILSpans)
+					loadInst.AddSelfAndChildrenRecursiveILSpans(inlinedExpression.ILSpans);
 
 				if (loadInst.OpCode == OpCode.LdLoca)
 				{

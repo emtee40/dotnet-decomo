@@ -18,6 +18,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using dnSpy.Contracts.Decompiler;
@@ -46,6 +47,10 @@ namespace ICSharpCode.Decompiler.IL
 				SetChildInstruction(ref this.tryBlock, value, 0);
 			}
 		}
+
+		public override bool SafeToAddToEndILSpans {
+			get { return false; }
+		}
 	}
 
 	/// <summary>
@@ -68,6 +73,7 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			var clone = new TryCatch(TryBlock.Clone());
 			clone.AddILRange(this);
+			clone.ILSpans.AddRange(ILSpans);
 			clone.Handlers.AddRange(this.Handlers.Select(h => (TryCatchHandler)h.Clone()));
 			return clone;
 		}
@@ -168,6 +174,30 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		public List<ILSpan> endILSpans = new List<ILSpan>(1);
+
+		public override List<ILSpan> EndILSpans {
+			get { return endILSpans; }
+		}
+
+		public override ILSpan GetAllILSpans(ref long index, ref bool done) {
+			if (index < ILSpans.Count)
+				return ILSpans[(int)index++];
+			int i = (int)index - ILSpans.Count;
+			if (i < StlocILSpans.Count) {
+				index++;
+				return StlocILSpans[i];
+			}
+			done = true;
+			return default(ILSpan);
+		}
+
+		public override bool SafeToAddToEndILSpans {
+			get { return true; }
+		}
+
+		public List<ILSpan> StlocILSpans = new List<ILSpan>(1);
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
@@ -218,7 +248,9 @@ namespace ICSharpCode.Decompiler.IL
 
 		public override ILInstruction Clone()
 		{
-			return new TryFinally(TryBlock.Clone(), finallyBlock.Clone()).WithILRange(this);
+			TryFinally tryFinally = new TryFinally(TryBlock.Clone(), finallyBlock.Clone());
+			tryFinally.ILSpans.AddRange(ILSpans);
+			return tryFinally.WithILRange(this);
 		}
 
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
@@ -315,7 +347,9 @@ namespace ICSharpCode.Decompiler.IL
 
 		public override ILInstruction Clone()
 		{
-			return new TryFault(TryBlock.Clone(), faultBlock.Clone()).WithILRange(this);
+			TryFault tryFault = new TryFault(TryBlock.Clone(), faultBlock.Clone());
+			tryFault.ILSpans.AddRange(ILSpans);
+			return tryFault.WithILRange(this);
 		}
 
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)

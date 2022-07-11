@@ -20,6 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+
+using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
@@ -651,8 +653,18 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			{
 				RemoveCompilerGeneratedAttribute(propertyDeclaration.Getter.Attributes);
 				RemoveCompilerGeneratedAttribute(propertyDeclaration.Setter.Attributes);
+				var getterMM = propertyDeclaration.Getter.Body.Annotation<MethodDebugInfoBuilder>();
+				var setterMM = propertyDeclaration.Setter.Body.Annotation<MethodDebugInfoBuilder>();
+				if (getterMM != null)
+					propertyDeclaration.Getter.AddAnnotation(getterMM);
+				if (setterMM != null)
+					propertyDeclaration.Setter.AddAnnotation(setterMM);
 				propertyDeclaration.Getter.Body = null;
 				propertyDeclaration.Setter.Body = null;
+				if (property.Getter?.HasBody == true)
+					propertyDeclaration.Getter.AddAnnotation(new List<ILSpan> { new ILSpan(0, (uint)property.MetadataToken.GetMethod.Body.GetCodeSize()) });
+				if (property.Setter?.HasBody == true)
+					propertyDeclaration.Setter.AddAnnotation(new List<ILSpan> { new ILSpan(0, (uint)property.MetadataToken.SetMethod.Body.GetCodeSize()) });
 				propertyDeclaration.Modifiers &= ~Modifiers.Readonly;
 				propertyDeclaration.Getter.Modifiers &= ~Modifiers.Readonly;
 
@@ -1071,6 +1083,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 
 			ev.ReplaceWith(ed);
+			ev.AddAllRecursiveILSpansTo(ed);
 			return ed;
 		}
 		#endregion
@@ -1103,6 +1116,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				dd.CopyAnnotationsFrom(methodDef);
 				dd.Modifiers = methodDef.Modifiers & ~(Modifiers.Protected | Modifiers.Override);
 				dd.Body = m.Get<BlockStatement>("body").Single().Detach();
+				dd.AddAnnotation(methodDef.Annotation<MethodDebugInfoBuilder>());
 				if (currentTypeDefinition is null)
 					dd.NameToken = Identifier.Null;
 				else

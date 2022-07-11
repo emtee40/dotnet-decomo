@@ -47,6 +47,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		public CancellationToken CancellationToken { get; set; }
 		public Stepper Stepper { get; set; }
 		public Metadata.PEFile PEFile => TypeSystem.MainModule.PEFile;
+		public bool CalculateILSpans { get; set; }
 
 		internal DecompileRun? DecompileRun { get; set; }
 		internal ResolvedUsingScope? UsingScope => DecompileRun?.UsingScope.Resolve(TypeSystem);

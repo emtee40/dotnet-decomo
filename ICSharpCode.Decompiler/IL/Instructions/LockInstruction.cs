@@ -29,6 +29,10 @@ namespace ICSharpCode.Decompiler.IL
 {
 	partial class LockInstruction
 	{
+		public override bool SafeToAddToEndILSpans {
+			get { return false; }
+		}
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);

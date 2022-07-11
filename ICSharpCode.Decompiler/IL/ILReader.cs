@@ -396,6 +396,7 @@ namespace ICSharpCode.Decompiler.IL
 				}
 			}
 
+			int dupStart = -1;
 			while (nextInstructionIndex < body.Instructions.Count) {
 				cancellationToken.ThrowIfCancellationRequested();
 				int start = (int)body.Instructions[nextInstructionIndex].Offset;
@@ -416,7 +417,28 @@ namespace ICSharpCode.Decompiler.IL
 				decodedInstruction.CheckInvariant(ILPhase.InILReader);
 				int end = currentInstruction.GetEndOffset();
 				decodedInstruction.AddILRange(new Interval(start, end));
-				UnpackPush(decodedInstruction).AddILRange(decodedInstruction);
+
+				var unpacked = UnpackPush(decodedInstruction);
+				unpacked.AddILRange(decodedInstruction);
+
+				//if (context.CalculateILSpans) {
+				if (true)
+				{
+					var endOffset = currentInstruction.Offset + (uint)currentInstruction.GetSize();
+					if (currentInstruction.OpCode.Code == Code.Dup) {
+						if (dupStart < 0)
+							dupStart = start;
+					}
+					else {
+						if (dupStart < 0)
+							unpacked.ILSpans.Add(new ILSpan((uint)start, endOffset - currentInstruction.Offset));
+						else {
+							unpacked.ILSpans.Add(new ILSpan((uint)dupStart, endOffset - (uint)dupStart));
+							dupStart = -1;
+						}
+					}
+				}
+
 				instructionBuilder.Add(decodedInstruction);
 				if (decodedInstruction.HasDirectFlag(InstructionFlags.EndPointUnreachable))
 				{

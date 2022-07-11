@@ -20,6 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.IL;
@@ -256,6 +258,119 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (annotation != null)
 				node.AddAnnotation(annotation);
 			return node;
+		}
+	}
+
+	public static class ILSpanAnnotationExtensions
+	{
+		public static void AddAllRecursiveILSpansTo(this AstNode node, AstNode target)
+		{
+			if (node is null)
+				return;
+			var ilSpans = node.GetAllRecursiveILSpans();
+			if (ilSpans.Count > 0)
+				target.AddAnnotation(ilSpans);
+		}
+
+		public static void AddAllRecursiveILSpansTo(this IEnumerable<AstNode> nodes, AstNode target)
+		{
+			if (nodes is null)
+				return;
+			var ilSpans = nodes.GetAllRecursiveILSpans();
+			if (ilSpans.Count > 0)
+				target.AddAnnotation(ilSpans);
+		}
+
+		public static List<ILSpan> GetAllRecursiveILSpans(this AstNode node)
+		{
+			if (node is null)
+				return new List<ILSpan>();
+
+			var ilSpans = new List<ILSpan>();
+			foreach (var d in node.DescendantsAndSelf)
+				d.GetAllILSpans(ilSpans);
+			return ilSpans;
+		}
+
+		public static List<ILSpan> GetAllRecursiveILSpans(this IEnumerable<AstNode> nodes)
+		{
+			if (nodes is null)
+				return new List<ILSpan>();
+
+			var ilSpans = new List<ILSpan>();
+			foreach (var node in nodes)
+			{
+				foreach (var d in node.DescendantsAndSelf)
+					d.GetAllILSpans(ilSpans);
+			}
+			return ilSpans;
+		}
+
+		public static List<ILSpan> GetAllILSpans(this AstNode node)
+		{
+			if (node is null)
+				return new List<ILSpan>();
+
+			var ilSpans = new List<ILSpan>();
+			node.GetAllILSpans(ilSpans);
+			return ilSpans;
+		}
+
+		static void GetAllILSpans(this AstNode node, List<ILSpan> ilSpans)
+		{
+			if (node is null)
+				return;
+			if (node is BlockStatement block)
+			{
+				ilSpans.AddRange(block.HiddenStart.GetAllRecursiveILSpans());
+				ilSpans.AddRange(block.HiddenEnd.GetAllRecursiveILSpans());
+			}
+			if (node is ForeachStatement fe)
+			{
+				ilSpans.AddRange(fe.HiddenInitializer.GetAllRecursiveILSpans());
+				ilSpans.AddRange(fe.HiddenGetCurrentNode.GetAllRecursiveILSpans());
+				ilSpans.AddRange(fe.HiddenMoveNextNode.GetAllRecursiveILSpans());
+				ilSpans.AddRange(fe.HiddenGetEnumeratorNode.GetAllRecursiveILSpans());
+			}
+			if (node is SwitchStatement sw)
+				ilSpans.AddRange(sw.HiddenEnd.GetAllRecursiveILSpans());
+			foreach (var ann in node.Annotations)
+			{
+				if (ann is IList<ILSpan> list)
+					ilSpans.AddRange(list);
+			}
+		}
+
+		public static AstNode CreateHidden(List<ILSpan> list, AstNode stmt)
+		{
+			if (list is null || list.Count == 0)
+				return stmt;
+			stmt ??= new EmptyStatement();
+			stmt.AddAnnotation(list);
+			return stmt;
+		}
+
+		public static AstNode CreateHidden(AstNode stmt, params AstNode[] otherNodes)
+		{
+			var list = new List<ILSpan>();
+			foreach (var node in otherNodes)
+			{
+				if (node is null)
+					continue;
+				list.AddRange(node.GetAllRecursiveILSpans());
+			}
+			if (list.Count > 0)
+			{
+				stmt ??= new EmptyStatement();
+				stmt.AddAnnotation(list);
+			}
+			return stmt;
+		}
+
+		public static void RemoveAllILSpansRecursive(this AstNode node)
+		{
+			foreach (var d in node.DescendantsAndSelf)
+				d.RemoveAnnotations<IList<ILSpan>>();
 		}
 	}
 
