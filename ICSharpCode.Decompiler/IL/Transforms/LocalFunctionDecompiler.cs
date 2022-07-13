@@ -116,7 +116,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (compatibleArgument == null)
 					continue;
 				context.Step($"Replace 'this' with {compatibleArgument}", localFunction);
-				localFunction.AcceptVisitor(new DelegateConstruction.ReplaceDelegateTargetVisitor(compatibleArgument, thisVar));
+				localFunction.AcceptVisitor(new DelegateConstruction.ReplaceDelegateTargetVisitor(compatibleArgument, thisVar, context.CalculateILSpans));
 				DetermineCaptureAndDeclarationScope(info, -1, compatibleArgument);
 			}
 		}
@@ -271,7 +271,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						if (compatibleArgument == null)
 							continue;
 						context.Step($"Replace '{targetVariable}' with '{compatibleArgument}'", info.Definition);
-						info.Definition.AcceptVisitor(new DelegateConstruction.ReplaceDelegateTargetVisitor(compatibleArgument, targetVariable));
+						info.Definition.AcceptVisitor(new DelegateConstruction.ReplaceDelegateTargetVisitor(compatibleArgument, targetVariable, context.CalculateILSpans));
 					}
 				}
 				finally
@@ -642,9 +642,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			replacement.IsTail = useSite.IsTail;
 			// copy IL ranges
 			replacement.AddILRange(useSite);
+			replacement.ILSpans.AddRange(useSite.ILSpans);
 			if (wasInstanceCall)
 			{
 				replacement.AddILRange(useSite.Arguments[0]);
+				replacement.ILSpans.AddRange(useSite.Arguments[0].ILSpans);
 				if (useSite.Arguments[0].MatchLdLocRef(out var variable) && variable.Kind == VariableKind.NamedArgument)
 				{
 					// remove the store instruction of the simple load, if it is a named argument.
@@ -654,6 +656,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 			for (int i = 0; i < reducedMethod.NumberOfCompilerGeneratedParameters; i++)
 			{
+				replacement.ILSpans.AddRange(useSite.Arguments[argumentCount - i - 1].ILSpans);
 				replacement.AddILRange(useSite.Arguments[argumentCount - i - 1]);
 			}
 			useSite.ReplaceWith(replacement);

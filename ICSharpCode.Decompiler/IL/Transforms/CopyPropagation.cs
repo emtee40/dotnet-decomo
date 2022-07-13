@@ -74,6 +74,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						{
 							// no-op -> delete
 							context.Step("remove dead store to stack: no-op -> delete", block.Instructions[i]);
+							if (context.CalculateILSpans)
+								ILSpanUtils.AddILSpans(block, block.Instructions, i);
 							block.Instructions.RemoveAt(i);
 							// This can open up new inlining opportunities:
 							int c = ILInlining.InlineInto(block, i, InliningOptions.None, context: context);
@@ -84,6 +86,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 							// evaluate the value for its side-effects
 							context.Step("remove dead store to stack: evaluate the value for its side-effects", block.Instructions[i]);
 							copiedExpr.AddILRange(block.Instructions[i]);
+							if (context.CalculateILSpans)
+								copiedExpr.ILSpans.AddRange(block.Instructions[i].ILSpans);
 							block.Instructions[i] = copiedExpr;
 						}
 					}
@@ -165,6 +169,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					clone.Children[j].ReplaceWith(new LdLoc(uninlinedArgs[j]));
 				}
 				expr.ReplaceWith(clone);
+			}
+			if (context.CalculateILSpans)
+			{
+				ILSpanUtils.AddILSpans(block, block.Instructions, i, block.Instructions[i].ILSpans);
+				ILSpanUtils.AddILSpans(block, block.Instructions, i, copiedExpr.ILSpans);
 			}
 			block.Instructions.RemoveAt(i);
 			int c = ILInlining.InlineInto(block, i, InliningOptions.None, context: context);

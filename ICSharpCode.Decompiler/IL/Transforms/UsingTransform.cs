@@ -100,10 +100,17 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("UsingTransform", tryFinally);
 			storeInst.Variable.Kind = VariableKind.UsingLocal;
-			block.Instructions.RemoveAt(i + 1);
-			block.Instructions[i] = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock) {
+
+			UsingInstruction usingInstr = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock) {
 				IsRefStruct = context.Settings.IntroduceRefModifiersOnStructs && storeInst.Variable.Type.Kind == TypeKind.Struct && storeInst.Variable.Type.IsByRefLike
 			}.WithILRange(storeInst);
+			if (context.CalculateILSpans)
+			{
+				usingInstr.ILSpans.AddRange(storeInst.ILSpans);
+				usingInstr.Body.EndILSpans.AddRange(container.GetSelfAndChildrenRecursiveILSpans());
+			}
+			block.Instructions.RemoveAt(i + 1);
+			block.Instructions[i] = usingInstr;
 			return true;
 		}
 
@@ -155,8 +162,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("UsingTransformVB", tryFinally);
 			storeInst.Variable.Kind = VariableKind.UsingLocal;
+			UsingInstruction usingInstr = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock);
+			if (context.CalculateILSpans)
+			{
+				usingInstr.ILSpans.AddRange(storeInst.ILSpans);
+				usingInstr.Body.EndILSpans.AddRange(container.GetSelfAndChildrenRecursiveILSpans());
+			}
 			tryContainer.EntryPoint.Instructions.RemoveAt(0);
-			block.Instructions[i] = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock);
+			block.Instructions[i] = usingInstr;
 			return true;
 		}
 
@@ -337,7 +350,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				}
 				else if (objVar.Type.Kind == TypeKind.Struct && objVar.Type.IsByRefLike)
 				{
-					if (!(checkInst is Call call && call.Method.DeclaringType == objVar.Type))
+					if (!(checkInst is Call call && call.Method.DeclaringType.Equals(objVar.Type)))
 						return false;
 					target = call.Arguments.FirstOrDefault();
 					if (target == null)
@@ -414,18 +427,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// 		call Use(ldloc test)
 		/// 		leave IL_002b (nop)
 		/// 	}
-		/// 
+		///
 		/// } finally BlockContainer {
 		/// 	Block IL_0045 (incoming: 1) {
 		/// 		if (comp.o(ldloc test == ldnull)) leave IL_0045 (nop)
 		/// 		br IL_00ae
 		/// 	}
-		/// 
+		///
 		/// 	Block IL_00ae (incoming: 1) {
 		/// 		await(addressof System.Threading.Tasks.ValueTask(callvirt DisposeAsync(ldloc test)))
 		/// 		leave IL_0045 (nop)
 		/// 	}
-		/// 
+		///
 		/// }
 		/// </summary>
 		private bool TransformAsyncUsing(Block block, int i)
@@ -450,9 +463,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("AsyncUsingTransform", tryFinally);
 			storeInst.Variable.Kind = VariableKind.UsingLocal;
-			block.Instructions.RemoveAt(i);
-			block.Instructions[i - 1] = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock) { IsAsync = true }
+			UsingInstruction usingInstr = new UsingInstruction(storeInst.Variable, storeInst.Value, tryFinally.TryBlock) { IsAsync = true }
 				.WithILRange(storeInst);
+			if (context.CalculateILSpans)
+			{
+				usingInstr.Body.EndILSpans.AddRange(container.GetSelfAndChildrenRecursiveILSpans());
+			}
+			block.Instructions.RemoveAt(i);
+			block.Instructions[i - 1] = usingInstr;
 			return true;
 		}
 

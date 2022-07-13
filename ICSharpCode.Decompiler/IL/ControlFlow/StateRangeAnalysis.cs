@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2012 AlphaSierraPapa for the SharpDevelop Team
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -44,7 +44,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 	/// Assumption: there are no loops/backward jumps
 	/// We 'run' the code, with "state" being a symbolic variable
 	/// so it can form expressions like "state + x" (when there's a sub instruction)
-	/// 
+	///
 	/// For each block, we maintain the set of values for state for which the block is reachable.
 	/// This is (int.MinValue, int.MaxValue) for the first instruction.
 	/// These ranges are propagated depending on the conditional jumps performed by the code.
@@ -101,7 +101,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 		/// <returns>
 		/// The set of states for which the exit point of the instruction is reached.
 		/// This must be a subset of the input set.
-		/// 
+		///
 		/// Returns an empty set for unsupported instructions.
 		/// </returns>
 		public LongSet AssignStateRanges(ILInstruction inst, LongSet stateRange)
@@ -200,7 +200,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				case StObj stobj when mode == StateRangeAnalysisMode.IteratorMoveNext:
 				{
 					if (stobj.MatchStFld(out var target, out var field, out var value)
-						&& target.MatchLdThis() && field.MemberDefinition == stateField && value.MatchLdcI4(-1))
+						&& target.MatchLdThis() && Equals(field.MemberDefinition, stateField) && value.MatchLdcI4(-1))
 					{
 						// Mono resets the state field during MoveNext();
 						// don't consider this user code.
@@ -231,7 +231,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 		/// <summary>
 		/// Gets a mapping from states to blocks.
-		/// 
+		///
 		/// Within the given container (which should be the container that was analyzed),
 		/// the mapping prefers the last block.
 		/// Blocks outside of the given container are preferred over blocks within the container.

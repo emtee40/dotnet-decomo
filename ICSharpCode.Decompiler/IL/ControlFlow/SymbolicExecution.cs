@@ -133,7 +133,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (Eval(target).Type != SymbolicValueType.This)
 					return Failed;
-				if (field.MemberDefinition != stateField)
+				if (!Equals(field.MemberDefinition, stateField))
 					return Failed;
 				return new SymbolicValue(SymbolicValueType.State);
 			}

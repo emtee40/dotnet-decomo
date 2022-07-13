@@ -110,6 +110,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step($"stobj(ldloca {v.Name}, ...) => stloc {v.Name}(...)", inst);
 				ILInstruction replacement = new StLoc(v, inst.Value).WithILRange(inst);
+				if (context.CalculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 				if (v.StackType == StackType.Unknown && inst.Type.Kind != TypeKind.Unknown
 					&& inst.SlotInfo != Block.InstructionSlot)
 				{
@@ -138,6 +140,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step($"ldobj(ldloca {v.Name}) => ldloc {v.Name}", inst);
 				ILInstruction replacement = new LdLoc(v).WithILRange(inst);
+				if (context.CalculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 				if (v.StackType == StackType.Unknown && inst.Type.Kind != TypeKind.Unknown)
 				{
 					replacement = new Conv(replacement, inst.Type.ToPrimitiveType(),

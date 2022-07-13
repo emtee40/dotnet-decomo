@@ -806,7 +806,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (branch.TargetBlock == exitTargetBlock)
 				{
-					branch.ReplaceWith(new Leave(switchContainer).WithILRange(branch));
+					Leave leave = new Leave(switchContainer).WithILRange(branch);
+					if (context.CalculateILSpans)
+						leave.ILSpans.AddRange(branch.ILSpans);
+					branch.ReplaceWith(leave);
 				}
 			}
 

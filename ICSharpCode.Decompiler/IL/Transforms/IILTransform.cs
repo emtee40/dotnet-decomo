@@ -68,6 +68,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			this.DecompileRun = context.DecompileRun;
 			this.CancellationToken = context.CancellationToken;
 			this.Stepper = context.Stepper;
+			this.CalculateILSpans = context.CalculateILSpans;
 		}
 
 		/// <summary>

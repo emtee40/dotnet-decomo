@@ -206,7 +206,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var nestedContext = new ILTransformContext(context, function);
 			function.RunTransforms(CSharpDecompiler.GetILTransforms().TakeWhile(t => !(t is DelegateConstruction)).Concat(GetTransforms()), nestedContext);
 			nestedContext.Step("DelegateConstruction (ReplaceDelegateTargetVisitor)", function);
-			function.AcceptVisitor(new ReplaceDelegateTargetVisitor(target, function.Variables.SingleOrDefault(VariableKindExtensions.IsThis)));
+			function.AcceptVisitor(new ReplaceDelegateTargetVisitor(target, function.Variables.SingleOrDefault(VariableKindExtensions.IsThis), context.CalculateILSpans));
 			// handle nested lambdas
 			nestedContext.StepStartGroup("DelegateConstruction (nested lambdas)", function);
 			((IILTransform)this).Run(function, nestedContext);
@@ -266,11 +266,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			readonly ILVariable thisVariable;
 			readonly ILInstruction target;
+			readonly bool calculateILSpans;
 
-			public ReplaceDelegateTargetVisitor(ILInstruction target, ILVariable thisVariable)
+			public ReplaceDelegateTargetVisitor(ILInstruction target, ILVariable thisVariable, bool calculateILSpans)
 			{
 				this.target = target;
 				this.thisVariable = thisVariable;
+				this.calculateILSpans = calculateILSpans;
 			}
 
 			protected override void Default(ILInstruction inst)
@@ -311,7 +313,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				if (inst.Variable == thisVariable)
 				{
-					inst.ReplaceWith(target.Clone());
+					ILInstruction newTarget = target.Clone();
+					if (calculateILSpans) {
+						newTarget.ILSpans.Clear();
+						newTarget.ILSpans.AddRange(inst.ILSpans);
+					}
+					inst.ReplaceWith(newTarget);
 					return;
 				}
 				base.VisitLdLoc(inst);
@@ -321,7 +328,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				if (inst.Target.MatchLdLoca(thisVariable))
 				{
-					inst.ReplaceWith(target.Clone());
+					ILInstruction newTarget = target.Clone();
+					if (calculateILSpans) {
+						newTarget.ILSpans.Clear();
+						newTarget.ILSpans.AddRange(inst.ILSpans);
+					}
+					inst.ReplaceWith(newTarget);
 					return;
 				}
 				base.VisitLdObj(inst);

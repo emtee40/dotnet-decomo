@@ -89,7 +89,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						// on statement level (no other expressions on IL stack),
 						// prefer to keep local variables (but not stack slots),
-						// unless we are in a constructor (where inlining object initializers might be 
+						// unless we are in a constructor (where inlining object initializers might be
 						// critical for the base ctor call)
 						return false;
 					}
@@ -423,7 +423,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (resolveContext == null)
 				return true;
 			var lookup = new MemberLookup(resolveContext.CurrentTypeDefinition, resolveContext.CurrentModule);
-			return lookup.IsAccessible(setter, allowProtectedAccess: setter.DeclaringTypeDefinition == resolveContext.CurrentTypeDefinition);
+			return lookup.IsAccessible(setter, allowProtectedAccess: Equals(setter.DeclaringTypeDefinition, resolveContext.CurrentTypeDefinition));
 		}
 
 		static bool IsMethodApplicable(IMethod method, IReadOnlyList<ILInstruction> arguments, IType rootType, CSharpTypeResolveContext resolveContext, DecompilerSettings settings)

@@ -27,6 +27,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			IEnumerable<ParameterDeclaration> parameters,
 			bool valueParameterIsKeyword,
 			StringBuilder sb,
+			EntityDeclaration entityDeclaration,
 			out MethodDebugInfoBuilder stmtsBuilder,
 			out ILFunction function)
 		{
@@ -38,6 +39,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				var body = BlockStatement.Null;
 				function = ilReader.ReadIL(methodDef, cancellationToken: context.CancellationToken);
 				function.CheckInvariant(ILPhase.Normal);
+
+				AddAnnotationsToDeclaration(tsMethod, entityDeclaration, function);
 
 				var localSettings = context.Settings.Clone();
 				if (IsWindowsFormsInitializeComponentMethod(tsMethod))
@@ -102,6 +105,19 @@ namespace ICSharpCode.Decompiler.CSharp
 			} catch (Exception ex) {
 				throw new DecompilerException((IDnlibDef)methodDef, ex);
 			}
+		}
+
+		internal static void AddAnnotationsToDeclaration(ICSharpCode.Decompiler.TypeSystem.IMethod method, EntityDeclaration entityDecl, ILFunction function)
+		{
+			int i = 0;
+			var parameters = function.Variables.Where(v => v.Kind == VariableKind.Parameter).ToDictionary(v => v.Index);
+			foreach (var parameter in entityDecl.GetChildrenByRole(Roles.Parameter))
+			{
+				if (parameters.TryGetValue(i, out var v))
+					parameter.AddAnnotation(new ILVariableResolveResult(v, method.Parameters[i].Type));
+				i++;
+			}
+			entityDecl.AddAnnotation(function);
 		}
 
 		internal static bool IsWindowsFormsInitializeComponentMethod(ICSharpCode.Decompiler.TypeSystem.IMethod method)

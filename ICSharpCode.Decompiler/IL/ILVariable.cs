@@ -515,7 +515,7 @@ namespace ICSharpCode.Decompiler.IL
 						: new SourceParameter(OriginalParameter, Name, GetVariableType(), GetSourceVariableFlags()), null);
 			return (SourceParameter)sourceParamOrLocal;
 		}
-		internal object sourceParamOrLocal;
+		internal object? sourceParamOrLocal;
 
 		public object GetTextReferenceObject() {
 			if (OriginalParameter != null)

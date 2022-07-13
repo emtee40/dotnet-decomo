@@ -128,7 +128,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				this.PotentialExits = (currentExit == ExitNotYetDetermined ? new List<ILInstruction>() : null);
 			}
 
-			public void HandleExit(ILInstruction inst)
+			public void HandleExit(ILInstruction inst, bool calculateILSpans)
 			{
 				if (this.CurrentExit == ExitNotYetDetermined && this.Container.LeaveCount == 0)
 				{
@@ -137,19 +137,22 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				else if (CompatibleExitInstruction(inst, this.CurrentExit))
 				{
 					Leave replacement = new Leave(this.Container).WithILRange(inst);
-					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					if (calculateILSpans)
+						inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 					inst.ReplaceWith(replacement);
 				}
 			}
 		}
 
 		CancellationToken cancellationToken;
+		bool calculateILSpans;
 		readonly List<Block> blocksPotentiallyMadeUnreachable = new List<Block>();
 		readonly Stack<ContainerContext> containerStack = new Stack<ContainerContext>();
 
 		public void Run(ILFunction function, ILTransformContext context)
 		{
 			cancellationToken = context.CancellationToken;
+			calculateILSpans = context.CalculateILSpans;
 			blocksPotentiallyMadeUnreachable.Clear();
 			containerStack.Clear();
 			function.AcceptVisitor(this);
@@ -196,7 +199,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					if (exit.IsConnected && CompatibleExitInstruction(newExit, exit))
 					{
 						Leave replacement = new Leave(container).WithILRange(exit);
-						exit.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+						if (calculateILSpans)
+							exit.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 						exit.ReplaceWith(replacement);
 					}
 				}
@@ -261,7 +265,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (inst.TargetBlock.IsDescendantOf(entry.Container))
 					break;
-				entry.HandleExit(inst);
+				entry.HandleExit(inst, calculateILSpans);
 			}
 		}
 
@@ -287,13 +291,13 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					else
 					{
 						// return; could turn to break;
-						entry.HandleExit(inst);
+						entry.HandleExit(inst, calculateILSpans);
 						break; // but only for the innermost loop/switch
 					}
 				}
 				else
 				{
-					entry.HandleExit(inst);
+					entry.HandleExit(inst, calculateILSpans);
 				}
 			}
 		}

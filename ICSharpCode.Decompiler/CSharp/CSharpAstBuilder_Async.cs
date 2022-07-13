@@ -75,7 +75,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 					if (result.IlFunction is not null)
 					{
-						AddAnnotationsToDeclaration(result.IlFunction.Method, result.MethodNode, result.IlFunction);
+						//AddAnnotationsToDeclaration(result.IlFunction.Method, result.MethodNode, result.IlFunction);
 						AddDefinesForConditionalAttributes(result.IlFunction);
 						CleanUpMethodDeclaration(result.MethodNode, result.Body, result.IlFunction);
 					}

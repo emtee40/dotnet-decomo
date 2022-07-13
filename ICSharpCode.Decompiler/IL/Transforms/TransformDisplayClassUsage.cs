@@ -65,7 +65,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				this.field = field;
 				this.declaredVariable = declaredVariable;
 
-				Debug.Assert(declaredVariable == null || declaredVariable.StateMachineField == field);
+				Debug.Assert(declaredVariable == null || Equals(declaredVariable.StateMachineField, field));
 			}
 
 			public void Propagate(ILVariable variable)
@@ -629,7 +629,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return null;
 			// Special case for Mono-compiled yield state machines
 			ITypeDefinition closureType = thisVariable.Type.GetDefinition();
-			if (!(closureType != decompilationContext.CurrentTypeDefinition
+			if (!((!Equals(closureType, decompilationContext.CurrentTypeDefinition))
 				&& IsPotentialClosure(decompilationContext.CurrentTypeDefinition, closureType, allowTypeImplementingInterfaces: true)))
 				return null;
 
@@ -645,7 +645,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!function.Method.IsStatic && FindThisField(out var thisField))
 			{
 				var thisVar = function.Variables
-									  .FirstOrDefault(t => t.IsThis() && t.Type.GetDefinition() == decompilationContext.CurrentTypeDefinition);
+									  .FirstOrDefault(t => t.IsThis() && Equals(t.Type.GetDefinition(), decompilationContext.CurrentTypeDefinition));
 				if (thisVar == null)
 				{
 					thisVar = new ILVariable(VariableKind.Parameter, decompilationContext.CurrentTypeDefinition, -1) {
@@ -666,7 +666,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			bool FindThisField(out IField foundField)
 			{
 				foundField = null;
-				foreach (var field in closureType.GetFields(f2 => !f2.IsStatic && !displayClass.VariablesToDeclare.ContainsKey(f2) && f2.Type.GetDefinition() == decompilationContext.CurrentTypeDefinition))
+				foreach (var field in closureType.GetFields(f2 => !f2.IsStatic && !displayClass.VariablesToDeclare.ContainsKey(f2) && Equals(f2.Type.GetDefinition(), decompilationContext.CurrentTypeDefinition)))
 				{
 					thisField = field;
 					return true;
@@ -706,7 +706,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return false;
 			}
 
-			while (potentialDisplayClass != decompiledTypeDefinition)
+			while (!potentialDisplayClass.Equals(decompiledTypeDefinition))
 			{
 				potentialDisplayClass = potentialDisplayClass.DeclaringTypeDefinition;
 				if (potentialDisplayClass == null)
@@ -863,7 +863,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var v = displayClass.VariablesToDeclare[keyField];
 			context.Step($"Replace {field.Name} with captured variable {v.Name}", inst);
 			ILVariable variable = v.GetOrDeclare();
-			inst.ReplaceWith(new LdLoca(variable).WithILRange(inst));
+			LdLoca replacement = new LdLoca(variable).WithILRange(inst);
+			if (context.CalculateILSpans)
+				inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			inst.ReplaceWith(replacement);
 			// add captured variable to all descendant functions from the declaring function to this use-site function
 			foreach (var f in currentFunctions)
 			{

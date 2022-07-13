@@ -230,9 +230,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			IL.SwitchSection defaultSection = inst.GetDefaultSection();
 
 			var stmt = new SwitchStatement() { Expression = value };
-			if (decompileRun.Context.CalculateILSpans)
-				stmt.Expression.AddAnnotation(inst.ILSpans);
-			stmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(inst.EndILSpans), stmt.HiddenEnd);
 
 			Dictionary<IL.SwitchSection, Syntax.SwitchSection> translationDictionary = new Dictionary<IL.SwitchSection, Syntax.SwitchSection>();
 			// initialize C# switch sections.
@@ -291,6 +288,8 @@ namespace ICSharpCode.Decompiler.CSharp
 						if (astSection.CaseLabels.Count == 1 && astSection.CaseLabels.First().Expression.IsNull && leave.TargetContainer == switchContainer)
 						{
 							stmt.SwitchSections.Remove(astSection);
+							if (decompileRun.Context.CalculateILSpans)
+								leave.AddSelfAndChildrenRecursiveILSpans(inst.EndILSpans);
 							break;
 						}
 						goto default;
@@ -329,6 +328,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					lastSectionStatements.Add(new BreakStatement());
 				}
 			}
+
+			if (decompileRun.Context.CalculateILSpans)
+				stmt.Expression.AddAnnotation(inst.ILSpans);
+			stmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(inst.EndILSpans), stmt.HiddenEnd);
 
 			breakTarget = oldBreakTarget;
 			caseLabelMapping = oldCaseLabelMapping;
@@ -390,7 +393,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (inst.TargetContainer == currentReturnContainer)
 			{
 				if (currentIsIterator)
-					return new YieldBreakStatement().WithILInstruction(inst);
+					return new YieldBreakStatement().WithAnnotation(inst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin()).WithILInstruction(inst);
 				else if (!inst.Value.MatchNop())
 				{
 					var expr = exprBuilder.Translate(inst.Value, typeHint: currentResultType)
@@ -434,7 +437,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				.ConvertTo(elementType, exprBuilder, allowImplicitConversion: true);
 			return new YieldReturnStatement {
 				Expression = expr
-			}.WithILInstruction(inst);
+			}.WithAnnotation(inst.ILSpans).WithILInstruction(inst);
 		}
 
 		TryCatchStatement MakeTryCatch(ILInstruction tryBlock)
@@ -586,7 +589,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					usingInit = vds;
 				}
 				return new UsingStatement {
-					ResourceAcquisition = usingInit,
+					ResourceAcquisition = usingInit.WithAnnotation(inst.ILSpans),
 					IsAsync = inst.IsAsync,
 					EmbeddedStatement = ConvertAsBlock(inst.Body)
 				}.WithILInstruction(inst);
@@ -1246,6 +1249,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			else
 			{
 				var blockStmt = ConvertBlockContainer(container, false);
+				blockStmt.HiddenEnd =
+					ILSpanAnnotationExtensions.CreateHidden(container.EndILSpans, blockStmt.HiddenEnd);
 				return blockStmt.WithILInstruction(container);
 			}
 		}
@@ -1398,6 +1403,19 @@ namespace ICSharpCode.Decompiler.CSharp
 					{
 						method.Body.InsertChildAfter(prev, prev = new Comment(warning), Roles.Comment);
 					}
+
+					var stateMachineKind = StateMachineKind.None;
+					if (function.IsIterator)
+						stateMachineKind = StateMachineKind.IteratorMethod;
+					if (function.IsAsync)
+						stateMachineKind = StateMachineKind.AsyncMethod;
+
+					var param = function.Variables.Where(x => x.Kind == VariableKind.Parameter);
+					var moveNext = (dnlib.DotNet.MethodDef)function.MoveNextMethod?.MetadataToken;
+
+					var stmtsBuilder = new MethodDebugInfoBuilder(0, stateMachineKind, moveNext ?? function.DnlibMethod, moveNext is not null ? function.DnlibMethod : null,
+						CreateSourceLocals(function), CreateSourceParameters(param), null);
+					method.AddAnnotation(stmtsBuilder);
 				}
 				else
 				{
@@ -1412,6 +1430,36 @@ namespace ICSharpCode.Decompiler.CSharp
 				stmt.WithILInstruction(function);
 				return stmt;
 			}
+		}
+
+		static SourceLocal[] CreateSourceLocals(ILFunction function) {
+			// Does not work for Local functions, lambdas, and anything else which inlines a different method in the current one.
+			var dict = new Dictionary<dnlib.DotNet.Emit.Local, SourceLocal>();
+			foreach (var v in function.Variables) {
+				if (v.OriginalVariable is null)
+					continue;
+				if (dict.TryGetValue(v.OriginalVariable, out var existing))
+				{
+					v.sourceParamOrLocal = existing;
+				}
+				else
+				{
+					dict[v.OriginalVariable] = v.GetSourceLocal();
+				}
+			}
+			var array = dict.Values.ToArray();
+			//sourceLocalsList.Clear();
+			return array;
+		}
+
+		static SourceParameter[] CreateSourceParameters(IEnumerable<ILVariable> variables) {
+			List<SourceParameter> sourceParametersList = new List<SourceParameter>();
+			foreach (var v in variables) {
+				sourceParametersList.Add(v.GetSourceParameter());
+			}
+			var array = sourceParametersList.ToArray();
+			//sourceParametersList.Clear();
+			return array;
 		}
 
 		BlockStatement ConvertBlockContainer(BlockStatement blockStatement, BlockContainer container, IEnumerable<Block> blocks, bool isLoop)
@@ -1429,8 +1477,8 @@ namespace ICSharpCode.Decompiler.CSharp
 					{
 						// skip the final 'leave' instruction and just fall out of the BlockStatement
 						blockStatement.AddAnnotation(new ImplicitReturnAnnotation(leave));
-						blockStatement.HiddenEnd =
-							ILSpanAnnotationExtensions.CreateHidden(leave.ILSpans, blockStatement.HiddenEnd);
+						if (leave.IsLeavingFunction)
+							container.EndILSpans.AddRange(leave.ILSpans);
 						continue;
 					}
 					var stmt = Convert(inst);

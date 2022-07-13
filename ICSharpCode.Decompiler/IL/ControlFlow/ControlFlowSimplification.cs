@@ -72,10 +72,13 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 			}
 
-			for (var i = 0; i < block.Instructions.Count; i++) {
-				if (block.Instructions[i] is Nop nop && nop.Kind == NopKind.Normal && context.CalculateILSpans)
-				{
-					ILSpanUtils.NopMergeILSpans(block, ref i);
+			if (context.CalculateILSpans)
+			{
+				for (var i = 0; i < block.Instructions.Count; i++) {
+					if (block.Instructions[i] is Nop nop && nop.Kind == NopKind.Normal)
+					{
+						ILSpanUtils.NopMergeILSpans(block, ref i);
+					}
 				}
 			}
 

@@ -2355,6 +2355,19 @@ namespace ICSharpCode.Decompiler.CSharp
 				body.InsertChildAfter(prev, prev = new Comment(warning), Roles.Comment);
 			}
 
+			var stateMachineKind = StateMachineKind.None;
+			if (function.IsIterator)
+				stateMachineKind = StateMachineKind.IteratorMethod;
+			if (function.IsAsync)
+				stateMachineKind = StateMachineKind.AsyncMethod;
+
+			var param = function.Variables.Where(x => x.Kind == VariableKind.Parameter);
+			var moveNext = (dnlib.DotNet.MethodDef)function.MoveNextMethod?.MetadataToken;
+			var md = function.DnlibMethod;
+
+			var stmtsBuilder = new MethodDebugInfoBuilder(0, stateMachineKind, moveNext ?? md, moveNext is not null ? md : null,
+				CreateSourceLocals(function), CreateSourceParameters(param), null);
+
 			bool isLambda = false;
 			if (ame.Parameters.Any(p => p.Type.IsNull))
 			{
@@ -2374,6 +2387,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				select ident;
 			if (!isLambda && !parameterReferencingIdentifiers.Any())
 			{
+				ame.AddAnnotation(ame.Parameters.GetAllRecursiveILSpans());
 				ame.Parameters.Clear();
 				ame.HasParameterList = false;
 			}
@@ -2400,6 +2414,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 			else
 			{
+				ame.AddAnnotation(stmtsBuilder);
 				ame.Body = body;
 				inferredReturnType = InferReturnType(body);
 				replacement = ame;
@@ -2418,6 +2433,36 @@ namespace ICSharpCode.Decompiler.CSharp
 			TranslatedExpression translatedLambda = replacement.WithILInstruction(function).WithRR(rr);
 			return new CastExpression(ConvertType(delegateType), translatedLambda)
 				.WithRR(new ConversionResolveResult(delegateType, rr, LambdaConversion.Instance));
+		}
+
+		static SourceLocal[] CreateSourceLocals(ILFunction function) {
+			// Does not work for Local functions, lambdas, and anything else which inlines a different method in the current one.
+			var dict = new Dictionary<dnlib.DotNet.Emit.Local, SourceLocal>();
+			foreach (var v in function.Variables) {
+				if (v.OriginalVariable is null)
+					continue;
+				if (dict.TryGetValue(v.OriginalVariable, out var existing))
+				{
+					v.sourceParamOrLocal = existing;
+				}
+				else
+				{
+					dict[v.OriginalVariable] = v.GetSourceLocal();
+				}
+			}
+			var array = dict.Values.ToArray();
+			//sourceLocalsList.Clear();
+			return array;
+		}
+
+		static SourceParameter[] CreateSourceParameters(IEnumerable<ILVariable> variables) {
+			List<SourceParameter> sourceParametersList = new List<SourceParameter>();
+			foreach (var v in variables) {
+				sourceParametersList.Add(v.GetSourceParameter());
+			}
+			var array = sourceParametersList.ToArray();
+			//sourceParametersList.Clear();
+			return array;
 		}
 
 		protected internal override TranslatedExpression VisitILFunction(ILFunction function, TranslationContext context)

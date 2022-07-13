@@ -460,7 +460,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				new ILTransformContext(il, context.TypeSystem, context.Settings)
 				{
 					CancellationToken = context.CancellationToken,
-					DecompileRun = context.DecompileRun
+					DecompileRun = context.DecompileRun,
+					CalculateILSpans = context.CalculateILSpans
 				});
 			return il;
 		}
@@ -717,7 +718,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						}
 						body.EntryPoint.Instructions.RemoveAt(i--);
 					}
-					else if (ldflda.Field.MemberDefinition == stateField.MemberDefinition)
+					else if (Equals(ldflda.Field.MemberDefinition, stateField.MemberDefinition))
 					{
 						continue;
 					}
@@ -793,7 +794,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						else if (field.MemberDefinition.Equals(currentField))
 						{
 							// create yield return
-							newBlock.Instructions.Add(new YieldReturn(value).WithILRange(oldInst));
+							YieldReturn yieldReturn = new YieldReturn(value).WithILRange(oldInst);
+							oldInst.AddSelfAndChildrenRecursiveILSpans(yieldReturn.ILSpans);
+							newBlock.Instructions.Add(yieldReturn);
 							ConvertBranchAfterYieldReturn(newBlock, oldBlock, oldInst.ChildIndex + 1);
 							break; // we're done with this basic block
 						}
@@ -865,7 +868,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 				if (oldBlock.Instructions[pos].MatchStFld(out var target, out var field, out var value)
 					&& target.MatchLdThis()
-					&& field.MemberDefinition == stateField
+					&& Equals(field.MemberDefinition, stateField)
 					&& value.MatchLdcI4(out int newState))
 				{
 					pos++;
@@ -963,7 +966,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 							if (validYieldBreak)
 							{
 								// yield break
-								leave.ReplaceWith(new Leave(newBody).WithILRange(leave));
+								Leave yieldBreak = new Leave(newBody).WithILRange(leave);
+								leave.AddSelfAndChildrenRecursiveILSpans(yieldBreak.ILSpans);
+								leave.ReplaceWith(yieldBreak);
 							}
 							else
 							{

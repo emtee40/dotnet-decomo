@@ -329,7 +329,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					if (!getTaskArgs[0].MatchLdFlda(out target, out builderField2))
 						return false;
 				}
-				if (builderField2.MemberDefinition != builderField)
+				if (!Equals(builderField2.MemberDefinition, builderField))
 					return false;
 				if (!(target.MatchLdLoc(stateMachineVar) || target.MatchLdLoca(stateMachineVar)))
 					return false;
@@ -352,7 +352,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				// stloc stateMachine(newobj StateMachine.ctor())
 				if (!body[pos].MatchStLoc(stateMachineVar, out var init))
 					return false;
-				if (!(init is NewObj newobj && newobj.Arguments.Count == 0 && newobj.Method.DeclaringTypeDefinition == stateMachineType))
+				if (!(init is NewObj newobj && newobj.Arguments.Count == 0 && Equals(newobj.Method.DeclaringTypeDefinition, stateMachineType)))
 					return false;
 				pos++;
 			}
@@ -362,7 +362,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				// stfld StateMachine.field(ldloca stateMachine, ldvar(param))
 				if (!MatchStFld(body[pos], stateMachineVar, out var field, out var fieldInit))
 					return false;
-				if (field == builderField)
+				if (Equals(field, builderField))
 				{
 					// stfld StateMachine.builder(ldloca stateMachine, call Create())
 					if (!(fieldInit is Call { Method: { Name: "Create" }, Arguments: { Count: 0 } }))
@@ -525,7 +525,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			stateMachineType = newObj.Method.DeclaringTypeDefinition;
 			if (stateMachineType == null)
 				return false;
-			if (stateMachineType.DeclaringTypeDefinition != context.Function.Method.DeclaringTypeDefinition)
+			if (!Equals(stateMachineType.DeclaringTypeDefinition, context.Function.Method.DeclaringTypeDefinition))
 				return false;
 			return IsCompilerGeneratorAsyncEnumerator((TypeDef)stateMachineType.MetadataToken);
 		}
@@ -613,7 +613,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					throw new SymbolicAnalysisFailedException();
 				if (!target.MatchLdThis())
 					throw new SymbolicAnalysisFailedException();
-				if (field.MemberDefinition == stateField && cachedStateVar == null)
+				if (Equals(field.MemberDefinition, stateField) && cachedStateVar == null)
 				{
 					// stloc(cachedState, ldfld(valuetype StateMachineStruct::<>1__state, ldloc(this)))
 					cachedStateVar = stloc.Variable;
@@ -940,7 +940,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				if (!inst.MatchLdFlda(out target, out field))
 					return false;
 			}
-			return target.MatchLdThis() && field.MemberDefinition == builderField;
+			return target.MatchLdThis() && Equals(field.MemberDefinition, builderField);
 		}
 
 		bool IsBuilderOrPromiseFieldOnThis(ILInstruction inst)
@@ -960,7 +960,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// stfld(StateMachine::<>1__state, ldloc(this), ldc.i4(stateId))
 			if (inst.MatchStFld(out var target, out var field, out var value)
 				&& StackSlotValue(target).MatchLdThis()
-				&& field.MemberDefinition == stateField
+				&& Equals(field.MemberDefinition, stateField)
 				&& StackSlotValue(value).MatchLdcI4(out newState))
 			{
 				return true;
@@ -1166,7 +1166,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				return false;
 			if (!target.MatchLdThis())
 				return false;
-			if (field.MemberDefinition != disposeModeField)
+			if (!Equals(field.MemberDefinition, disposeModeField))
 				return false;
 			if (!value.MatchLdcI4(1))
 				return false;
@@ -1263,7 +1263,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (!inst.MatchLdFld(out var target, out var field))
 					return false;
-				return target.MatchLdThis() && field.MemberDefinition == disposeModeField;
+				return target.MatchLdThis() && Equals(field.MemberDefinition, disposeModeField);
 			}
 		}
 
@@ -1345,7 +1345,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				return false;
 			if (!StackSlotValue(target).MatchLdThis())
 				return false;
-			if (field.MemberDefinition != stateField)
+			if (!Equals(field.MemberDefinition, stateField))
 				return false;
 			if (!StackSlotValue(value).MatchLdcI4(out state))
 				return false;

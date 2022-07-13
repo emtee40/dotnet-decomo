@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2011-2016 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -78,7 +78,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			if (!storeInst.MatchStsFld(out IField field2, out ILInstruction value) || !field.Equals(field2) || !field.IsCompilerGeneratedOrIsInCompilerGeneratedClass())
 				return false;
-			if (!DelegateConstruction.MatchDelegateConstruction(value.UnwrapConv(ConversionKind.Invalid) as NewObj, out _, out _, out _, true))
+			NewObj newObj = value.UnwrapConv(ConversionKind.Invalid) as NewObj;
+			if (!DelegateConstruction.MatchDelegateConstruction(newObj, out _, out _, out _, true))
 				return false;
 			var nextInstruction = inst.Parent.Children.ElementAtOrDefault(inst.ChildIndex + 1);
 			if (nextInstruction == null)
@@ -87,6 +88,32 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (usages.Length != 1)
 				return false;
 			context.Step("CachedDelegateInitializationWithField", inst);
+			if (context.CalculateILSpans) {
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = inst.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					newObj.ILSpans.Add(b);
+				}
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
+				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
+
+				index = 0;
+				done = false;
+				for (;;) {
+					var b = inst.TrueInst.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					newObj.ILSpans.Add(b);
+				}
+				foreach (var instr in trueInst.Instructions.Skip(1))
+					instr.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
+				newObj.ILSpans.AddRange(storeInst.ILSpans);
+
+				newObj.ILSpans.AddRange(usages[0].ILSpans);
+			}
 			usages[0].ReplaceWith(value);
 			return true;
 		}

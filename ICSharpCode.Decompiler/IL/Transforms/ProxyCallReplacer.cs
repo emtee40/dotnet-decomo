@@ -111,6 +111,8 @@ using IMethod = ICSharpCode.Decompiler.TypeSystem.IMethod;
 			newInst.IsTail = call.IsTail & inst.IsTail;
 			// copy IL ranges
 			newInst.AddILRange(inst);
+			if (context.CalculateILSpans)
+				newInst.ILSpans.AddRange(call.ILSpans);
 			newInst.Arguments.ReplaceList(inst.Arguments);
 			inst.ReplaceWith(newInst);
 		}
@@ -119,7 +121,7 @@ using IMethod = ICSharpCode.Decompiler.TypeSystem.IMethod;
 		{
 			while (declaringTypeDefinition != null)
 			{
-				if (method.DeclaringTypeDefinition == declaringTypeDefinition)
+				if (Equals(method.DeclaringTypeDefinition, declaringTypeDefinition))
 					return true;
 				declaringTypeDefinition = declaringTypeDefinition.DeclaringTypeDefinition;
 			}

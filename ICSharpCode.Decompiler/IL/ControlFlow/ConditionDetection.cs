@@ -150,6 +150,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// The targetBlock was already processed, and is ready to embed
 			var targetBlock = ((Branch)exitInst).TargetBlock;
 			block.Instructions.RemoveAt(block.Instructions.Count - 1);
+
 			block.Instructions.AddRange(targetBlock.Instructions);
 			targetBlock.Remove();
 
@@ -238,7 +239,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// -> if (...) { ... } else { ... } blockExit;
 			context.Step("Remove redundant 'goto blockExit;' in then-branch", ifInst);
 			if (!(ifInst.TrueInst is Block trueBlock) || trueBlock.Instructions.Count == 1)
-				ifInst.TrueInst = new Nop().WithILRange(ifInst.TrueInst);
+			{
+				Nop newTrue = new Nop().WithILRange(ifInst.TrueInst);
+				newTrue.ILSpans.AddRange(ifInst.TrueInst.ILSpans);
+				ifInst.TrueInst = newTrue;
+			}
 			else
 				trueBlock.Instructions.RemoveAt(trueBlock.Instructions.Count - 1);
 

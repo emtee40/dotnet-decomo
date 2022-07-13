@@ -69,6 +69,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						}
 						else
 						{
+							if (context.CalculateILSpans)
+								stloc.Value.ILSpans.AddRange(stloc.ILSpans);
 							stloc.ReplaceWith(stloc.Value);
 						}
 						if (stloc.Value is LdLoc ldloc)

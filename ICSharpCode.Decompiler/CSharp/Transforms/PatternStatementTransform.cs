@@ -770,7 +770,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				var field = mrr?.Member as IField;
 				if (field != null && IsBackingFieldOfAutomaticProperty(field, out var property)
 					&& CanTransformToAutomaticProperty(property, !(field.IsCompilerGenerated() && field.Name == "_" + property.Name))
-					&& currentMethod.AccessorOwner != property)
+					&& !Equals(currentMethod.AccessorOwner, property))
 				{
 					if (!property.CanSet && !context.Settings.GetterOnlyAutomaticProperties)
 						return null;
@@ -792,7 +792,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (field == null)
 				return null;
 			var @event = field.DeclaringType.GetEvents(ev => ev.Name == field.Name, GetMemberOptions.IgnoreInheritedMembers).SingleOrDefault();
-			if (@event != null && currentMethod.AccessorOwner != @event)
+			if (@event != null && !Equals(currentMethod.AccessorOwner, @event))
 			{
 				parent.RemoveAnnotations<MemberResolveResult>();
 				parent.RemoveAnnotations<dnlib.DotNet.IField>();

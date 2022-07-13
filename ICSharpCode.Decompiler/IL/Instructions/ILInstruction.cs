@@ -400,7 +400,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		public IEnumerable<ILSpan> GetSelfAndChildrenRecursiveILSpans()
 		{
-			foreach (var node in GetSelfAndChildrenRecursive<ILInstruction>()) {
+			foreach (var node in GetSelfAndChildrenRecursive<ILInstruction>(exit: x => x is ILFunction)) {
 				long index = 0;
 				bool done = false;
 				for (;;) {
@@ -414,7 +414,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		public void AddSelfAndChildrenRecursiveILSpans(List<ILSpan> coll)
 		{
-			foreach (var a in GetSelfAndChildrenRecursive<ILInstruction>()) {
+			foreach (var a in GetSelfAndChildrenRecursive<ILInstruction>(exit: x => x is ILFunction)) {
 				long index = 0;
 				bool done = false;
 				for (;;) {
@@ -434,30 +434,35 @@ namespace ICSharpCode.Decompiler.IL
 			return ILSpan.OrderAndCompactList(list);
 		}
 
-		public List<T> GetSelfAndChildrenRecursive<T>(Func<T, bool>? predicate = null) where T : ILInstruction
+		public List<T> GetSelfAndChildrenRecursive<T>(Func<T, bool>? predicate = null, Func<T, bool>? exit = null) where T : ILInstruction
 		{
 			List<T> result = new List<T>(16);
-			AccumulateSelfAndChildrenRecursive(result, predicate);
+			AccumulateSelfAndChildrenRecursive(result, predicate, exit);
 			return result;
 		}
 
-		public List<T> GetSelfAndChildrenRecursive<T>(List<T> result, Func<T, bool>? predicate = null) where T : ILInstruction
+		public List<T> GetSelfAndChildrenRecursive<T>(List<T> result, Func<T, bool>? predicate = null, Func<T, bool>? exit = null) where T : ILInstruction
 		{
 			result.Clear();
-			AccumulateSelfAndChildrenRecursive(result, predicate);
+			AccumulateSelfAndChildrenRecursive(result, predicate, exit);
 			return result;
 		}
 
-		void AccumulateSelfAndChildrenRecursive<T>(List<T> list, Func<T, bool>? predicate) where T : ILInstruction
+		void AccumulateSelfAndChildrenRecursive<T>(List<T> list, Func<T, bool>? predicate, Func<T, bool>? exit) where T : ILInstruction
 		{
-			if (this is T thisAsT && (predicate == null || predicate(thisAsT)))
-				list.Add(thisAsT);
+			if (this is T thisAsT)
+			{
+				if (exit is not null && exit(thisAsT))
+					return;
+				if (predicate is null || predicate(thisAsT))
+					list.Add(thisAsT);
+			}
 
 			foreach (ILInstruction? child in this.Children)
 			{
 				if (child is null)
 					break;
-				child.AccumulateSelfAndChildrenRecursive(list, predicate);
+				child.AccumulateSelfAndChildrenRecursive(list, predicate, exit);
 			}
 		}
 

@@ -197,7 +197,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					IMember fieldOrPropertyOrEvent = (m.Get<AstNode>("fieldAccess").Single().GetSymbol() as IMember)?.MemberDefinition;
 					if (!(fieldOrPropertyOrEvent is IField) && !(fieldOrPropertyOrEvent is IProperty) && !(fieldOrPropertyOrEvent is IEvent))
 						break;
-					var fieldOrPropertyOrEventDecl = members.FirstOrDefault(f => f.GetSymbol() == fieldOrPropertyOrEvent) as EntityDeclaration;
+					var fieldOrPropertyOrEventDecl = members.FirstOrDefault(f => Equals(f.GetSymbol(), fieldOrPropertyOrEvent)) as EntityDeclaration;
 					// Cannot transform if it is a custom event.
 					if (fieldOrPropertyOrEventDecl is CustomEventDeclaration)
 						break;
@@ -321,7 +321,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						IMember fieldOrProperty = (assignment.Left.GetSymbol() as IMember)?.MemberDefinition;
 						if (!(fieldOrProperty is IField || fieldOrProperty is IProperty) || !fieldOrProperty.IsStatic)
 							break;
-						var fieldOrPropertyDecl = members.FirstOrDefault(f => f.GetSymbol() == fieldOrProperty) as EntityDeclaration;
+						var fieldOrPropertyDecl = members.FirstOrDefault(f => Equals(f.GetSymbol(), fieldOrProperty)) as EntityDeclaration;
 						if (fieldOrPropertyDecl == null)
 							break;
 						if (ctorIsUnsafe && IntroduceUnsafeModifier.IsUnsafe(assignment.Right))

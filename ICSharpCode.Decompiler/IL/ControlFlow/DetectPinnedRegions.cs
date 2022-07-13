@@ -137,7 +137,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 								if (descendant.MatchLdLoc(v))
 								{
 									var newLdloc = new LdLoc(temp).WithILRange(descendant);
-									newLdloc.ILSpans.AddRange(descendant.ILSpans);
+									if (context.CalculateILSpans)
+										newLdloc.ILSpans.AddRange(descendant.ILSpans);
 									descendant.ReplaceWith(newLdloc);
 								}
 							}
@@ -175,8 +176,12 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					{
 						arrayToPointer = new Conv(arrayToPointer, p.StackType.ToPrimitiveType(), false, Sign.None);
 					}
-					block.Instructions[block.Instructions.Count - 2] = new StLoc(p, arrayToPointer)
-						.WithILRange(block.Instructions[block.Instructions.Count - 2]);
+
+					var comp = block.Instructions[block.Instructions.Count - 2];
+					var replacement = new StLoc(p, arrayToPointer)
+						.WithILRange(comp);
+					comp.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					block.Instructions[block.Instructions.Count - 2] = replacement;
 					((Branch)block.Instructions.Last()).TargetBlock = targetBlock;
 					modified = true;
 				}
@@ -586,6 +591,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						if (unpin != null && unpin.Variable == stLoc.Variable && IsNullOrZero(unpin.Value))
 						{
 							br.TargetBlock.Instructions.RemoveAt(0);
+							if (context.CalculateILSpans)
+								unpin.AddSelfAndChildrenRecursiveILSpans(body.EndILSpans);
 						}
 					}
 					// move block into body

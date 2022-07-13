@@ -726,7 +726,7 @@ namespace ICSharpCode.Decompiler.CSharp
 								MethodDebugInfoBuilder builder2;
 								ILFunction ilFunction = null;
 								try {
-									body = AstMethodBodyBuilder.CreateMethodBody(method, tsMethod, currentDecompileRun, typeResolveContext, typeSystem, context, parameters, valueParameterIsKeyword, stringBuilder, out builder2, out ilFunction);
+									body = AstMethodBodyBuilder.CreateMethodBody(method, tsMethod, currentDecompileRun, typeResolveContext, typeSystem, context, parameters, valueParameterIsKeyword, stringBuilder, methodNode, out builder2, out ilFunction);
 								}
 								catch (OperationCanceledException) {
 									throw;
@@ -740,8 +740,8 @@ namespace ICSharpCode.Decompiler.CSharp
 							methodBodyTasks.Add(bodyTask);
 						}
 						else {
-							var body = AstMethodBodyBuilder.CreateMethodBody(method, tsMethod, currentDecompileRun, typeResolveContext, typeSystem, context, parameters, valueParameterIsKeyword, stringBuilder, out var builder, out var ilFunction);
-							AddAnnotationsToDeclaration(ilFunction.Method, methodNode, ilFunction);
+							var body = AstMethodBodyBuilder.CreateMethodBody(method, tsMethod, currentDecompileRun, typeResolveContext, typeSystem, context, parameters, valueParameterIsKeyword, stringBuilder, methodNode, out var builder, out var ilFunction);
+							//AddAnnotationsToDeclaration(ilFunction.Method, methodNode, ilFunction);
 							AddDefinesForConditionalAttributes(ilFunction);
 							CleanUpMethodDeclaration(methodNode, body, ilFunction);
 							methodNode.AddChild(body, Roles.Body);
