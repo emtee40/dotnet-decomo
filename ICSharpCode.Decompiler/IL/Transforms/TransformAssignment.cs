@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2015 Siegfried Pammer
+// Copyright (c) 2015 Siegfried Pammer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -147,8 +147,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				stobj.Type = newType;
 				block.Instructions.Remove(localStore);
 				block.Instructions.Remove(stobj);
+				StLoc replacement = new StLoc(local, stobj);
+				if (context.CalculateILSpans)
+				{
+					localStore?.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					stobj.Value.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
 				stobj.Value = inst.Value;
-				inst.ReplaceWith(new StLoc(local, stobj));
+				inst.ReplaceWith(replacement);
 				// note: our caller will trigger a re-run, which will call HandleStObjCompoundAssign if applicable
 				return true;
 			}
@@ -170,7 +177,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// setter calls are not valid in expression context, if property syntax cannot be used.
 					return false;
 				}
-				if (!call.Arguments.Last().MatchLdLoc(inst.Variable))
+				var lastArgument = call.Arguments[call.Arguments.Count - 1];
+				if (!lastArgument.MatchLdLoc(inst.Variable))
 					return false;
 				foreach (var arg in call.Arguments.SkipLast(1))
 				{
@@ -192,7 +200,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					Instructions = { call },
 					FinalInstruction = new LdLoc(newVar)
 				};
-				inst.ReplaceWith(new StLoc(local, inlineBlock));
+				StLoc replacement = new StLoc(local, inlineBlock);
+				if (context.CalculateILSpans)
+				{
+					localStore?.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					replacement.ILSpans.AddRange(lastArgument.ILSpans);
+				}
+				inst.ReplaceWith(replacement);
 				// because the ExpressionTransforms don't look into inline blocks, manually trigger HandleCallCompoundAssign
 				if (HandleCompoundAssign(call, context))
 				{
@@ -337,7 +352,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// transform local variables only for user-defined operators
 					return false;
 				}
-				if (!IsMatchingCompoundLoad(binary.Left, compoundStore, out var target, out var targetKind, out var finalizeMatch, forbiddenVariable: storeInSetter?.Variable))
+				if (!IsMatchingCompoundLoad(binary.Left, compoundStore, out var target, out var targetKind, out var finalizeMatch, context.CalculateILSpans, forbiddenVariable: storeInSetter?.Variable))
 					return false;
 				if (!ValidateCompoundAssign(binary, smallIntConv, targetType, context.Settings))
 					return false;
@@ -346,12 +361,24 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				newInst = new NumericCompoundAssign(
 					binary, target, targetKind, binary.Right,
 					targetType, CompoundEvalMode.EvaluatesToNewValue);
+				if (context.CalculateILSpans)
+				{
+					newInst.ILSpans.AddRange(compoundStore.ILSpans);
+					if (smallIntConv is not null)
+						newInst.ILSpans.AddRange(smallIntConv.ILSpans);
+					newInst.ILSpans.AddRange(binary.ILSpans);
+					if (target != binary.Left)
+					{
+						newInst.ILSpans.AddRange(binary.Left.ILSpans);
+					}
+				}
 			}
 			else if (setterValue is Call operatorCall && operatorCall.Method.IsOperator)
 			{
 				if (operatorCall.Arguments.Count == 0)
 					return false;
-				if (!IsMatchingCompoundLoad(operatorCall.Arguments[0], compoundStore, out var target, out var targetKind, out var finalizeMatch, forbiddenVariable: storeInSetter?.Variable))
+				var lhs = operatorCall.Arguments[0];
+				if (!IsMatchingCompoundLoad(lhs, compoundStore, out var target, out var targetKind, out var finalizeMatch, context.CalculateILSpans, forbiddenVariable: storeInSetter?.Variable))
 					return false;
 				ILInstruction rhs;
 				if (operatorCall.Arguments.Count == 2)
@@ -377,14 +404,37 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				finalizeMatch?.Invoke(context);
 				newInst = new UserDefinedCompoundAssign(operatorCall.Method, CompoundEvalMode.EvaluatesToNewValue,
 					target, targetKind, rhs);
+				if (context.CalculateILSpans)
+				{
+					newInst.ILSpans.AddRange(compoundStore.ILSpans);
+					newInst.ILSpans.AddRange(operatorCall.ILSpans);
+					if (target != lhs)
+					{
+						newInst.ILSpans.AddRange(lhs.ILSpans);
+					}
+				}
 			}
 			else if (setterValue is DynamicBinaryOperatorInstruction dynamicBinaryOp)
 			{
-				if (!IsMatchingCompoundLoad(dynamicBinaryOp.Left, compoundStore, out var target, out var targetKind, out var finalizeMatch, forbiddenVariable: storeInSetter?.Variable))
+				if (!IsMatchingCompoundLoad(dynamicBinaryOp.Left, compoundStore, out var target, out var targetKind, out var finalizeMatch, context.CalculateILSpans, forbiddenVariable: storeInSetter?.Variable))
 					return false;
 				context.Step($"Compound assignment (dynamic binary)", compoundStore);
 				finalizeMatch?.Invoke(context);
 				newInst = new DynamicCompoundAssign(ToCompound(dynamicBinaryOp.Operation), dynamicBinaryOp.BinderFlags, target, dynamicBinaryOp.LeftArgumentInfo, dynamicBinaryOp.Right, dynamicBinaryOp.RightArgumentInfo, targetKind);
+
+				if (context.CalculateILSpans)
+				{
+					newInst.ILSpans.AddRange(compoundStore.ILSpans);
+					newInst.ILSpans.AddRange(dynamicBinaryOp.ILSpans);
+					if (target != dynamicBinaryOp.Left)
+					{
+						newInst.ILSpans.AddRange(dynamicBinaryOp.Left.ILSpans);
+					}
+					if (compoundStore is StObj stobj && stobj.Target != target)
+					{
+						newInst.ILSpans.AddRange(stobj.Target.ILSpans);
+					}
+				}
 
 				static ExpressionType ToCompound(ExpressionType from)
 				{
@@ -419,12 +469,22 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return false; // for now we only support binary compound assignments
 				if (!targetType.IsKnownType(KnownTypeCode.String))
 					return false;
-				if (!IsMatchingCompoundLoad(concatCall.Arguments[0], compoundStore, out var target, out var targetKind, out var finalizeMatch, forbiddenVariable: storeInSetter?.Variable))
+				var lhs = concatCall.Arguments[0];
+				if (!IsMatchingCompoundLoad(lhs, compoundStore, out var target, out var targetKind, out var finalizeMatch, context.CalculateILSpans, forbiddenVariable: storeInSetter?.Variable))
 					return false;
 				context.Step($"Compound assignment (string concatenation)", compoundStore);
 				finalizeMatch?.Invoke(context);
 				newInst = new UserDefinedCompoundAssign(concatCall.Method, CompoundEvalMode.EvaluatesToNewValue,
 					target, targetKind, concatCall.Arguments[1]);
+				if (context.CalculateILSpans)
+				{
+					newInst.ILSpans.AddRange(compoundStore.ILSpans);
+					newInst.ILSpans.AddRange(concatCall.ILSpans);
+					if (target != lhs)
+					{
+						newInst.ILSpans.AddRange(lhs.ILSpans);
+					}
+				}
 			}
 			else
 			{
@@ -496,7 +556,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var var = nextInst.Variable;
 			var stackVar = inst.Variable;
 			block.Instructions.RemoveAt(pos);
-			nextInst.ReplaceWith(new StLoc(stackVar, new StLoc(var, value)));
+			StLoc replacement = new StLoc(stackVar, new StLoc(var, value));
+			if (context.CalculateILSpans)
+				nextInst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			nextInst.ReplaceWith(replacement);
 			return true;
 		}
 
@@ -581,7 +644,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// Output parameters:
 		/// storeType: The type of the value being stored.
 		/// value: The value being stored (will be analyzed further to detect compound assignments)
-		/// 
+		///
 		/// Every IsCompoundStore() call should be followed by an IsMatchingCompoundLoad() call.
 		/// </remarks>
 		static bool IsCompoundStore(ILInstruction inst, out IType storeType,
@@ -675,6 +738,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		static bool IsMatchingCompoundLoad(ILInstruction load, ILInstruction store,
 			out ILInstruction target, out CompoundTargetKind targetKind,
 			out Action<ILTransformContext> finalizeMatch,
+			bool calculateILSpans,
 			ILVariable forbiddenVariable = null,
 			ILInstruction previousInstruction = null)
 		{
@@ -719,6 +783,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (ILVariableEqualityComparer.Instance.Equals(ldloc.Variable, forbiddenVariable))
 					return false;
 				target = new LdLoca(ldloc.Variable).WithILRange(ldloc);
+				if (calculateILSpans)
+					target.ILSpans.AddRange(ldloc.ILSpans);
 				targetKind = CompoundTargetKind.Address;
 				finalizeMatch = context => context.Function.RecombineVariables(ldloc.Variable, stloc.Variable);
 				return true;
@@ -803,7 +869,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			if (!(stloc.Variable.Kind == VariableKind.Local || stloc.Variable.Kind == VariableKind.StackSlot))
 				return false;
-			if (!IsMatchingCompoundLoad(stloc.Value, store, out var target, out var targetKind, out var finalizeMatch, forbiddenVariable: stloc.Variable))
+			if (!IsMatchingCompoundLoad(stloc.Value, store, out var target, out var targetKind, out var finalizeMatch, context.CalculateILSpans, forbiddenVariable: stloc.Variable))
 				return false;
 			if (IsImplicitTruncation(stloc.Value, stloc.Variable.Type, context.TypeSystem))
 				return false;
@@ -811,14 +877,72 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			finalizeMatch?.Invoke(context);
 			if (binary != null)
 			{
-				block.Instructions[pos] = new StLoc(stloc.Variable, new NumericCompoundAssign(
+				StLoc replacement = new StLoc(stloc.Variable, new NumericCompoundAssign(
 					binary, target, targetKind, binary.Right, targetType, CompoundEvalMode.EvaluatesToOldValue));
+				if (context.CalculateILSpans)
+				{
+					if (store is StLoc)
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+					else if (store is StObj stObj)
+					{
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+						if (stObj.Target != target)
+							stObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.Value.ILSpans);
+					}
+					else if (store is CallInstruction callInstruction)
+					{
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+						foreach (ILInstruction ilInstruction in callInstruction.Arguments.SkipLast(1))
+							ilInstruction.AddSelfAndChildrenRecursiveILSpans(replacement.Value.ILSpans);
+					}
+
+					replacement.ILSpans.AddRange(stloc.ILSpans);
+					if (stloc.Value is LdObj ldObj)
+					{
+						replacement.ILSpans.AddRange(ldObj.ILSpans);
+						if (ldObj.Target != target)
+							ldObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					}
+
+					if (conv is not null)
+						replacement.Value.ILSpans.AddRange(conv.ILSpans);
+					replacement.Value.ILSpans.AddRange(binary.ILSpans);
+				}
+				block.Instructions[pos] = replacement;
 			}
 			else
 			{
 				Call operatorCall = (Call)value;
-				block.Instructions[pos] = new StLoc(stloc.Variable, new UserDefinedCompoundAssign(
+				StLoc replacement = new StLoc(stloc.Variable, new UserDefinedCompoundAssign(
 					operatorCall.Method, CompoundEvalMode.EvaluatesToOldValue, target, targetKind, new LdcI4(1)));
+				if (context.CalculateILSpans)
+				{
+					if (store is StLoc)
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+					else if (store is StObj stObj)
+					{
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+						if (stObj.Target != target)
+							stObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.Value.ILSpans);
+					}
+					else if (store is CallInstruction callInstruction)
+					{
+						replacement.Value.ILSpans.AddRange(store.ILSpans);
+						foreach (ILInstruction ilInstruction in callInstruction.Arguments.SkipLast(1))
+							ilInstruction.AddSelfAndChildrenRecursiveILSpans(replacement.Value.ILSpans);
+					}
+
+					replacement.ILSpans.AddRange(stloc.ILSpans);
+					if (stloc.Value is LdObj ldObj)
+					{
+						replacement.ILSpans.AddRange(ldObj.ILSpans);
+						if (ldObj.Target != target)
+							ldObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					}
+
+					replacement.Value.ILSpans.AddRange(operatorCall.ILSpans);
+				}
+				block.Instructions[pos] = replacement;
 			}
 			return true;
 		}
@@ -831,7 +955,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// stloc tmp(compound.op.old(ldobj(target), ldc.i4 1))
 		/// </code>
 		/// This is usually followed by inlining or eliminating 'tmp'.
-		/// 
+		///
 		/// Local variables use a similar pattern, also detected by this function:
 		/// <code>
 		/// stloc tmp(ldloc target)
@@ -857,11 +981,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			}
 			if (!IsMatchingCompoundLoad(inst.Value, store, out var target, out var targetKind, out var finalizeMatch,
-				forbiddenVariable: inst.Variable,
+				context.CalculateILSpans, forbiddenVariable: inst.Variable,
 				previousInstruction: block.Instructions.ElementAtOrDefault(i - 1)))
 			{
 				return false;
 			}
+			ILInstruction replacement;
 			if (UnwrapSmallIntegerConv(value, out var conv) is BinaryNumericInstruction binary)
 			{
 				if (!binary.Left.MatchLdLoc(tmpVar) || !(binary.Right.MatchLdcI(1) || binary.Right.MatchLdcF4(1) || binary.Right.MatchLdcF8(1)))
@@ -872,7 +997,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return false;
 				context.Step("TransformPostIncDecOperator (builtin)", inst);
 				finalizeMatch?.Invoke(context);
-				inst.Value = new NumericCompoundAssign(binary, target, targetKind, binary.Right,
+				replacement = new NumericCompoundAssign(binary, target, targetKind, binary.Right,
 					targetType, CompoundEvalMode.EvaluatesToOldValue);
 			}
 			else if (value is Call operatorCall && operatorCall.Method.IsOperator && operatorCall.Arguments.Count == 1)
@@ -885,17 +1010,49 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return false; // TODO: add tests and think about whether nullables need special considerations
 				context.Step("TransformPostIncDecOperator (user-defined)", inst);
 				finalizeMatch?.Invoke(context);
-				inst.Value = new UserDefinedCompoundAssign(operatorCall.Method,
+				replacement = new UserDefinedCompoundAssign(operatorCall.Method,
 					CompoundEvalMode.EvaluatesToOldValue, target, targetKind, new LdcI4(1));
 			}
 			else
 			{
 				return false;
 			}
+			if (context.CalculateILSpans)
+			{
+				if (store is StLoc)
+					replacement.ILSpans.AddRange(store.ILSpans);
+				else if (store is StObj stObj)
+				{
+					replacement.ILSpans.AddRange(store.ILSpans);
+					if (stObj.Target != target)
+						stObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
+				else if (store is CallInstruction callInstruction)
+				{
+					replacement.ILSpans.AddRange(store.ILSpans);
+					foreach (ILInstruction ilInstruction in callInstruction.Arguments.SkipLast(1))
+						ilInstruction.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
+
+				replacement.ILSpans.AddRange(inst.ILSpans);
+				if (inst.Value is LdObj ldObj)
+				{
+					replacement.ILSpans.AddRange(ldObj.ILSpans);
+					if (ldObj.Target != target)
+						ldObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
+
+				if (conv is not null)
+					replacement.ILSpans.AddRange(conv.ILSpans);
+				replacement.ILSpans.AddRange(value.ILSpans);
+			}
+			inst.Value = replacement;
 			block.Instructions.RemoveAt(i + 1);
 			if (inst.Variable.IsSingleDefinition && inst.Variable.LoadCount == 0)
 			{
 				// dead store -> it was a statement-level post-increment
+				if (context.CalculateILSpans)
+					inst.Value.ILSpans.AddRange(inst.ILSpans);
 				inst.ReplaceWith(inst.Value);
 			}
 			return true;

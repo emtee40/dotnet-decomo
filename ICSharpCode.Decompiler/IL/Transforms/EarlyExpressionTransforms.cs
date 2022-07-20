@@ -84,11 +84,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (inst.Kind == ComparisonKind.Equality)
 				{
 					context.Step("comp(box T(..) == ldnull) -> comp(.. == ldnull)", inst);
+					if (context.CalculateILSpans)
+						arg.ILSpans.AddRange(inst.Left.ILSpans);
 					inst.Left = arg;
 				}
 				if (inst.Kind == ComparisonKind.Inequality)
 				{
 					context.Step("comp(box T(..) != ldnull) -> comp(.. != ldnull)", inst);
+					if (context.CalculateILSpans)
+						arg.ILSpans.AddRange(inst.Left.ILSpans);
 					inst.Left = arg;
 				}
 			}
@@ -111,9 +115,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step($"stobj(ldloca {v.Name}, ...) => stloc {v.Name}(...)", inst);
 				ILInstruction replacement = new StLoc(v, inst.Value).WithILRange(inst);
 				if (context.CalculateILSpans)
-					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				{
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					inst.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
 				if (v.StackType == StackType.Unknown && inst.Type.Kind != TypeKind.Unknown
-					&& inst.SlotInfo != Block.InstructionSlot)
+													 && inst.SlotInfo != Block.InstructionSlot)
 				{
 					replacement = new Conv(replacement, inst.Type.ToPrimitiveType(),
 						checkForOverflow: false, Sign.None);
@@ -141,7 +148,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step($"ldobj(ldloca {v.Name}) => ldloc {v.Name}", inst);
 				ILInstruction replacement = new LdLoc(v).WithILRange(inst);
 				if (context.CalculateILSpans)
-					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				{
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					inst.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
 				if (v.StackType == StackType.Unknown && inst.Type.Kind != TypeKind.Unknown)
 				{
 					replacement = new Conv(replacement, inst.Type.ToPrimitiveType(),

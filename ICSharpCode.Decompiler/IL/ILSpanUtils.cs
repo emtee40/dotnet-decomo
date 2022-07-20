@@ -10,7 +10,8 @@ namespace ICSharpCode.Decompiler.IL
 		public static void NopMergeILSpans(Block block, ref int i) {
 			var body = block.Instructions;
 
-			var j = i;
+			int k;
+			int j = k = i;
 			do {
 				j++;
 			}
@@ -25,8 +26,8 @@ namespace ICSharpCode.Decompiler.IL
 
 			ILInstruction prevNode = null, nextNode = null;
 			ILInstruction prev = null, next = null;
-			if (i - 1 >= 0)
-				prev = prevNode = body[i - 1];
+			if (k - 1 >= 0)
+				prev = prevNode = body[k - 1];
 			if (i + 1 < body.Count)
 				next = nextNode = body[i + 1];
 
@@ -208,6 +209,29 @@ namespace ICSharpCode.Decompiler.IL
 				}
 			}
 			AddILSpansTryNextFirst(prev, next, block, ilSpans);
+		}
+
+		public static ILInstruction WithILSpansFrom(this ILInstruction expr, bool calculateILSpans, ILInstruction node)
+		{
+			if (!calculateILSpans)
+				return expr;
+			long index = 0;
+			bool done = false;
+			for (;;) {
+				var b = node.GetAllILSpans(ref index, ref done);
+				if (done)
+					break;
+				expr.ILSpans.Add(b);
+			}
+			return expr;
+		}
+
+		public static ILInstruction WithILSpans(this ILInstruction expr, bool calculateILSpans, IList<ILSpan> spans)
+		{
+			if (!calculateILSpans)
+				return expr;
+			expr.ILSpans.AddRange(spans);
+			return expr;
 		}
 	}
 }

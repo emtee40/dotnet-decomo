@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2021 Daniel Grunwald, Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -59,7 +59,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		///		if (comp.o(ldloc V == ldnull)) br falseBlock
 		///		br trueBlock
 		/// }
-		/// 
+		///
 		/// All other uses of V are in blocks dominated by trueBlock.
 		/// =>
 		/// Block {
@@ -69,7 +69,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// }
 		///
 		/// - or -
-		/// 
+		///
 		/// Block {
 		/// 	stloc s(isinst T(testedOperand))
 		/// 	stloc v(ldloc s)
@@ -82,7 +82,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		///		if (match.type[T].notnull(V = testedOperand)) br trueBlock
 		///		br falseBlock
 		/// }
-		/// 
+		///
 		/// All other uses of V are in blocks dominated by trueBlock.
 		private bool PatternMatchRefTypes(Block block, BlockContainer container, ILTransformContext context, ref ControlFlowGraph? cfg)
 		{
@@ -171,10 +171,33 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 			var ifInst = (IfInstruction)block.Instructions.SecondToLastOrDefault()!;
 
-			ifInst.Condition = new MatchInstruction(v, testedOperand) {
+			MatchInstruction newCondition = new MatchInstruction(v, testedOperand) {
 				CheckNotNull = true,
 				CheckType = true
 			}.WithILRange(ifInst.Condition);
+			if (context.CalculateILSpans)
+			{
+				ifInst.Condition.AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
+
+				if (condition.Parent is StLoc storeCondition)
+					storeCondition.AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
+
+				newCondition.ILSpans.AddRange(value.ILSpans);
+				ILInstruction stlocValue;
+				if (value.Parent is UnboxAny unbox)
+				{
+					stlocValue = unbox.Parent!;
+					newCondition.ILSpans.AddRange(unbox.ILSpans);
+				}
+				else
+					stlocValue = value.Parent!;
+
+				newCondition.ILSpans.AddRange(stlocValue.ILSpans);
+
+				if (storeToV != stlocValue)
+					storeToV.AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
+			}
+			ifInst.Condition = newCondition;
 			ifInst.TrueInst = trueInst;
 			block.Instructions[block.Instructions.Count - 1] = falseInst;
 			block.Instructions.RemoveRange(pos, ifInst.ChildIndex - pos);
@@ -227,7 +250,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// 	if (comp.o(isinst T(ldloc testedOperand) == ldnull)) br falseBlock
 		/// 	br unboxBlock
 		/// }
-		/// 
+		///
 		/// Block unboxBlock (incoming: 1) {
 		/// 	stloc V(unbox.any T(ldloc temp))
 		/// 	...
@@ -271,16 +294,24 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step($"PatternMatching with {v.Name}", block);
 			var ifInst = (IfInstruction)block.Instructions.SecondToLastOrDefault()!;
-			ifInst.Condition = new MatchInstruction(v, testedOperand) {
+			MatchInstruction newCondition = new MatchInstruction(v, testedOperand) {
 				CheckNotNull = true,
 				CheckType = true
 			};
+			if (context.CalculateILSpans)
+			{
+				ifInst.Condition.AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
+				unboxBlock.Instructions[0].AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
+			}
+			ifInst.Condition = newCondition;
 			((Branch)ifInst.TrueInst).TargetBlock = unboxBlock;
 			((Branch)block.Instructions.Last()).TargetBlock = falseBlock;
 			unboxBlock.Instructions.RemoveAt(0);
 			if (unboxOperand == tempStore?.Variable)
 			{
 				block.Instructions.Remove(tempStore);
+				if (context.CalculateILSpans)
+					tempStore.AddSelfAndChildrenRecursiveILSpans(newCondition.ILSpans);
 			}
 			// HACK: condition detection uses StartILOffset of blocks to decide which branch of if-else
 			// should become the then-branch. Change the unboxBlock StartILOffset from an offset inside

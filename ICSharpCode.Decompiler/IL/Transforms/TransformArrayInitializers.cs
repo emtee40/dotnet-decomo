@@ -71,7 +71,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					context.Step("HandleRuntimeHelperInitializeArray: single-dim", inst);
 					var tempStore = context.Function.RegisterVariable(VariableKind.InitializerTarget, v.Type);
 					var block = BlockFromInitializer(tempStore, elementType, arrayLength, values);
-					body.Instructions[pos] = new StLoc(v, block);
+					StLoc newStloc = new StLoc(v, block);
+					if (context.CalculateILSpans) {
+						body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+						body.Instructions[initArrayPos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+					}
+					body.Instructions[pos] = newStloc;
 					body.Instructions.RemoveAt(initArrayPos);
 					ILInlining.InlineIfPossible(body, pos, context);
 					return true;
@@ -93,7 +98,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 							}
 						));
 						block.FinalInstruction = new LdLoc(tempStore);
-						body.Instructions[pos] = new StLoc(v, block);
+						StLoc newStloc = new StLoc(v, block);
+						if (context.CalculateILSpans) {
+							body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+							for (int i = 0; i < instructionsToRemove; i++)
+								body.Instructions[pos + 1 + i].AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
+						}
+						body.Instructions[pos] = newStloc;
 						body.Instructions.RemoveRange(pos + 1, instructionsToRemove);
 						ILInlining.InlineIfPossible(body, pos, context);
 						return true;
@@ -168,7 +179,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					context.Step("HandleRuntimeHelpersInitializeArray: multi-dim", inst);
 					var block = BlockFromInitializer(v, elementType, length, values);
-					body.Instructions[pos].ReplaceWith(new StLoc(v, block));
+					StLoc newStloc = new StLoc(v, block);
+					if (context.CalculateILSpans) {
+						body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+						body.Instructions[initArrayPos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+					}
+					body.Instructions[pos].ReplaceWith(newStloc);
 					body.Instructions.RemoveAt(initArrayPos);
 					ILInlining.InlineIfPossible(body, pos, context);
 					return true;
@@ -188,7 +204,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						}
 					));
 					block.FinalInstruction = new LdLoc(tempStore);
-					body.Instructions[pos] = new StLoc(v, block);
+					var newStloc = new StLoc(v, block);
+					if (context.CalculateILSpans) {
+						body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+						for (int i = 0; i < instructionsToRemove; i++)
+							body.Instructions[pos + 1 + i].AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
+					}
+					body.Instructions[pos] = newStloc;
 					body.Instructions.RemoveRange(pos + 1, instructionsToRemove);
 					ILInlining.InlineIfPossible(body, pos, context);
 					return true;
@@ -731,6 +753,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			context.Step("InlineRuntimeHelpersInitializeArray: single-dim", inst);
 			var tempStore = context.Function.RegisterVariable(VariableKind.InitializerTarget, new ArrayType(context.TypeSystem, elementType, arrayLength.Length));
 			var block = BlockFromInitializer(tempStore, elementType, arrayLength, valuesList.ToArray());
+			if (context.CalculateILSpans)
+				body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
 			body.Instructions[pos] = block;
 			ILInlining.InlineIfPossible(body, pos, context);
 			return true;

@@ -65,6 +65,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						context.Step($"Dead store to {v.Name}", stloc);
 						if (SemanticHelper.IsPure(stloc.Value.Flags))
 						{
+							var index = block.Instructions.IndexOf(stloc);
+							if (context.CalculateILSpans)
+								ILSpanUtils.AddILSpans(block, block.Instructions, index);
 							block.Instructions.Remove(stloc);
 						}
 						else

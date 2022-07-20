@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2017 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -30,7 +30,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 	/// <summary>
 	/// Transform for constructing the NullCoalescingInstruction (if.notnull(a,b), or in C#: ??)
 	/// Note that this transform only handles the case where a,b are reference types.
-	/// 
+	///
 	/// The ?? operator for nullable value types is handled by NullableLiftingTransform.
 	/// </summary>
 	public class NullCoalescingTransform : IStatementTransform
@@ -67,6 +67,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("NullCoalescingTransform: simple (reference types)", stloc);
 				stloc.Value = new NullCoalescingInstruction(NullCoalescingKind.Ref, stloc.Value, fallbackValue);
+				if (context.CalculateILSpans)
+				{
+					condition.AddSelfAndChildrenRecursiveILSpans(stloc.Value.ILSpans);
+					stloc.Value.ILSpans.AddRange(block.Instructions[pos + 1].ILSpans);
+					stloc.Value.ILSpans.AddRange(trueInst.ILSpans);
+				}
 				block.Instructions.RemoveAt(pos + 1); // remove if instruction
 				ILInlining.InlineOneIfPossible(block, pos, InliningOptions.None, context);
 				return true;
@@ -86,6 +92,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("NullCoalescingTransform: with temporary variable (reference types)", stloc);
 				stloc.Value = new NullCoalescingInstruction(NullCoalescingKind.Ref, stloc.Value, fallbackValue);
+				if (context.CalculateILSpans)
+				{
+					condition.AddSelfAndChildrenRecursiveILSpans(stloc.Value.ILSpans);
+					stloc.Value.ILSpans.AddRange(block.Instructions[pos + 1].ILSpans);
+					stloc.Value.ILSpans.AddRange(trueBlock.Instructions[0].ILSpans);
+					trueBlock.Instructions[1].AddSelfAndChildrenRecursiveILSpans(stloc.Value.ILSpans);
+				}
 				block.Instructions.RemoveAt(pos + 1); // remove if instruction
 				ILInlining.InlineOneIfPossible(block, pos, InliningOptions.None, context);
 				return true;
@@ -101,6 +114,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step("NullCoalescingTransform (reference types + throw expression)", stloc);
 				throwInst.resultType = StackType.O;
 				stloc.Value = new NullCoalescingInstruction(NullCoalescingKind.Ref, stloc.Value, throwInst);
+				if (context.CalculateILSpans)
+				{
+					condition.AddSelfAndChildrenRecursiveILSpans(stloc.Value.ILSpans);
+					stloc.Value.ILSpans.AddRange(block.Instructions[pos + 1].ILSpans);
+				}
 				block.Instructions.RemoveAt(pos + 1); // remove if instruction
 				ILInlining.InlineOneIfPossible(block, pos, InliningOptions.None, context);
 				return true;
@@ -146,6 +164,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("NullCoalescingTransform (value types + throw expression)", stloc);
 				throwInst.resultType = resultType;
+				if (context.CalculateILSpans)
+				{
+					nullCoalescingWithThrow.ILSpans.AddRange(stloc.ILSpans);
+					condition.AddSelfAndChildrenRecursiveILSpans(nullCoalescingWithThrow.ILSpans);
+					nullCoalescingWithThrow.ILSpans.AddRange(block.Instructions[pos + 1].ILSpans);
+					result.LoadInst.Parent.AddSelfAndChildrenRecursiveILSpans(nullCoalescingWithThrow.ILSpans);
+				}
 				result.LoadInst.Parent.ReplaceWith(nullCoalescingWithThrow);
 				block.Instructions.RemoveRange(pos, 2); // remove store(s) and if instruction
 				return true;

@@ -77,7 +77,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		internal ILReader CreateILReader()
 		{
 			return new ILReader(TypeSystem.MainModule) {
-				UseDebugSymbols = Settings.UseDebugSymbols
+				UseDebugSymbols = Settings.UseDebugSymbols,
+				CalculateILSpans = CalculateILSpans
 			};
 		}
 

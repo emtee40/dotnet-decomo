@@ -142,8 +142,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			IfElseStatement ifElseStatement = new IfElseStatement(condition, trueStatement, falseStatement);
 			if (decompileRun.Context.CalculateILSpans)
 				ifElseStatement.Condition.AddAnnotation(inst.ILSpans);
-			//if (trueStatement is BlockStatement trueStmt && decompileRun.Context.CalculateILSpans)
-				//trueStmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : inst.FalseInst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin(), trueStmt.HiddenEnd);
+			// if (trueStatement is BlockStatement trueStmt && decompileRun.Context.CalculateILSpans)
+			// 	trueStmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : inst.FalseInst.GetSelfAndChildrenRecursiveILSpans_OrderAndJoin(), trueStmt.HiddenEnd);
 			return ifElseStatement.WithILInstruction(inst);
 		}
 
@@ -475,7 +475,11 @@ namespace ICSharpCode.Decompiler.CSharp
 					}
 				}
 				if (!handler.Filter.MatchLdcI4(1))
+				{
 					catchClause.Condition = exprBuilder.TranslateCondition(handler.Filter);
+					catchClause.HiddenWhen = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(handler.FilterStlocILSpans), catchClause.HiddenWhen);
+				}
+
 				catchClause.Body = ConvertAsBlock(handler.Body);
 				catchClause.AddAnnotation(!decompileRun.Context.CalculateILSpans ? null : handler.StlocILSpans);
 				tryCatch.CatchClauses.Add(catchClause);
@@ -774,6 +778,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			Debug.Assert(firstStatement is ExpressionStatement);
 			firstStatement.Remove();
 
+			//TODO: mroe testing
+			foreachBody.HiddenStart = whileLoopBlock.HiddenStart;
+			foreachBody.HiddenEnd = whileLoopBlock.HiddenEnd;
+
 			if (settings.AnonymousTypes && type.ContainsAnonymousType())
 				useVar = true;
 
@@ -790,7 +798,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			foreachStmt.HiddenMoveNextNode = whileLoop.Condition;
 			foreachStmt.HiddenGetCurrentNode = exprBuilder.Translate(singleGetter.Parent);
-			foreachStmt.HiddenGetEnumeratorNode = resource; // TODO: verify
+			foreachStmt.HiddenGetEnumeratorNode = resource;
 
 			// If there was an optional return statement, return it as well.
 			// If there were labels or any other statements in the whileLoopBlock, move them after the foreach
@@ -1215,8 +1223,6 @@ namespace ICSharpCode.Decompiler.CSharp
 				return Default(block);
 			// Block without container
 			BlockStatement blockStatement = new BlockStatement();
-			if(block.EndILSpans.Count > 0)
-				Debugger.Break();
 			blockStatement.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(block.ILSpans), blockStatement.HiddenStart);
 			blockStatement.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(block.EndILSpans), blockStatement.HiddenEnd);
 			foreach (var inst in block.Instructions)
@@ -1413,7 +1419,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					var param = function.Variables.Where(x => x.Kind == VariableKind.Parameter);
 					var moveNext = (dnlib.DotNet.MethodDef)function.MoveNextMethod?.MetadataToken;
 
-					var stmtsBuilder = new MethodDebugInfoBuilder(0, stateMachineKind, moveNext ?? function.DnlibMethod, moveNext is not null ? function.DnlibMethod : null,
+					var stmtsBuilder = new MethodDebugInfoBuilder(decompileRun.Context.SettingsVersion, stateMachineKind, moveNext ?? function.DnlibMethod, moveNext is not null ? function.DnlibMethod : null,
 						CreateSourceLocals(function), CreateSourceParameters(param), null);
 					method.AddAnnotation(stmtsBuilder);
 				}
@@ -1477,7 +1483,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					{
 						// skip the final 'leave' instruction and just fall out of the BlockStatement
 						blockStatement.AddAnnotation(new ImplicitReturnAnnotation(leave));
-						if (leave.IsLeavingFunction)
+						if (leave.TargetContainer == container && container.EndILSpans.Count == 0)
 							container.EndILSpans.AddRange(leave.ILSpans);
 						continue;
 					}

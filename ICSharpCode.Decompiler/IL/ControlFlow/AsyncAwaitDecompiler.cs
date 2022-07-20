@@ -138,7 +138,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			CleanDoFinallyBodies(function);
 
 			context.Step("Translate fields to local accesses", function);
-			YieldReturnDecompiler.TranslateFieldsToLocalAccess(function, function, fieldToParameterMap);
+			YieldReturnDecompiler.TranslateFieldsToLocalAccess(function, function, fieldToParameterMap, context.CalculateILSpans);
 			TranslateCachedFieldsToLocals();
 
 			FinalizeInlineMoveNext(function);

@@ -71,7 +71,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			context.Step("LdLocaDupInitObjTransform", inst1);
 			var replacement = new StLoc(v, inst2.Value).WithILRange(inst2);
 			if (context.CalculateILSpans)
-				inst2.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			{
+				replacement.ILSpans.AddRange(inst2.ILSpans);
+				inst2.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			}
 			block.Instructions[i] = replacement;
 			block.Instructions[i + 1] = inst1;
 			return true;

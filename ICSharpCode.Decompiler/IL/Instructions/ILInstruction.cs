@@ -378,7 +378,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		public IEnumerable<Interval> ILRanges => new[] { ILRange };
 
-		public readonly List<ILSpan> ILSpans = new List<ILSpan>(1);
+		public List<ILSpan> ILSpans = new List<ILSpan>(1);
 
 		public virtual List<ILSpan> EndILSpans {
 			get { return ILSpans; }
@@ -927,6 +927,8 @@ namespace ICSharpCode.Decompiler.IL
 		protected ILInstruction ShallowClone()
 		{
 			ILInstruction inst = (ILInstruction)MemberwiseClone();
+			// Clone ILSpan collection
+			inst.ILSpans = new List<ILSpan>(inst.ILSpans);
 			// reset refCount and parent so that the cloned instruction starts as disconnected
 			inst.refCount = 0;
 			inst.parent = null;

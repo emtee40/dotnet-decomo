@@ -180,7 +180,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					var comp = block.Instructions[block.Instructions.Count - 2];
 					var replacement = new StLoc(p, arrayToPointer)
 						.WithILRange(comp);
-					comp.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					if (context.CalculateILSpans)
+						comp.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 					block.Instructions[block.Instructions.Count - 2] = replacement;
 					((Branch)block.Instructions.Last()).TargetBlock = targetBlock;
 					modified = true;
@@ -623,6 +624,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			}
 
 			var pinnedRegion = new PinnedRegion(stLoc.Variable, stLoc.Value, body).WithILRange(stLoc);
+			if (context.CalculateILSpans)
+				pinnedRegion.Init.ILSpans.AddRange(stLoc.ILSpans);
 			stLoc.ReplaceWith(pinnedRegion);
 			block.Instructions.RemoveAt(block.Instructions.Count - 1); // remove branch into body
 
@@ -770,7 +773,13 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			oldVar.Function.Variables.Add(newVar);
 			pinnedRegion.Variable = newVar;
 			pinnedRegion.Init = new GetPinnableReference(pinnedRegion.Init, arrayToPointer.Method).WithILRange(arrayToPointer);
-			conv.ReplaceWith(new LdLoc(newVar).WithILRange(conv));
+			LdLoc loadNewVar = new LdLoc(newVar);
+			if (context.CalculateILSpans)
+			{
+				arrayToPointer.AddSelfAndChildrenRecursiveILSpans(pinnedRegion.Init.ILSpans);
+				loadNewVar.ILSpans.AddRange(conv.ILSpans);
+			}
+			conv.ReplaceWith(loadNewVar.WithILRange(conv));
 		}
 
 		void ReplacePinnedVar(ILVariable oldVar, ILVariable newVar, ILInstruction inst)
@@ -781,7 +790,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				// conv ref->i (ldloc oldVar)
 				//  => ldloc newVar
 				conv.AddILRange(conv.Argument);
-				conv.ReplaceWith(new LdLoc(newVar).WithILRange(conv));
+				LdLoc replacement = new LdLoc(newVar).WithILRange(conv);
+				if (context.CalculateILSpans)
+					conv.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				conv.ReplaceWith(replacement);
 				return;
 			}
 			if (inst is IInstructionWithVariableOperand iwvo && iwvo.Variable == oldVar)
@@ -974,6 +986,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// replace V_1 with V_0
 			v.Kind = VariableKind.PinnedRegionLocal;
 			pinnedRegion.Variable = v;
+			if (context.CalculateILSpans)
+				body.EntryPoint.Instructions[0].AddSelfAndChildrenRecursiveILSpans(pinnedRegion.Init.ILSpans);
 			body.EntryPoint.Instructions.RemoveAt(0);
 		}
 		#endregion

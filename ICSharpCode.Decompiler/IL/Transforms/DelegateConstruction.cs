@@ -213,6 +213,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			nestedContext.StepEndGroup();
 			function.AddILRange(target);
 			function.AddILRange(value);
+			if (context.CalculateILSpans)
+				value.AddSelfAndChildrenRecursiveILSpans(function.ILSpans);
 			if (value is Call call)
 				function.AddILRange(call.Arguments[1]);
 			return function;

@@ -147,17 +147,20 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		public static TypeSystem.FullTypeName GetFullTypeName(this IType typeDef)
+		public static TypeSystem.FullTypeName GetFullTypeName(this ITypeDefOrRef typeDef)
 		{
-			return new TypeSystem.FullTypeName(typeDef.FullName, true);
+			string name = TypeSystem.ReflectionHelper.SplitTypeParameterCountFromReflectionName(typeDef.Name, out int typeParameterCount);
+			if (typeDef.DeclaringType is not null)
+				return typeDef.DeclaringType.GetFullTypeName().NestedType(name, typeParameterCount);
+			return new TypeSystem.TopLevelTypeName(typeDef.Namespace ?? "", name, typeParameterCount);
 		}
 
-		public static int GetCodeSize(this CilBody body)
+		public static TypeSystem.FullTypeName GetFullTypeName(this ExportedType typeDef)
 		{
-			if (body.Instructions.Count == 0)
-				return 0;
-			var instr = body.Instructions.Last();
-			return instr.GetEndOffset();
+			string name = TypeSystem.ReflectionHelper.SplitTypeParameterCountFromReflectionName(typeDef.Name, out int typeParameterCount);
+			if (typeDef.Implementation is ExportedType declaringType)
+				return declaringType.GetFullTypeName().NestedType(name, typeParameterCount);
+			return new TypeSystem.TopLevelTypeName(typeDef.Namespace ?? "", name, typeParameterCount);
 		}
 
 		public static IEnumerable<Parameter> GetParameters(this PropertyDef property)

@@ -23,6 +23,8 @@ using System.Linq;
 using System.Threading;
 using dnlib.DotNet.Emit;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
 
@@ -33,6 +35,7 @@ namespace ICSharpCode.Decompiler.IL
 		readonly CilBody body;
 		readonly Dictionary<ExceptionHandler, ILVariable> variableByExceptionHandler;
 		readonly ICompilation compilation;
+		readonly bool calculateILSpans;
 
 		/// <summary>
 		/// Gets/Sets whether to create extended basic blocks instead of basic blocks.
@@ -42,7 +45,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		internal BlockBuilder(CilBody body,
 							  Dictionary<ExceptionHandler, ILVariable> variableByExceptionHandler,
-							  ICompilation compilation)
+							  ICompilation compilation, bool calculateILSpans)
 		{
 			Debug.Assert(body != null);
 			Debug.Assert(variableByExceptionHandler != null);
@@ -50,6 +53,7 @@ namespace ICSharpCode.Decompiler.IL
 			this.body = body;
 			this.variableByExceptionHandler = variableByExceptionHandler;
 			this.compilation = compilation;
+			this.calculateILSpans = calculateILSpans;
 		}
 
 		List<TryInstruction> tryInstructionList = new List<TryInstruction>();
@@ -241,8 +245,11 @@ namespace ICSharpCode.Decompiler.IL
 					branch.TargetBlock = FindBranchTarget(branch.TargetILOffset);
 					if (branch.TargetBlock == null)
 					{
-						branch.ReplaceWith(new InvalidBranch("Could not find block for branch target "
-							+ DnlibExtensions.OffsetToString(branch.TargetILOffset)).WithILRange(branch));
+						InvalidBranch invalidBranch = new InvalidBranch("Could not find block for branch target "
+																	  + DnlibExtensions.OffsetToString(branch.TargetILOffset)).WithILRange(branch);
+						if (calculateILSpans)
+							invalidBranch.ILSpans.AddRange(branch.ILSpans);
+						branch.ReplaceWith(invalidBranch);
 					}
 					break;
 				case Leave leave:

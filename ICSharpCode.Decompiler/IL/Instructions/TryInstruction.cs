@@ -188,6 +188,12 @@ namespace ICSharpCode.Decompiler.IL
 				index++;
 				return StlocILSpans[i];
 			}
+			int j = (int)index - ILSpans.Count - StlocILSpans.Count;
+			if (j < FilterStlocILSpans.Count)
+			{
+				index++;
+				return FilterStlocILSpans[j];
+			}
 			done = true;
 			return default(ILSpan);
 		}
@@ -196,7 +202,9 @@ namespace ICSharpCode.Decompiler.IL
 			get { return true; }
 		}
 
-		public List<ILSpan> StlocILSpans = new List<ILSpan>(1);
+		public readonly List<ILSpan> StlocILSpans = new List<ILSpan>(1);
+
+		public readonly List<ILSpan> FilterStlocILSpans = new List<ILSpan>(1);
 
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{

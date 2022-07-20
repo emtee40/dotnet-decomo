@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2017 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -152,7 +152,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		///				call Exit(ldloc obj)
 		///			}
 		///			leave lockBlock (nop)
-		///		}		
+		///		}
 		/// }
 		/// =>
 		/// .lock (lockObj) BlockContainer {
@@ -198,7 +198,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		///				call Exit(ldloc obj)
 		///			}
 		///			leave lockBlock (nop)
-		///		}		
+		///		}
 		/// }
 		/// =>
 		/// .lock (lockObj) BlockContainer {
@@ -223,10 +223,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (objectStore.Variable.LoadCount > 2)
 				return false;
 			context.Step("LockTransformRoslyn", block);
+			LockInstruction lockInstr = new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore);
+			if (context.CalculateILSpans)
+			{
+				lockInstr.OnExpression.ILSpans.AddRange(objectStore.ILSpans);
+				flagStore.AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				tryContainer.EntryPoint.Instructions[0].AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				finallyContainer.AddSelfAndChildrenRecursiveILSpans(lockInstr.Body.EndILSpans);
+			}
 			block.Instructions.RemoveAt(i - 1);
 			block.Instructions.RemoveAt(i - 2);
 			tryContainer.EntryPoint.Instructions.RemoveAt(0);
-			body.ReplaceWith(new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore));
+			body.ReplaceWith(lockInstr);
 			return true;
 		}
 

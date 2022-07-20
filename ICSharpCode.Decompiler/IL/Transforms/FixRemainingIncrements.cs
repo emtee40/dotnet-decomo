@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2019 Daniel Grunwald
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -65,9 +65,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// stloc V(...)
 					// compound.assign op_Increment(V)
 					call.ReplaceWith(call.Arguments[0]);
-					block.Instructions.Insert(store.ChildIndex + 1,
-						new UserDefinedCompoundAssign(call.Method, CompoundEvalMode.EvaluatesToNewValue,
-						new LdLoca(store.Variable), CompoundTargetKind.Address, new LdcI4(1)).WithILRange(call));
+					UserDefinedCompoundAssign compoundAssign = new UserDefinedCompoundAssign(call.Method, CompoundEvalMode.EvaluatesToNewValue,
+						new LdLoca(store.Variable), CompoundTargetKind.Address, new LdcI4(1)).WithILRange(call);
+					if (context.CalculateILSpans)
+						compoundAssign.ILSpans.AddRange(call.ILSpans);
+					block.Instructions.Insert(store.ChildIndex + 1, compoundAssign);
 				}
 				else
 				{
@@ -80,8 +82,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 					newVariable.Type = call.GetParameter(0).Type;
 					Debug.Assert(call.Arguments[0].MatchLdLoc(newVariable));
-					call.ReplaceWith(new UserDefinedCompoundAssign(call.Method, CompoundEvalMode.EvaluatesToNewValue,
-						new LdLoca(newVariable), CompoundTargetKind.Address, new LdcI4(1)).WithILRange(call));
+					UserDefinedCompoundAssign compoundAssign = new UserDefinedCompoundAssign(call.Method, CompoundEvalMode.EvaluatesToNewValue,
+						new LdLoca(newVariable), CompoundTargetKind.Address, new LdcI4(1)).WithILRange(call);
+					if (context.CalculateILSpans)
+						compoundAssign.ILSpans.AddRange(call.ILSpans);
+					call.ReplaceWith(compoundAssign);
 				}
 			}
 		}

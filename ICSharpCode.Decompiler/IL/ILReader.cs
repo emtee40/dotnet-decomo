@@ -56,6 +56,8 @@ namespace ICSharpCode.Decompiler.IL
 		// a call instruction.
 		public List<int> SequencePointCandidates { get; private set; }
 
+		public bool CalculateILSpans { get; set; }
+
 		/// <summary>
 		/// Creates a new ILReader instance.
 		/// </summary>
@@ -421,18 +423,20 @@ namespace ICSharpCode.Decompiler.IL
 				var unpacked = UnpackPush(decodedInstruction);
 				unpacked.AddILRange(decodedInstruction);
 
-				//if (context.CalculateILSpans) {
-				if (true)
+				if (CalculateILSpans)
 				{
 					var endOffset = currentInstruction.Offset + (uint)currentInstruction.GetSize();
-					if (currentInstruction.OpCode.Code == Code.Dup) {
+					if (currentInstruction.OpCode.Code == Code.Dup)
+					{
 						if (dupStart < 0)
 							dupStart = start;
 					}
-					else {
+					else
+					{
 						if (dupStart < 0)
-							unpacked.ILSpans.Add(new ILSpan((uint)start, endOffset - currentInstruction.Offset));
-						else {
+							unpacked.ILSpans.Add(new ILSpan((uint)start, endOffset - (uint)start));
+						else
+						{
 							unpacked.ILSpans.Add(new ILSpan((uint)dupStart, endOffset - (uint)dupStart));
 							dupStart = -1;
 						}
@@ -521,7 +525,7 @@ namespace ICSharpCode.Decompiler.IL
 			cancellationToken.ThrowIfCancellationRequested();
 			Init(methodDef, genericContext);
 			ReadInstructions(cancellationToken);
-			var blockBuilder = new BlockBuilder(body, variableByExceptionHandler, compilation);
+			var blockBuilder = new BlockBuilder(body, variableByExceptionHandler, compilation, CalculateILSpans);
 			blockBuilder.CreateBlocks(mainContainer, instructionBuilder, isBranchTarget, cancellationToken);
 			var function = new ILFunction(this.method, methodDef, this.genericContext, mainContainer, kind);
 			function.Variables.AddRange(parameterVariables);

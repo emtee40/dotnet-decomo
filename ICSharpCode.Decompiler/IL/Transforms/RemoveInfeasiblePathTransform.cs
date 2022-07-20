@@ -63,7 +63,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!MatchBlock2(br.TargetBlock, s, value, out var exitInst))
 				return false;
 			context.Step("RemoveInfeasiblePath", br);
-			br.ReplaceWith(exitInst.Clone());
+			ILInstruction replacement = exitInst.Clone();
+			if (context.CalculateILSpans)
+			{
+				replacement.ILSpans.Clear();
+				replacement.ILSpans.AddRange(br.ILSpans);
+			}
+			br.ReplaceWith(replacement);
 			s.RemoveIfRedundant = true;
 			return true;
 		}

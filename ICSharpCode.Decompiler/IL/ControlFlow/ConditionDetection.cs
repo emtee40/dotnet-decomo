@@ -113,7 +113,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					{
 						// if (...) exitInst; exitInst;
 						context.Step("Use empty block as then-branch", ifInst.TrueInst);
-						ifInst.TrueInst = new Nop().WithILRange(ifInst.TrueInst);
+						Nop newTrue = new Nop().WithILRange(ifInst.TrueInst);
+						if (context.CalculateILSpans)
+							newTrue.ILSpans.AddRange(ifInst.TrueInst.ILSpans);
+						ifInst.TrueInst = newTrue;
 						// false, because we didn't inline a real block
 						// this will cause HandleIfInstruction() to attempt to inline the exitInst.
 						return false;
@@ -150,7 +153,15 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// The targetBlock was already processed, and is ready to embed
 			var targetBlock = ((Branch)exitInst).TargetBlock;
 			block.Instructions.RemoveAt(block.Instructions.Count - 1);
-
+			if (context.CalculateILSpans)
+			{
+				exitInst.AddSelfAndChildrenRecursiveILSpans(targetBlock.ILSpans);
+				if (block.Instructions.Count > 0)
+					block.Instructions[block.Instructions.Count - 1].EndILSpans.AddRange(targetBlock.ILSpans);
+				else
+					block.ILSpans.AddRange(targetBlock.ILSpans);
+				block.EndILSpans.AddRange(targetBlock.EndILSpans);
+			}
 			block.Instructions.AddRange(targetBlock.Instructions);
 			targetBlock.Remove();
 
@@ -241,11 +252,16 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			if (!(ifInst.TrueInst is Block trueBlock) || trueBlock.Instructions.Count == 1)
 			{
 				Nop newTrue = new Nop().WithILRange(ifInst.TrueInst);
-				newTrue.ILSpans.AddRange(ifInst.TrueInst.ILSpans);
+				// if (context.CalculateILSpans)
+				// 	newTrue.ILSpans.AddRange(ifInst.TrueInst.ILSpans);
 				ifInst.TrueInst = newTrue;
 			}
 			else
+			{
+				if (context.CalculateILSpans) //TODO: verify
+					ILSpanUtils.AddILSpans(trueBlock, trueBlock.Instructions, trueBlock.Instructions.Count - 1);
 				trueBlock.Instructions.RemoveAt(trueBlock.Instructions.Count - 1);
+			}
 
 			context.StepEndGroup();
 		}
@@ -420,6 +436,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			var oldTrue = ifInst.TrueInst;
 			ifInst.TrueInst = ifInst.FalseInst;
 			ifInst.FalseInst = new Nop().WithILRange(oldTrue);
+			if (context.CalculateILSpans)
+				ifInst.FalseInst.ILSpans.AddRange(oldTrue.ILSpans);
 			ifInst.Condition = Comp.LogicNot(ifInst.Condition);
 		}
 
@@ -439,6 +457,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				context.Step("Combine 'if (cond1 && cond2)' in then-branch", ifInst);
 				ifInst.Condition = IfInstruction.LogicAnd(ifInst.Condition, nestedCondition);
 				ifInst.TrueInst = nestedTrueInst;
+				if (context.CalculateILSpans)
+				{
+					ifInst.Condition.ILSpans.AddRange(ifInst.FalseInst.ILSpans);
+					ifInst.Condition.ILSpans.AddRange(trueBlock.Instructions[0].ILSpans);
+				}
 			}
 		}
 

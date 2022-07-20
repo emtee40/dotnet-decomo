@@ -168,6 +168,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					clone.Children[j].ReplaceWith(new LdLoc(uninlinedArgs[j]));
 				}
+				if (context.CalculateILSpans)
+				{
+					clone.ILSpans.Clear();
+					clone.ILSpans.AddRange(expr.ILSpans);
+				}
 				expr.ReplaceWith(clone);
 			}
 			if (context.CalculateILSpans)

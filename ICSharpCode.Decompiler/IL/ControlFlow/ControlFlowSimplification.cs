@@ -72,6 +72,32 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 			}
 
+			if (context.CalculateILSpans && block.Instructions[0] is Nop popNop && popNop.Kind == NopKind.Pop && block.Parent is BlockContainer container)
+			{
+				if (container.Parent is TryCatchHandler tryCatchHandler && container.EntryPoint == block)
+				{
+					if (container.SlotInfo == TryCatchHandler.BodySlot)
+						tryCatchHandler.StlocILSpans.AddRange(popNop.ILSpans);
+					else if (container.SlotInfo == TryCatchHandler.FilterSlot)
+						tryCatchHandler.FilterStlocILSpans.AddRange(popNop.ILSpans);
+				}
+				else if (block.IncomingEdgeCount == 1) //TODO: make this less hacky
+				{
+					// In the case where the pop instruction is the first instruction in the block, move the ILSpans to the last instruction (a branch) of the previous block.
+					var index = container.Blocks.IndexOf(block);
+					if (index > 0)
+					{
+						var previous = container.Blocks[index - 1];
+						var last = previous.Instructions[previous.Instructions.Count - 1];
+						var beforeLast = previous.Instructions.SecondToLastOrDefault();
+						if (beforeLast is not null && last.MatchBranch(out var targetBlock) && targetBlock == block && beforeLast.MatchIfInstruction(out _, out _))
+						{
+							beforeLast.ILSpans.AddRange(popNop.ILSpans);
+						}
+					}
+				}
+			}
+
 			if (context.CalculateILSpans)
 			{
 				for (var i = 0; i < block.Instructions.Count; i++) {
@@ -190,7 +216,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						context.Step("Replace branch to return with return", branch);
 						var clonedReturn = targetBlock.Instructions[0].Clone();
 						if (context.CalculateILSpans)
+						{
+							clonedReturn.ILSpans.Clear();
 							clonedReturn.ILSpans.AddRange(branch.ILSpans);
+						}
 						branch.ReplaceWith(clonedReturn);
 					}
 					else if (branch.TargetContainer != branch.Ancestors.OfType<BlockContainer>().First())
@@ -215,10 +244,22 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					var leave2 = leave.Clone();
 					if (!branch.ILRangeIsEmpty) // use the ILRange of the branch if possible
 						leave2.AddILRange(branch);
+					if (context.CalculateILSpans && branch.ILSpans.Count > 0)
+					{
+						leave2.ILSpans.Clear();
+						leave2.ILSpans.AddRange(branch.ILSpans);
+					}
 					branch.ReplaceWith(leave2);
 				}
 				if (targetBlock.IncomingEdgeCount == 0)
+				{
+					// If this is the last block of the function body and the only instruction is a return, move it's ILSpans.
+					if (function.Body is BlockContainer functionBody && functionBody.Blocks.Last() == targetBlock &&
+						targetBlock.Instructions.Count == 1 && targetBlock.Instructions[0].MatchReturn(out _))
+						targetBlock.Instructions[0].AddSelfAndChildrenRecursiveILSpans(functionBody.EndILSpans);
+
 					targetBlock.Instructions.Clear(); // mark the block for deletion
+				}
 			}
 			foreach (var (container, block) in blocksToAdd)
 			{
@@ -292,9 +333,16 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				block.AddILRange(targetBlock);
 
 			block.Instructions.Remove(br);
-			block.Instructions.AddRange(targetBlock.Instructions);
 			if (context.CalculateILSpans)
-				block.Instructions[0].ILSpans.AddRange(br.ILSpans);
+			{
+				br.AddSelfAndChildrenRecursiveILSpans(targetBlock.ILSpans);
+				if (block.Instructions.Count > 0)
+					block.Instructions[block.Instructions.Count - 1].EndILSpans.AddRange(targetBlock.ILSpans);
+				else
+					block.ILSpans.AddRange(targetBlock.ILSpans);
+				block.EndILSpans.AddRange(targetBlock.EndILSpans);
+			}
+			block.Instructions.AddRange(targetBlock.Instructions);
 			targetBlock.Instructions.Clear(); // mark targetBlock for deletion
 			return true;
 		}

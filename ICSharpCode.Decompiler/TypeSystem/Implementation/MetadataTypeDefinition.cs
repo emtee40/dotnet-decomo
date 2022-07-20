@@ -67,7 +67,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			this.attributes = handle.Attributes;
 			this.fullTypeName = handle.GetFullTypeName();
 			// Find DeclaringType + KnownTypeCode:
-			if (handle.IsNested) {
+			if (handle.DeclaringType is not null) {
 				this.DeclaringTypeDefinition = module.GetDefinition(handle.DeclaringType);
 
 				// Create type parameters:

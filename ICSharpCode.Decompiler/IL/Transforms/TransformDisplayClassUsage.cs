@@ -754,6 +754,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					if (inst.Value is StLoc || inst.Value is CompoundAssignmentInstruction)
 					{
 						context.Step($"Remove unused variable assignment {inst.Variable.Name}", inst);
+						if (context.CalculateILSpans)
+							inst.Value.ILSpans.AddRange(inst.ILSpans);
 						inst.ReplaceWith(inst.Value);
 					}
 					return;

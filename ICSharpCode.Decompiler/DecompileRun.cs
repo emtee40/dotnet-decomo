@@ -34,17 +34,20 @@ namespace ICSharpCode.Decompiler
 		UsingScope CreateUsingScope(HashSet<string> requiredNamespacesSuperset)
 		{
 			var usingScope = new UsingScope();
-			foreach (var ns in requiredNamespacesSuperset)
+			lock (requiredNamespacesSuperset)
 			{
-				string[] parts = ns.Split('.');
-				AstType nsType = new SimpleType(parts[0]);
-				for (int i = 1; i < parts.Length; i++)
+				foreach (var ns in requiredNamespacesSuperset)
 				{
-					nsType = new MemberType { Target = nsType, MemberName = parts[i] };
-				}
+					string[] parts = ns.Split('.');
+					AstType nsType = new SimpleType(parts[0]);
+					for (int i = 1; i < parts.Length; i++)
+					{
+						nsType = new MemberType { Target = nsType, MemberName = parts[i] };
+					}
 
-				if (nsType.ToTypeReference(CSharp.Resolver.NameLookupMode.TypeInUsingDeclaration) is TypeOrNamespaceReference reference)
-					usingScope.Usings.Add(reference);
+					if (nsType.ToTypeReference(CSharp.Resolver.NameLookupMode.TypeInUsingDeclaration) is TypeOrNamespaceReference reference)
+						usingScope.Usings.Add(reference);
+				}
 			}
 			return usingScope;
 		}

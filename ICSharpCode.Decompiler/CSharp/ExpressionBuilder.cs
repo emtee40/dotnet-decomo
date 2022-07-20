@@ -2424,6 +2424,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				inferredReturnType = GetTaskType(inferredReturnType);
 			}
 
+			ame.AddAnnotation(function.ILSpans);
+
 			var rr = new DecompiledLambdaResolveResult(
 				function, delegateType, inferredReturnType,
 				hasParameterList: isLambda || ame.HasParameterList,

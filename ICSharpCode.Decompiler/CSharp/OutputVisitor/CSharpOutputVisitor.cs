@@ -2602,7 +2602,10 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				Space();
 				DebugStart(catchClause.Condition);
 				WriteKeywordReference(CatchClause.WhenKeywordRole, currentTryReference);
+				DebugHidden(catchClause.HiddenWhen);
+				DebugEnd(catchClause.Condition, false);
 				Space(policy.SpaceBeforeIfParentheses);
+				DebugStart(catchClause.Condition);
 				var braceHelper = BraceHelper.LeftParen(this, CodeBracesRangeFlags.Parentheses);
 				Space(policy.SpacesWithinIfParentheses);
 				catchClause.Condition.AcceptVisitor(this);

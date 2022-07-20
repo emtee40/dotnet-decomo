@@ -713,7 +713,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 				else if (branch.TargetBlock == exitTargetBlock)
 				{
-					branch.ReplaceWith(new Leave(loopContainer).WithILRange(branch));
+					Leave leave = new Leave(loopContainer).WithILRange(branch);
+					if (context.CalculateILSpans)
+						leave.ILSpans.AddRange(branch.ILSpans);
+					branch.ReplaceWith(leave);
 				}
 			}
 		}

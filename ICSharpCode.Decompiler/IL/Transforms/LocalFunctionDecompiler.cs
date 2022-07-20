@@ -202,6 +202,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 								var specializeMethod = info.Definition.ReducedMethod
 									.Specialize(fnptr.Method.Substitution);
 								var replacement = new LdFtn(specializeMethod).WithILRange(fnptr);
+								if (context.CalculateILSpans)
+									replacement.ILSpans.AddRange(fnptr.ILSpans);
 								fnptr.ReplaceWith(replacement);
 								break;
 							default:
@@ -613,10 +615,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 		}
 
-		static void TransformToLocalFunctionReference(ILFunction function, CallInstruction useSite)
+		void TransformToLocalFunctionReference(ILFunction function, CallInstruction useSite)
 		{
 			ILInstruction target = useSite.Arguments[0];
-			target.ReplaceWith(new LdNull().WithILRange(target));
+			LdNull newTarget = new LdNull().WithILRange(target);
+			if (context.CalculateILSpans)
+				target.AddSelfAndChildrenRecursiveILSpans(newTarget.ILSpans);
+			target.ReplaceWith(newTarget);
 			if (target is IInstructionWithVariableOperand withVar && withVar.Variable.Kind == VariableKind.Local)
 			{
 				withVar.Variable.Kind = VariableKind.DisplayClassLocal;
@@ -624,6 +629,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var fnptr = (IInstructionWithMethodOperand)useSite.Arguments[1];
 			var specializeMethod = function.ReducedMethod.Specialize(fnptr.Method.Substitution);
 			var replacement = new LdFtn(specializeMethod).WithILRange((ILInstruction)fnptr);
+			if (context.CalculateILSpans)
+				useSite.Arguments[1].AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 			useSite.Arguments[1].ReplaceWith(replacement);
 		}
 
@@ -642,11 +649,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			replacement.IsTail = useSite.IsTail;
 			// copy IL ranges
 			replacement.AddILRange(useSite);
-			replacement.ILSpans.AddRange(useSite.ILSpans);
+			if (context.CalculateILSpans)
+				replacement.ILSpans.AddRange(useSite.ILSpans);
 			if (wasInstanceCall)
 			{
 				replacement.AddILRange(useSite.Arguments[0]);
-				replacement.ILSpans.AddRange(useSite.Arguments[0].ILSpans);
+				if (context.CalculateILSpans)
+					useSite.Arguments[0].AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 				if (useSite.Arguments[0].MatchLdLocRef(out var variable) && variable.Kind == VariableKind.NamedArgument)
 				{
 					// remove the store instruction of the simple load, if it is a named argument.
@@ -656,7 +665,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 			for (int i = 0; i < reducedMethod.NumberOfCompilerGeneratedParameters; i++)
 			{
-				replacement.ILSpans.AddRange(useSite.Arguments[argumentCount - i - 1].ILSpans);
+				if (context.CalculateILSpans)
+					useSite.Arguments[argumentCount - i - 1].AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 				replacement.AddILRange(useSite.Arguments[argumentCount - i - 1]);
 			}
 			useSite.ReplaceWith(replacement);

@@ -106,6 +106,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				ILInstruction replacement = MakeDynamicInstruction(callsite, invokeCall, deadArguments);
 				if (replacement == null)
 					continue;
+				if (context.CalculateILSpans)
+				{
+					callsite.ConditionalJumpToInit.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					callsite.InitBlock.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					replacement.ILSpans.AddRange(invokeCall.ILSpans);
+					foreach (ILInstruction deadArgument in deadArguments) {
+						deadArgument.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					}
+				}
+
 				invokeCall.ReplaceWith(replacement);
 				Debug.Assert(callsite.ConditionalJumpToInit?.Parent is Block);
 				var block = ((Block)callsite.ConditionalJumpToInit.Parent);

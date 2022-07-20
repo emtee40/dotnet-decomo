@@ -22,6 +22,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.TypeSystem;
 
 namespace ICSharpCode.Decompiler.IL.Transforms
@@ -103,6 +105,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// comp(comp(...) != 0) => comp(...)
 				context.Step("Remove redundant comp(... != 0)", inst);
 				inst.Left.AddILRange(inst);
+				if (context.CalculateILSpans)
+				{
+					inst.Left.ILSpans.AddRange(inst.ILSpans);
+					inst.Right.AddSelfAndChildrenRecursiveILSpans(inst.Left.ILSpans);
+				}
 				inst.ReplaceWith(inst.Left);
 				inst.Left.AcceptVisitor(this);
 				return;
@@ -167,7 +174,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				&& (!inst.CheckForOverflow || context.Settings.AssumeArrayLengthFitsIntoInt32)) {
 				context.Step("conv.i4(ldlen array) => ldlen.i4(array)", inst);
 				inst.AddILRange(inst.Argument);
-				inst.ReplaceWith(new LdLen(inst.TargetType.GetStackType(), array).WithILRange(inst));
+				LdLen replacement = new LdLen(inst.TargetType.GetStackType(), array).WithILRange(inst);
+				if (context.CalculateILSpans)
+				{
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					replacement.ILSpans.AddRange(inst.Argument.ILSpans);
+				}
+				inst.ReplaceWith(replacement);
 				return;
 			}
 			if (inst.TargetType.IsFloatType() && inst.Argument is Conv conv
@@ -177,7 +190,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// so the C# compiler usually follows it with an explicit conv.r4 or conv.r8.
 				// To avoid emitting '(float)(double)val', we combine these two conversions:
 				context.Step("conv.rN(conv.r.un(...)) => conv.rN.un(...)", inst);
-				inst.ReplaceWith(new Conv(conv.Argument, conv.InputType, conv.InputSign, inst.TargetType, inst.CheckForOverflow, inst.IsLifted | conv.IsLifted));
+				Conv replacement = new Conv(conv.Argument, conv.InputType, conv.InputSign, inst.TargetType, inst.CheckForOverflow, inst.IsLifted | conv.IsLifted);
+				if (context.CalculateILSpans)
+				{
+					replacement.ILSpans.AddRange(inst.ILSpans);
+					replacement.ILSpans.AddRange(conv.ILSpans);
+				}
+				inst.ReplaceWith(replacement);
 				return;
 			}
 		}
@@ -190,6 +209,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// For reference types, box is a no-op.
 				context.Step("box ref-type(arg) => arg", inst);
 				inst.Argument.AddILRange(inst);
+				if (context.CalculateILSpans)
+					inst.Argument.ILSpans.AddRange(inst.ILSpans);
 				inst.ReplaceWith(inst.Argument);
 			}
 		}
@@ -218,6 +239,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				)
 				{
 					context.Step("Remove conv.i from array index", index);
+					if (context.CalculateILSpans)
+						conv.Argument.ILSpans.AddRange(index.ILSpans);
 					index.ReplaceWith(conv.Argument);
 				}
 			}
@@ -288,6 +311,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (TransformDecimalCtorToConstant(inst, out LdcDecimal decimalConstant))
 			{
 				context.Step("TransformDecimalCtorToConstant", inst);
+				if (context.CalculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(decimalConstant.ILSpans);
 				inst.ReplaceWith(decimalConstant);
 				return;
 			}
@@ -347,6 +372,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			ldVirtDelegate = new LdVirtDelegate(inst.Arguments[0], inst.Method.DeclaringType, ldVirtFtn.Method)
 				.WithILRange(inst).WithILRange(ldVirtFtn).WithILRange(ldVirtFtn.Argument);
+			if (context.CalculateILSpans)
+			{
+				ldVirtDelegate.ILSpans.AddRange(inst.ILSpans);
+				ldVirtFtn.AddSelfAndChildrenRecursiveILSpans(ldVirtDelegate.ILSpans);
+			}
 			return true;
 		}
 
@@ -381,6 +411,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (newObj.Arguments[0].MatchLocAlloc(out var sizeInBytes) && MatchesElementCount(sizeInBytes, elementType, newObj.Arguments[1]))
 			{
 				locallocSpan = new LocAllocSpan(newObj.Arguments[1], type);
+				if (context.CalculateILSpans)
+				{
+					locallocSpan.ILSpans.AddRange(newObj.ILSpans);
+					newObj.Arguments[0].AddSelfAndChildrenRecursiveILSpans(locallocSpan.ILSpans);
+				}
 				return true;
 			}
 			if (newObj.Arguments[0] is Block initializer && initializer.Kind == BlockKind.StackAllocInitializer)
@@ -483,6 +518,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (TransformDecimalFieldToConstant(inst, out LdcDecimal decimalConstant))
 			{
 				context.Step("TransformDecimalFieldToConstant", inst);
+				if (context.CalculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(decimalConstant.ILSpans);
 				inst.ReplaceWith(decimalConstant);
 				return;
 			}
@@ -552,6 +589,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("match(x) ? true : false -> match(x)", inst);
 				inst.Condition.AddILRange(inst);
+				if (context.CalculateILSpans)
+				{
+					inst.Condition.ILSpans.AddRange(inst.ILSpans);
+					inst.Condition.ILSpans.AddRange(inst.TrueInst.ILSpans);
+					inst.Condition.ILSpans.AddRange(inst.FalseInst.ILSpans);
+				}
 				inst.ReplaceWith(inst.Condition);
 				return;
 			}
@@ -573,7 +616,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step("conditional operator", inst);
 				var newIf = new IfInstruction(Comp.LogicNot(inst.Condition), value2, value1);
 				newIf.AddILRange(inst);
-				inst.ReplaceWith(new StLoc(v, newIf));
+				var newStloc = new StLoc(v, newIf);
+				if (context.CalculateILSpans)
+				{
+					newStloc.ILSpans.AddRange(trueInst.Instructions[0].ILSpans);
+					newStloc.ILSpans.AddRange(falseInst.Instructions[0].ILSpans);
+					newIf.ILSpans.AddRange(inst.ILSpans);
+				}
+				inst.ReplaceWith(newStloc);
 				context.RequestRerun();  // trigger potential inlining of the newly created StLoc
 				return newIf;
 			}
@@ -813,6 +863,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						&& rhs.MatchLdcI4(inst.ResultType == StackType.I8 ? 63 : 31)) {
 						// a << (b & 31) => a << b
 						context.Step("Combine bit.and into shift", inst);
+						if (context.CalculateILSpans)
+						{
+							lhs.ILSpans.AddRange(inst.Right.ILSpans);
+							lhs.ILSpans.AddRange(rhs.ILSpans);
+						}
 						inst.Right = lhs;
 					}
 					break;
@@ -858,7 +913,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			if (!handler.Variable.IsSingleDefinition || handler.Variable.LoadCount != 1)
 				return; // handler.Variable already has non-trivial uses
-			if (!entryPoint.Instructions[0].MatchStLoc(out var exceptionVar, out var exceptionSlotLoad))
+			var firstInstr = entryPoint.Instructions[0];
+			if (!firstInstr.MatchStLoc(out var exceptionVar, out var exceptionSlotLoad))
 			{
 				// Not the pattern with a second exceptionVar.
 				// However, it is still possible that we need to remove a pointless UnboxAny:
@@ -870,6 +926,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						inlinedUnboxAny.ReplaceWith(inlinedUnboxAny.Argument);
 						foreach (var range in inlinedUnboxAny.ILRanges)
 							handler.AddExceptionSpecifierILRange(range);
+						if (context.CalculateILSpans)
+						{
+							if (isCatchBlock)
+								handler.StlocILSpans.AddRange(inlinedUnboxAny.ILSpans);
+							else
+								handler.FilterStlocILSpans.AddRange(inlinedUnboxAny.ILSpans);
+						}
 					}
 				}
 				return;
@@ -900,9 +963,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			handler.Variable = exceptionVar;
 			if (isCatchBlock)
 			{
-				foreach (var offset in entryPoint.Instructions[0].Descendants.SelectMany(o => o.ILRanges))
+				foreach (var offset in firstInstr.Descendants.SelectMany(o => o.ILRanges))
 					handler.AddExceptionSpecifierILRange(offset);
 			}
+			if (context.CalculateILSpans)
+				firstInstr.AddSelfAndChildrenRecursiveILSpans(isCatchBlock ? handler.StlocILSpans : handler.FilterStlocILSpans);
+
 			entryPoint.Instructions.RemoveAt(0);
 		}
 
@@ -916,6 +982,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("TransformCatchWhen", entryPoint.Instructions[0]);
 				handler.Filter = condition;
+				if (context.CalculateILSpans)
+					condition.ILSpans.AddRange(entryPoint.Instructions[0].ILSpans);
 			}
 		}
 	}

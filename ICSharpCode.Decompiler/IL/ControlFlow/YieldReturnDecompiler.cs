@@ -202,7 +202,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			}
 
 			context.Step("Translate fields to local accesses", function);
-			TranslateFieldsToLocalAccess(function, function, fieldToParameterMap, isCompiledWithMono);
+			TranslateFieldsToLocalAccess(function, function, fieldToParameterMap, context.CalculateILSpans, isCompiledWithMono);
 
 			// On mono, we still need to remove traces of the state variable(s):
 			if (isCompiledWithMono)
@@ -714,7 +714,14 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						// perform copy propagation: (unlike CopyPropagation.Propagate(), copy the ldobj arguments as well)
 						foreach (var expr in store.Variable.LoadInstructions.ToArray())
 						{
-							expr.ReplaceWith(store.Value.Clone());
+							ILInstruction replacement = store.Value.Clone();
+							if (context.CalculateILSpans)
+							{
+								//TODO: better
+								replacement.GetSelfAndChildrenRecursive<ILInstruction>().ForEach(x => x.ILSpans.Clear());
+								replacement.ILSpans.AddRange(expr.ILSpans);
+							}
+							expr.ReplaceWith(replacement);
 						}
 						body.EntryPoint.Instructions.RemoveAt(i--);
 					}
@@ -795,7 +802,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						{
 							// create yield return
 							YieldReturn yieldReturn = new YieldReturn(value).WithILRange(oldInst);
-							oldInst.AddSelfAndChildrenRecursiveILSpans(yieldReturn.ILSpans);
+							if (context.CalculateILSpans)
+								oldInst.AddSelfAndChildrenRecursiveILSpans(yieldReturn.ILSpans);
 							newBlock.Instructions.Add(yieldReturn);
 							ConvertBranchAfterYieldReturn(newBlock, oldBlock, oldInst.ChildIndex + 1);
 							break; // we're done with this basic block
@@ -967,12 +975,16 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 							{
 								// yield break
 								Leave yieldBreak = new Leave(newBody).WithILRange(leave);
-								leave.AddSelfAndChildrenRecursiveILSpans(yieldBreak.ILSpans);
+								if (context.CalculateILSpans)
+									leave.AddSelfAndChildrenRecursiveILSpans(yieldBreak.ILSpans);
 								leave.ReplaceWith(yieldBreak);
 							}
 							else
 							{
-								leave.ReplaceWith(new InvalidBranch("Unexpected return in MoveNext()").WithILRange(leave));
+								InvalidBranch invalidBranch = new InvalidBranch("Unexpected return in MoveNext()").WithILRange(leave);
+								if (context.CalculateILSpans)
+									leave.AddSelfAndChildrenRecursiveILSpans(invalidBranch.ILSpans);
+								leave.ReplaceWith(invalidBranch);
 							}
 						}
 						else
@@ -996,7 +1008,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 		/// <summary>
 		/// Translates all field accesses in `function` to local variable accesses.
 		/// </summary>
-		internal static void TranslateFieldsToLocalAccess(ILFunction function, ILInstruction inst, Dictionary<IField, ILVariable> fieldToVariableMap, bool isCompiledWithMono = false)
+		internal static void TranslateFieldsToLocalAccess(ILFunction function, ILInstruction inst, Dictionary<IField, ILVariable> fieldToVariableMap, bool calculateILSpans, bool isCompiledWithMono = false)
 		{
 			if (inst is LdFlda ldflda && ldflda.Target.MatchLdThis())
 			{
@@ -1019,28 +1031,42 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				if (v.StackType == StackType.Ref)
 				{
 					Debug.Assert(v.Kind == VariableKind.Parameter && v.Index < 0); // this pointer
-					inst.ReplaceWith(new LdLoc(v).WithILRange(inst));
+					LdLoc replacement = new LdLoc(v).WithILRange(inst);
+					if (calculateILSpans)
+						inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					inst.ReplaceWith(replacement);
 				}
 				else
 				{
-					inst.ReplaceWith(new LdLoca(v).WithILRange(inst));
+					LdLoca replacement = new LdLoca(v).WithILRange(inst);
+					if (calculateILSpans)
+						inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					inst.ReplaceWith(replacement);
 				}
 			}
 			else if (!isCompiledWithMono && inst.MatchLdThis())
 			{
-				inst.ReplaceWith(new InvalidExpression("stateMachine") { ExpectedResultType = inst.ResultType }.WithILRange(inst));
+				InvalidExpression replacement = new InvalidExpression("stateMachine") { ExpectedResultType = inst.ResultType }.WithILRange(inst);
+				if (calculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				inst.ReplaceWith(replacement);
 			}
 			else
 			{
 				foreach (var child in inst.Children)
 				{
-					TranslateFieldsToLocalAccess(function, child, fieldToVariableMap, isCompiledWithMono);
+					TranslateFieldsToLocalAccess(function, child, fieldToVariableMap, calculateILSpans, isCompiledWithMono);
 				}
 				if (inst is LdObj ldobj && ldobj.Target is LdLoca ldloca && ldloca.Variable.StateMachineField != null)
 				{
 					LdLoc ldloc = new LdLoc(ldloca.Variable);
 					ldloc.AddILRange(ldobj);
 					ldloc.AddILRange(ldloca);
+					if (calculateILSpans)
+					{
+						ldloc.ILSpans.AddRange(ldobj.ILSpans);
+						ldloc.ILSpans.AddRange(ldloca.ILSpans);
+					}
 					inst.ReplaceWith(ldloc);
 				}
 				else if (inst is StObj stobj && stobj.Target is LdLoca ldloca2 && ldloca2.Variable.StateMachineField != null)
@@ -1048,6 +1074,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					StLoc stloc = new StLoc(ldloca2.Variable, stobj.Value);
 					stloc.AddILRange(stobj);
 					stloc.AddILRange(ldloca2);
+					if (calculateILSpans)
+					{
+						stloc.ILSpans.AddRange(stobj.ILSpans);
+						stloc.ILSpans.AddRange(ldloca2.ILSpans);
+					}
 					inst.ReplaceWith(stloc);
 				}
 			}

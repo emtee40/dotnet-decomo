@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2017 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -45,7 +45,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// }
 					// =>
 					// Block entryPoint (incoming: 1)  {
-					//   stloc temp(ldloc exceptionSlot)  
+					//   stloc temp(ldloc exceptionSlot)
 					//   br whenConditionBlock
 					// }
 					var instructions = container.EntryPoint.Instructions;
@@ -55,8 +55,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						// if (comp(ldloc temp != ldnull)) br whenConditionBlock
 						// br falseBlock
 						context.Step($"Detected catch-when for {catchBlock.Variable.Name} (extra store)", instructions[0]);
-						((StLoc)instructions[0]).Value = exceptionSlot;
-						instructions[1].ReplaceWith(new Branch(whenConditionBlock));
+						Branch newBranch = new Branch(whenConditionBlock);
+						var stloc = (StLoc)instructions[0];
+						if (context.CalculateILSpans)
+						{
+							instructions[1].AddSelfAndChildrenRecursiveILSpans(catchBlock.FilterStlocILSpans);
+							catchBlock.FilterStlocILSpans.AddRange(instructions[2].ILSpans);
+							catchBlock.FilterStlocILSpans.AddRange(stloc.Value.ILSpans);
+							if (instructions[2].MatchBranch(out var falseBlock))
+								falseBlock.AddSelfAndChildrenRecursiveILSpans(catchBlock.FilterStlocILSpans);
+						}
+						stloc.Value = exceptionSlot;
+						instructions[1].ReplaceWith(newBranch);
 						instructions.RemoveAt(2);
 						container.SortBlocks(deleteUnreachableBlocks: true);
 					}
@@ -65,7 +75,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						// if (comp(isinst exceptionType(ldloc exceptionVar) != ldnull)) br whenConditionBlock
 						// br falseBlock
 						context.Step($"Detected catch-when for {catchBlock.Variable.Name}", instructions[0]);
-						instructions[0].ReplaceWith(new Branch(whenConditionBlock));
+						Branch newBranch = new Branch(whenConditionBlock);
+						if (context.CalculateILSpans)
+						{
+							instructions[0].AddSelfAndChildrenRecursiveILSpans(catchBlock.FilterStlocILSpans);
+							if (instructions[1].MatchBranch(out var falseBlock))
+								falseBlock.AddSelfAndChildrenRecursiveILSpans(catchBlock.FilterStlocILSpans);
+						}
+						instructions[0].ReplaceWith(newBranch);
 						instructions.RemoveAt(1);
 						container.SortBlocks(deleteUnreachableBlocks: true);
 					}
@@ -81,7 +98,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// 		stloc S_30(ldloc E_189)
 		/// 		br IL_0085
 		/// 	}
-		/// 
+		///
 		/// 	Block IL_0085 (incoming: 1) {
 		/// 		stloc I_1(ldloc S_30)
 		/// where S_30 and I_1 are single definition
@@ -126,6 +143,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// stloc b(castclass exceptionType(ldloc a))
 				else if (stloc.Value is CastClass cc && cc.Type.Equals(exceptionVariable.Type) && cc.Argument == load)
 				{
+					if (context.CalculateILSpans)
+						load.ILSpans.AddRange(cc.ILSpans);
 					stloc.Value = load;
 					PropagateExceptionInstance(stloc);
 				}
@@ -140,10 +159,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						if (!load.IsDescendantOf(handler))
 							continue;
-						load.ReplaceWith(new LdLoc(exceptionVariable).WithILRange(load));
+						LdLoc replacement = new LdLoc(exceptionVariable).WithILRange(load);
+						if (context.CalculateILSpans)
+							replacement.ILSpans.AddRange(load.ILSpans);
+						load.ReplaceWith(replacement);
 					}
 					if (store.Variable.LoadCount == 0 && store.Parent is Block block)
 					{
+						if (context.CalculateILSpans)
+							ILSpanUtils.AddILSpans(block, block.Instructions, store.ChildIndex);
 						block.Instructions.RemoveAt(store.ChildIndex);
 					}
 					else
