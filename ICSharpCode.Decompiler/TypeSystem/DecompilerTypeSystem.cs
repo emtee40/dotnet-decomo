@@ -169,7 +169,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		{
 			if (mainModule == null)
 				throw new ArgumentNullException(nameof(mainModule));
-			SharedStringBuilder = mainModule.StringBuilder;
 			maindnlibMod = mainModule.Module;
 			options = typeSystemOptions;
 
@@ -217,8 +216,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				return dnlibModules[module] = tsMod;
 			}
 		}
-
-		public StringBuilder SharedStringBuilder { get; }
 
 		public INamespace RootNamespace {
 			get {

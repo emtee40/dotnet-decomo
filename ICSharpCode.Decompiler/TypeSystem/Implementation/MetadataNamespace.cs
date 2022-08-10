@@ -95,8 +95,6 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			}
 
 			return null;
-
-			//return module.GetTypeDefinition(FullName, name, typeParameterCount);
 		}
 	}
 }

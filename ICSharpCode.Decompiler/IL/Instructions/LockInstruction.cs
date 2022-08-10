@@ -36,14 +36,19 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("lock (", BoxedTextColor.Text);
+			output.Write("lock", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			OnExpression.WriteTo(output, options);
-			output.WriteLine(") {", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
+			output.Write(" ", BoxedTextColor.Text);
+			braceInfo = OpenBrace(output, "{");
+			output.WriteLine();
 			output.IncreaseIndent();
 			Body.WriteTo(output, options);
 			output.DecreaseIndent();
 			output.WriteLine();
-			output.Write("}", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, "}", CodeBracesRangeFlags.LockBraces);
 		}
 	}
 }

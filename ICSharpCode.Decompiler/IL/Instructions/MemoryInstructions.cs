@@ -48,17 +48,19 @@ namespace ICSharpCode.Decompiler.IL
 				if (this.MatchLdFld(out var target, out var field))
 				{
 					WriteILRange(output, options);
-					output.Write("ldfld ", BoxedTextColor.Text);
+					output.Write("ldfld", BoxedTextColor.OpCode);
+					output.Write(" ", BoxedTextColor.Text);
 					field.WriteTo(output);
-					output.Write("(", BoxedTextColor.Text);
+					var braceInfo = OpenBrace(output, "(");
 					target.WriteTo(output, options);
-					output.Write(")", BoxedTextColor.Text);
+					CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 					return;
 				}
 				else if (this.MatchLdsFld(out field))
 				{
 					WriteILRange(output, options);
-					output.Write("ldsfld ", BoxedTextColor.Text);
+					output.Write("ldsfld", BoxedTextColor.OpCode);
+					output.Write(" ", BoxedTextColor.Text);
 					field.WriteTo(output);
 					return;
 				}
@@ -76,23 +78,26 @@ namespace ICSharpCode.Decompiler.IL
 				if (this.MatchStFld(out var target, out var field, out var value))
 				{
 					WriteILRange(output, options);
-					output.Write("stfld ", BoxedTextColor.Text);
+					output.Write("stfld", BoxedTextColor.OpCode);
+					output.Write(" ", BoxedTextColor.Text);
 					field.WriteTo(output);
-					output.Write("(", BoxedTextColor.Text);
+					var braceInfo = OpenBrace(output, "(");
 					target.WriteTo(output, options);
-					output.Write(", ", BoxedTextColor.Text);
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
 					value.WriteTo(output, options);
-					output.Write(")", BoxedTextColor.Text);
+					CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 					return;
 				}
 				else if (this.MatchStsFld(out field, out value))
 				{
 					WriteILRange(output, options);
-					output.Write("stsfld ", BoxedTextColor.Text);
+					output.Write("stsfld", BoxedTextColor.OpCode);
+					output.Write(" ", BoxedTextColor.Text);
 					field.WriteTo(output);
-					output.Write("(", BoxedTextColor.Text);
+					var braceInfo = OpenBrace(output, "(");
 					value.WriteTo(output, options);
-					output.Write(")", BoxedTextColor.Text);
+					CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 					return;
 				}
 			}

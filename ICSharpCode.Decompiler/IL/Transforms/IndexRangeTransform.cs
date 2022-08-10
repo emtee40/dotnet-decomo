@@ -55,6 +55,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					ldelema.AddILRange(node);
 				ldelema.AddILRange(call);
 				ldelema.WithSystemIndex = true;
+				if (context.CalculateILSpans)
+				{
+					ldelema.ILSpans.AddRange(call.ILSpans);
+					call.Arguments[1].AddSelfAndChildrenRecursiveILSpans(ldelema.ILSpans);
+				}
 				// The method call had a `ref System.Index` argument for the this pointer, but we want a `System.Index` by-value.
 				ldelema.Indices[0] = new LdObj(call.Arguments[0], call.Method.DeclaringType);
 				return true;
@@ -73,6 +78,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					ldelema.AddILRange(node);
 				ldelema.AddILRange(bni);
 				ldelema.WithSystemIndex = true;
+				if (context.CalculateILSpans)
+				{
+					ldelema.ILSpans.AddRange(bni.ILSpans);
+					bni.Left.AddSelfAndChildrenRecursiveILSpans(ldelema.ILSpans);
+				}
 				ldelema.Indices[0] = MakeIndex(IndexKind.FromEnd, bni.Right, indexMethods);
 				return true;
 			}
@@ -268,6 +278,29 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					newCall.AddILRange(block.Instructions[i]);
 				}
+				if (context.CalculateILSpans)
+				{
+					int spanPos = startPos;
+					if (containerLengthVar is not null)
+						block.Instructions[spanPos++].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					newCall.ILSpans.AddRange(block.Instructions[spanPos].ILSpans);
+					if (startIndexKind == IndexKind.TheEnd)
+						startOffsetVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					else if (startIndexKind == IndexKind.FromEnd)
+					{
+						var bni = (BinaryNumericInstruction)startOffsetVarInit;
+						newCall.ILSpans.AddRange(bni.ILSpans);
+						bni.Left.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					}
+					else if (startIndexKind == IndexKind.RefSystemIndex)
+					{
+						var getOffsetCall = (CallInstruction)startOffsetVarInit;
+						newCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+						getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					}
+					newCall.ILSpans.AddRange(call.ILSpans);
+					call.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+				}
 				call.ReplaceWith(newCall);
 				block.Instructions.RemoveRange(startPos, pos - startPos);
 			}
@@ -356,6 +389,108 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				for (int i = startPos; i < pos; i++)
 				{
 					newCall.AddILRange(block.Instructions[i]);
+				}
+
+				if (context.CalculateILSpans)
+				{
+					int spanPos = startPos;
+					if (containerLengthVar is not null)
+						block.Instructions[spanPos++].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					newCall.ILSpans.AddRange(block.Instructions[spanPos++].ILSpans);
+					if (!sliceLengthWasMisdetectedAsStartOffset)
+						newCall.ILSpans.AddRange(block.Instructions[spanPos].ILSpans);
+
+					if (startIndexKind == IndexKind.TheStart && endIndexKind == IndexKind.TheEnd && specialMethods.RangeGetAll != null)
+					{
+						startOffsetVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						if (sliceLengthVarInit != startOffsetVarInit)
+							sliceLengthVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					}
+					else if (startIndexKind == IndexKind.TheStart && specialMethods.RangeEndAt != null)
+					{
+						startOffsetVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						var toProcess = sliceLengthVarInit;
+						if (sliceLengthVarInit is BinaryNumericInstruction bni)
+						{
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Right.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+							toProcess = bni.Left;
+						}
+						if (endIndexKind == IndexKind.TheEnd)
+							toProcess.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						else if (endIndexKind == IndexKind.FromEnd)
+						{
+							bni = (BinaryNumericInstruction)toProcess;
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+						else if (endIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)toProcess;
+							newCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+					}
+					else if (endIndexKind == IndexKind.TheEnd && specialMethods.RangeStartAt != null)
+					{
+						sliceLengthVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						if (startIndexKind == IndexKind.TheEnd)
+							startOffsetVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						else if (startIndexKind == IndexKind.FromEnd)
+						{
+							var bni = (BinaryNumericInstruction)startOffsetVarInit;
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+						else if (startIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)startOffsetVarInit;
+							newCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+					}
+					else
+					{
+						var toProcess = sliceLengthVarInit;
+						if (sliceLengthVarInit is BinaryNumericInstruction bni)
+						{
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Right.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+							toProcess = bni.Left;
+						}
+						if (endIndexKind == IndexKind.TheEnd)
+							toProcess.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						else if (endIndexKind == IndexKind.FromEnd)
+						{
+							bni = (BinaryNumericInstruction)toProcess;
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+						else if (endIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)toProcess;
+							newCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+						if (startIndexKind == IndexKind.TheEnd)
+							startOffsetVarInit.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						else if (startIndexKind == IndexKind.FromEnd)
+						{
+							bni = (BinaryNumericInstruction)startOffsetVarInit;
+							newCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+						else if (startIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)startOffsetVarInit;
+							newCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+						}
+					}
+
+					newCall.ILSpans.AddRange(call.ILSpans);
+					call.Arguments[1].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
+					call.Arguments[2].AddSelfAndChildrenRecursiveILSpans(newCall.ILSpans);
 				}
 				call.ReplaceWith(newCall);
 				block.Instructions.RemoveRange(startPos, pos - startPos);
@@ -456,7 +591,94 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (!specialMethods.IsValid)
 					return;
 				context.Step("Merge containerLengthVar into slicing", slicingCall);
-				rangeCtorCall.ReplaceWith(MakeRange(startIndexKind, startIndexLoad, endIndexKind, endIndexLoad, specialMethods));
+				var range = MakeRange(startIndexKind, startIndexLoad, endIndexKind, endIndexLoad, specialMethods);
+				if (context.CalculateILSpans)
+				{
+					int spanPos = startPos;
+					block.Instructions[spanPos++].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+					if (rangeVar is not null)
+					{
+						if (range != rangeVarInit)
+							block.Instructions[spanPos].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						else
+							slicingCall.ILSpans.AddRange(block.Instructions[spanPos].ILSpans);
+					}
+
+					if (startIndexKind == IndexKind.TheStart && endIndexKind == IndexKind.TheEnd && specialMethods.RangeGetAll != null)
+					{
+						startOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						if (endOffsetInst != startOffsetInst)
+							endOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+					}
+					else if (startIndexKind == IndexKind.TheStart && specialMethods.RangeEndAt != null)
+					{
+						startOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						if (endIndexKind == IndexKind.TheEnd)
+							endOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						else if (endIndexKind == IndexKind.FromEnd)
+						{
+							var bni = (BinaryNumericInstruction)endOffsetInst;
+							slicingCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+						else if (endIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)endOffsetInst;
+							slicingCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+					}
+					else if (endIndexKind == IndexKind.TheEnd && specialMethods.RangeStartAt != null)
+					{
+						endOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						if (startIndexKind == IndexKind.TheEnd)
+							startOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						else if (startIndexKind == IndexKind.FromEnd)
+						{
+							var bni = (BinaryNumericInstruction)startOffsetInst;
+							slicingCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+						else if (startIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)startOffsetInst;
+							slicingCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+					}
+					else
+					{
+						if (endIndexKind == IndexKind.TheEnd)
+							endOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						else if (endIndexKind == IndexKind.FromEnd)
+						{
+							var bni = (BinaryNumericInstruction)endOffsetInst;
+							slicingCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+						else if (endIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)endOffsetInst;
+							slicingCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+						if (startIndexKind == IndexKind.TheEnd)
+							startOffsetInst.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						else if (startIndexKind == IndexKind.FromEnd)
+						{
+							var bni = (BinaryNumericInstruction)startOffsetInst;
+							slicingCall.ILSpans.AddRange(bni.ILSpans);
+							bni.Left.AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+						else if (startIndexKind == IndexKind.RefSystemIndex)
+						{
+							var getOffsetCall = (CallInstruction)startOffsetInst;
+							slicingCall.ILSpans.AddRange(getOffsetCall.ILSpans);
+							getOffsetCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(slicingCall.ILSpans);
+						}
+					}
+				}
+				rangeCtorCall.ReplaceWith(range);
 				for (int i = startPos; i < pos; i++)
 				{
 					slicingCall.AddILRange(block.Instructions[i]);

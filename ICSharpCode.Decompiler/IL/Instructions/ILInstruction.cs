@@ -24,6 +24,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using dnSpy.Contracts.Decompiler;
+using dnSpy.Contracts.Text;
 
 using ICSharpCode.Decompiler.IL.Patterns;
 using ICSharpCode.Decompiler.IL.Transforms;
@@ -412,6 +413,20 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		public IEnumerable<ILSpan> GetSelfAndChildrenRecursiveILSpans(Func<ILInstruction, bool>? exit)
+		{
+			foreach (var node in GetSelfAndChildrenRecursive(exit: exit)) {
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = node.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					yield return b;
+				}
+			}
+		}
+
 		public void AddSelfAndChildrenRecursiveILSpans(List<ILSpan> coll)
 		{
 			foreach (var a in GetSelfAndChildrenRecursive<ILInstruction>(exit: x => x is ILFunction)) {
@@ -475,6 +490,62 @@ namespace ICSharpCode.Decompiler.IL
 		/// Writes the ILAst to the text output.
 		/// </summary>
 		public abstract void WriteTo(IDecompilerOutput output, ILAstWritingOptions options);
+
+		protected const DecompilerReferenceFlags numberFlags = DecompilerReferenceFlags.Local | DecompilerReferenceFlags.Hidden | DecompilerReferenceFlags.NoFollow;
+
+		protected struct BraceInfo {
+			public int Start { get; }
+			public BraceInfo(int start) {
+				Start = start;
+			}
+		}
+
+		protected void UpdateDebugInfo(MethodDebugInfoBuilder? builder, int startLoc, int endLoc, IEnumerable<ILSpan> ranges)
+		{
+			if (builder is null)
+				return;
+			foreach (var ilSpan in ILSpan.OrderAndCompact(ranges))
+				builder.Add(new SourceStatement(ilSpan, new TextSpan(startLoc, endLoc - startLoc)));
+		}
+
+		protected static BraceInfo OpenBrace(IDecompilerOutput output, string symbol)
+		{
+			var start = output.NextPosition;
+			output.Write(symbol, BoxedTextColor.Punctuation);
+			return new BraceInfo(start);
+		}
+
+		protected static void CloseBrace(IDecompilerOutput output, BraceInfo info, string symbol, CodeBracesRangeFlags braceFlags)
+		{
+			var end = output.NextPosition;
+			output.Write(symbol, BoxedTextColor.Punctuation);
+			output.AddBracePair(new TextSpan(info.Start, 1), new TextSpan(end, 1), braceFlags);
+		}
+
+		protected BraceInfo WriteHiddenStart(IDecompilerOutput output, MethodDebugInfoBuilder? builder, IEnumerable<ILSpan>? extraILSpans = null)
+		{
+			var location = output.NextPosition;
+			var start = output.NextPosition;
+			output.Write("{", BoxedTextColor.Punctuation);
+			var ilr = new List<ILSpan>(ILSpans);
+			if (extraILSpans != null)
+				ilr.AddRange(extraILSpans);
+			UpdateDebugInfo(builder, location, output.NextPosition, ilr);
+			output.WriteLine();
+			output.IncreaseIndent();
+			return new BraceInfo(start);
+		}
+
+		protected void WriteHiddenEnd(IDecompilerOutput output, MethodDebugInfoBuilder? builder, BraceInfo info, CodeBracesRangeFlags braceFlags)
+		{
+			output.DecreaseIndent();
+			var location = output.NextPosition;
+			var end = output.NextPosition;
+			output.Write("}", BoxedTextColor.Punctuation);
+			output.AddBracePair(new TextSpan(info.Start, 1), new TextSpan(end, 1), braceFlags);
+			UpdateDebugInfo(builder, location, output.NextPosition, EndILSpans);
+			output.WriteLine();
+		}
 
 		public override string ToString()
 		{

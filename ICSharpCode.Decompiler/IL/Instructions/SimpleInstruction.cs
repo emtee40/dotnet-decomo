@@ -18,6 +18,8 @@
 // DEALINGS IN THE SOFTWARE.
 
 
+using System;
+
 using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
@@ -54,7 +56,7 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			if (Kind != NopKind.Normal)
 			{
-				output.Write("." + Kind.ToString().ToLowerInvariant(), BoxedTextColor.Text);
+				output.Write("." + Kind.ToString().ToLowerInvariant(), BoxedTextColor.OpCode);
 			}
 			if (!string.IsNullOrEmpty(Comment))
 			{
@@ -81,11 +83,13 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			if (!string.IsNullOrEmpty(Message))
+			if (!string2.IsNullOrEmpty(Message))
 			{
-				output.Write("(\"", BoxedTextColor.Text);
-				output.Write(Message, BoxedTextColor.Text);
-				output.Write("\")", BoxedTextColor.Text);
+				var braceInfo = OpenBrace(output, "(");
+				output.Write("\"", BoxedTextColor.String);
+				output.Write(Message, BoxedTextColor.String);
+				output.Write("\"", BoxedTextColor.String);
+				CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 			}
 		}
 	}
@@ -109,11 +113,13 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			if (!string.IsNullOrEmpty(Message))
+			if (!string2.IsNullOrEmpty(Message))
 			{
-				output.Write("(\"", BoxedTextColor.Text);
-				output.Write(Message, BoxedTextColor.Text);
-				output.Write("\")", BoxedTextColor.Text);
+				var braceInfo = OpenBrace(output, "(");
+				output.Write("\"", BoxedTextColor.String);
+				output.Write(Message, BoxedTextColor.String);
+				output.Write("\"", BoxedTextColor.String);
+				CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 			}
 		}
 	}

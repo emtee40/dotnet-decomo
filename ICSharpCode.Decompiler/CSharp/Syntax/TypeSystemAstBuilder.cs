@@ -746,7 +746,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				{
 					var member = MetadataCustomAttribute.MemberForNamedArgument(attribute.AttributeType, namedArg);
 					NamedExpression namedArgument = new NamedExpression {
-						NameToken = Identifier.Create(namedArg.Name).WithAnnotation(member?.OriginalMember),
+						NameToken = Identifier.Create(namedArg.Name).WithAnnotation(member?.OriginalMember ?? BoxedTextColor.InstanceProperty),
 						Expression = ConvertConstantValue(namedArg.Type, namedArg.Value)
 					}.WithAnnotation(member?.OriginalMember);
 					if (AddResolveResultAnnotations)
@@ -1984,7 +1984,6 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			if (GenerateBody)
 			{
 				return new BlockStatement {
-					//TODO: nicer
 					new ThrowStatement(new NullReferenceExpression())
 				};
 			}

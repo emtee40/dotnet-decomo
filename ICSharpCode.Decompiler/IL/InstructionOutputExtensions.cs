@@ -33,9 +33,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(originalOpCodeNames[(int)opCode], BoxedTextColor.OpCode);
 		}
 
-		public static void Write(this IDecompilerOutput output, StackType stackType)
+		public static void Write(this IDecompilerOutput output, StackType stackType, object color)
 		{
-			output.Write(stackType.ToString().ToLowerInvariant(), BoxedTextColor.Text);
+			output.Write(stackType.ToString().ToLowerInvariant(), color);
 		}
 
 		public static void Write(this IDecompilerOutput output, PrimitiveType primitiveType)

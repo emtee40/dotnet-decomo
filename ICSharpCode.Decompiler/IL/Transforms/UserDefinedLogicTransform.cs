@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2018 Daniel Grunwald
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -60,14 +60,26 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 			if (trueInst.MatchReturn(out var trueValue) && falseInst.MatchReturn(out var falseValue))
 			{
-				var transformed = Transform(condition, trueValue, falseValue);
+				var transformed = Transform(condition, trueValue, falseValue, context.CalculateILSpans);
 				if (transformed == null)
 				{
-					transformed = TransformDynamic(condition, trueValue, falseValue);
+					transformed = TransformDynamic(condition, trueValue, falseValue, context.CalculateILSpans);
 				}
 				if (transformed != null)
 				{
 					context.Step("User-defined short-circuiting logic operator (optimized return)", condition);
+					var nextLeave = (Leave)block.Instructions[pos + 1];
+					if (context.CalculateILSpans)
+					{
+						var ifInst = (IfInstruction)block.Instructions[pos];
+						transformed.ILSpans.AddRange(ifInst.ILSpans);
+						ifInst.Condition.AddSelfAndChildrenRecursiveILSpans(transformed.ILSpans);
+
+						if (nextLeave != trueInst)
+							transformed.ILSpans.AddRange(trueInst.ILSpans);
+						if (nextLeave != falseInst)
+							transformed.ILSpans.AddRange(falseInst.ILSpans);
+					}
 					((Leave)block.Instructions[pos + 1]).Value = transformed;
 					block.Instructions.RemoveAt(pos);
 					return true;
@@ -107,8 +119,30 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (s.IsUsedWithin(call.Arguments[1]))
 					return false;
 				context.Step("User-defined short-circuiting logic operator (legacy pattern)", condition);
-				((StLoc)block.Instructions[pos]).Value = new UserDefinedLogicOperator(call.Method, lhsInst, call.Arguments[1])
+				UserDefinedLogicOperator replacement = new UserDefinedLogicOperator(call.Method, lhsInst, call.Arguments[1])
 					.WithILRange(call);
+				if (context.CalculateILSpans)
+				{
+					replacement.ILSpans.AddRange(ifInst.ILSpans);
+					ifInst.Condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+
+					if (ifInst.TrueInst is Block bl)
+					{
+						long index = 0;
+						bool done = false;
+						for (;;) {
+							var b = bl.GetAllILSpans(ref index, ref done);
+							if (done)
+								break;
+							replacement.ILSpans.Add(b);
+						}
+					}
+
+					replacement.ILSpans.AddRange(trueInst.ILSpans);
+					replacement.ILSpans.AddRange(call.ILSpans);
+					call.Arguments[0].AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
+				((StLoc)block.Instructions[pos]).Value = replacement;
 				block.Instructions.RemoveAt(pos + 1);
 				context.RequestRerun(); // the 'stloc s' may now be eligible for inlining
 				return true;
@@ -146,7 +180,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		///       if (call op_True(ldloc lhsVar)) ldloc lhsVar else call op_BitwiseOr(ldloc lhsVar, rhsInst)
 		///    -> user.logic op_BitwiseOr(ldloc lhsVar, rhsInst)
 		/// </summary>
-		public static ILInstruction Transform(ILInstruction condition, ILInstruction trueInst, ILInstruction falseInst)
+		public static ILInstruction Transform(ILInstruction condition, ILInstruction trueInst, ILInstruction falseInst, bool calculateILSpans)
 		{
 			if (!MatchCondition(condition, out var lhsVar, out var conditionMethodName))
 				return null;
@@ -160,13 +194,21 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			result.AddILRange(condition);
 			result.AddILRange(trueInst);
 			result.AddILRange(call);
+			if (calculateILSpans)
+			{
+				result.ILSpans.AddRange(trueInst.ILSpans);
+				result.ILSpans.AddRange(call.ILSpans);
+			}
 			return result;
 		}
 
-		public static ILInstruction TransformDynamic(ILInstruction condition, ILInstruction trueInst, ILInstruction falseInst)
+		public static ILInstruction TransformDynamic(ILInstruction condition, ILInstruction trueInst, ILInstruction falseInst, bool calculateILSpans)
 		{
 			// Check condition:
 			System.Linq.Expressions.ExpressionType unaryOp;
+			ILInstruction originalTrue = trueInst;
+			ILInstruction originalFalse = falseInst;
+			bool negated = false;
 			if (condition.MatchLdLoc(out var lhsVar))
 			{
 				// if (ldloc lhsVar) box bool(ldloc lhsVar) else dynamic.binary.operator.logic Or(ldloc lhsVar, rhsInst)
@@ -182,6 +224,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					unaryOp = System.Linq.Expressions.ExpressionType.IsFalse;
 					falseInst = trueInst;
 					trueInst = box2.Argument;
+					negated = true;
 				}
 				else
 				{
@@ -286,6 +329,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var logicInst = new DynamicLogicOperatorInstruction(binary.BinderFlags, logicOp, binary.CallingContext,
 				binary.LeftArgumentInfo, binary.Left, binary.RightArgumentInfo, binary.Right)
 				.WithILRange(binary);
+			if (calculateILSpans)
+			{
+				if (negated)
+					originalFalse.AddSelfAndChildrenRecursiveILSpans(logicInst.ILSpans);
+				else
+					originalTrue.AddSelfAndChildrenRecursiveILSpans(logicInst.ILSpans);
+
+				logicInst.ILSpans.AddRange(binary.ILSpans);
+			}
 			if (rhsUnary != null)
 			{
 				rhsUnary.Operand = logicInst;

@@ -53,7 +53,9 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("string.to.int (", BoxedTextColor.Text);
+			output.Write("string.to.int", BoxedTextColor.OpCode);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("(", BoxedTextColor.Text);
 			Argument.WriteTo(output, options);
 			output.Write(", { ", BoxedTextColor.Text);
 			int i = 0;

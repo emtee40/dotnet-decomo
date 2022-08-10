@@ -20,6 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
+
 using dnSpy.Contracts.Text;
 using System.Threading;
 
@@ -45,6 +47,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		readonly IDecompilerTypeSystem typeSystem;
 		internal readonly DecompileRun decompileRun;
 		readonly DecompilerSettings settings;
+		private readonly StringBuilder stringBuilder;
 		readonly CancellationToken cancellationToken;
 
 		internal BlockContainer currentReturnContainer;
@@ -52,7 +55,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		internal bool currentIsIterator;
 
 		public StatementBuilder(IDecompilerTypeSystem typeSystem, ITypeResolveContext decompilationContext,
-			ILFunction currentFunction, DecompilerSettings settings, DecompileRun decompileRun,
+			ILFunction currentFunction, DecompilerSettings settings, DecompileRun decompileRun, StringBuilder sb,
 			CancellationToken cancellationToken)
 		{
 			Debug.Assert(typeSystem != null && decompilationContext != null);
@@ -62,6 +65,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				decompilationContext,
 				currentFunction,
 				settings,
+				sb,
 				cancellationToken
 			);
 			this.currentFunction = currentFunction;
@@ -73,6 +77,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			this.typeSystem = typeSystem;
 			this.settings = settings;
 			this.decompileRun = decompileRun;
+			this.stringBuilder = sb;
 			this.cancellationToken = cancellationToken;
 		}
 
@@ -481,7 +486,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 
 				catchClause.Body = ConvertAsBlock(handler.Body);
-				catchClause.AddAnnotation(!decompileRun.Context.CalculateILSpans ? null : handler.StlocILSpans);
+				catchClause.WithAnnotation(!decompileRun.Context.CalculateILSpans ? null : handler.StlocILSpans);
 				tryCatch.CatchClauses.Add(catchClause);
 			}
 			return tryCatch.WithILInstruction(inst);
@@ -797,7 +802,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			foreachStmt.CopyAnnotationsFrom(whileLoop);
 
 			foreachStmt.HiddenMoveNextNode = whileLoop.Condition;
-			foreachStmt.HiddenGetCurrentNode = exprBuilder.Translate(singleGetter.Parent);
+			foreachStmt.HiddenGetCurrentNode = firstStatement;
 			foreachStmt.HiddenGetEnumeratorNode = resource;
 
 			// If there was an optional return statement, return it as well.
@@ -1255,8 +1260,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			else
 			{
 				var blockStmt = ConvertBlockContainer(container, false);
+				blockStmt.HiddenStart =
+					ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : container.ILSpans, blockStmt.HiddenStart);
 				blockStmt.HiddenEnd =
-					ILSpanAnnotationExtensions.CreateHidden(container.EndILSpans, blockStmt.HiddenEnd);
+					ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : container.EndILSpans, blockStmt.HiddenEnd);
 				return blockStmt.WithILInstruction(container);
 			}
 		}
@@ -1307,7 +1314,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					if (blockStatement.LastOrDefault() is ContinueStatement continueStmt2)
 						continueStmt2.Remove();
 					DeclareLocalFunctions(currentFunction, container, blockStatement);
-					return new WhileStatement(exprBuilder.TranslateCondition(condition), blockStatement);
+					var conditionExpr = exprBuilder.TranslateCondition(condition);
+					if (decompileRun.Context.CalculateILSpans)
+						conditionExpr.Expression.AddAnnotation(continueTarget.Instructions[0].ILSpans);
+					return new WhileStatement(conditionExpr, blockStatement);
 				case ContainerKind.DoWhile:
 					continueTarget = container.Blocks.Last();
 					if (!container.MatchConditionBlock(continueTarget, out condition, out _))
@@ -1328,16 +1338,19 @@ namespace ICSharpCode.Decompiler.CSharp
 						blockStatement.Add(new LabelStatement { Label = EnsureUniqueLabel(continueTarget) });
 					}
 					DeclareLocalFunctions(currentFunction, container, blockStatement);
+					TranslatedExpression condExpr = exprBuilder.TranslateCondition(condition);
+					if (decompileRun.Context.CalculateILSpans)
+						condExpr.Expression.AddAnnotation(continueTarget.Instructions[0].ILSpans);
 					if (blockStatement.Statements.Count == 0)
 					{
 						return new WhileStatement {
-							Condition = exprBuilder.TranslateCondition(condition),
+							Condition = condExpr,
 							EmbeddedStatement = blockStatement
 						};
 					}
 					return new DoWhileStatement {
 						EmbeddedStatement = blockStatement,
-						Condition = exprBuilder.TranslateCondition(condition)
+						Condition = condExpr
 					};
 				case ContainerKind.For:
 					continueTarget = container.Blocks.Last();
@@ -1353,6 +1366,8 @@ namespace ICSharpCode.Decompiler.CSharp
 						Condition = exprBuilder.TranslateCondition(condition),
 						EmbeddedStatement = blockStatement
 					};
+					if (decompileRun.Context.CalculateILSpans)
+						forStmt.Condition.AddAnnotation(container.EntryPoint.Instructions[0].ILSpans);
 					if (blockStatement.LastOrDefault() is ContinueStatement continueStmt4)
 						continueStmt4.Remove();
 					for (int i = 0; i < continueTarget.Instructions.Count - 1; i++)
@@ -1399,6 +1414,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						function,
 						settings,
 						decompileRun,
+						stringBuilder,
 						cancellationToken
 					);
 
@@ -1410,18 +1426,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						method.Body.InsertChildAfter(prev, prev = new Comment(warning), Roles.Comment);
 					}
 
-					var stateMachineKind = StateMachineKind.None;
-					if (function.IsIterator)
-						stateMachineKind = StateMachineKind.IteratorMethod;
-					if (function.IsAsync)
-						stateMachineKind = StateMachineKind.AsyncMethod;
-
-					var param = function.Variables.Where(x => x.Kind == VariableKind.Parameter);
-					var moveNext = (dnlib.DotNet.MethodDef)function.MoveNextMethod?.MetadataToken;
-
-					var stmtsBuilder = new MethodDebugInfoBuilder(decompileRun.Context.SettingsVersion, stateMachineKind, moveNext ?? function.DnlibMethod, moveNext is not null ? function.DnlibMethod : null,
-						CreateSourceLocals(function), CreateSourceParameters(param), null);
-					method.AddAnnotation(stmtsBuilder);
+					method.WithAnnotation(CSharpAstMethodBodyBuilder.CreateMethodDebugInfoBuilder(function, decompileRun.Context.SettingsVersion));
 				}
 				else
 				{
@@ -1436,36 +1441,6 @@ namespace ICSharpCode.Decompiler.CSharp
 				stmt.WithILInstruction(function);
 				return stmt;
 			}
-		}
-
-		static SourceLocal[] CreateSourceLocals(ILFunction function) {
-			// Does not work for Local functions, lambdas, and anything else which inlines a different method in the current one.
-			var dict = new Dictionary<dnlib.DotNet.Emit.Local, SourceLocal>();
-			foreach (var v in function.Variables) {
-				if (v.OriginalVariable is null)
-					continue;
-				if (dict.TryGetValue(v.OriginalVariable, out var existing))
-				{
-					v.sourceParamOrLocal = existing;
-				}
-				else
-				{
-					dict[v.OriginalVariable] = v.GetSourceLocal();
-				}
-			}
-			var array = dict.Values.ToArray();
-			//sourceLocalsList.Clear();
-			return array;
-		}
-
-		static SourceParameter[] CreateSourceParameters(IEnumerable<ILVariable> variables) {
-			List<SourceParameter> sourceParametersList = new List<SourceParameter>();
-			foreach (var v in variables) {
-				sourceParametersList.Add(v.GetSourceParameter());
-			}
-			var array = sourceParametersList.ToArray();
-			//sourceParametersList.Clear();
-			return array;
 		}
 
 		BlockStatement ConvertBlockContainer(BlockStatement blockStatement, BlockContainer container, IEnumerable<Block> blocks, bool isLoop)
@@ -1483,7 +1458,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					{
 						// skip the final 'leave' instruction and just fall out of the BlockStatement
 						blockStatement.AddAnnotation(new ImplicitReturnAnnotation(leave));
-						if (leave.TargetContainer == container && container.EndILSpans.Count == 0)
+						if (leave.TargetContainer == container)
 							container.EndILSpans.AddRange(leave.ILSpans);
 						continue;
 					}

@@ -287,9 +287,14 @@ namespace ICSharpCode.Decompiler.CSharp
 				return new List<ILSpan>();
 
 			var ilSpans = new List<ILSpan>();
+			node.GetAllRecursiveILSpans(ilSpans);
+			return ilSpans;
+		}
+
+		public static void GetAllRecursiveILSpans(this AstNode node, List<ILSpan> ilSpans)
+		{
 			foreach (var d in node.DescendantsAndSelf)
 				d.GetAllILSpans(ilSpans);
-			return ilSpans;
 		}
 
 		public static List<ILSpan> GetAllRecursiveILSpans(this IEnumerable<AstNode> nodes)
@@ -316,7 +321,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			return ilSpans;
 		}
 
-		static void GetAllILSpans(this AstNode node, List<ILSpan> ilSpans)
+		public static void GetAllILSpans(this AstNode node, List<ILSpan> ilSpans)
 		{
 			if (node is null)
 				return;
@@ -334,6 +339,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 			if (node is SwitchStatement sw)
 				ilSpans.AddRange(sw.HiddenEnd.GetAllRecursiveILSpans());
+			if (node is CatchClause catchClause)
+				ilSpans.AddRange(catchClause.HiddenWhen.GetAllRecursiveILSpans());
 			foreach (var ann in node.Annotations)
 			{
 				if (ann is IList<ILSpan> list)

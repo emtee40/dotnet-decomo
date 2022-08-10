@@ -8,6 +8,8 @@ using dnlib.DotNet.Emit;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
+using ICSharpCode.Decompiler.Util;
+
 using IField = ICSharpCode.Decompiler.TypeSystem.IField;
 using IMethod = ICSharpCode.Decompiler.TypeSystem.IMethod;
 using IType = ICSharpCode.Decompiler.TypeSystem.IType;
@@ -77,6 +79,9 @@ namespace ICSharpCode.Decompiler.CSharp
 			namespaces.Add(entity.Namespace);
 			HandleAttributes(entity.GetAttributes());
 			HandleTypeParameters(entity.TypeParameters);
+
+			foreach (var baseType in entity.DirectBaseTypes)
+				CollectNamespacesForTypeReference(baseType);
 		}
 
 		void CollectNamespaces(IEntity entity, MetadataModule module, CodeMappingInfo mappingInfo = null)

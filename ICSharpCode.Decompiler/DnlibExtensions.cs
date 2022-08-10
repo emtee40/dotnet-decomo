@@ -104,7 +104,7 @@ namespace ICSharpCode.Decompiler
 			if (!string.IsNullOrEmpty(type.GetNamespaceInternal()))
 				return false;
 			string name = type.Name;
-			if (name.StartsWith("VB$AnonymousType_")|| (type.HasGeneratedName() && (name.Contains("AnonType") || name.Contains("AnonymousType")))) {
+			if (name.StartsWith("VB$AnonymousType_", StringComparison.Ordinal) || (type.HasGeneratedName() && (name.Contains("AnonType") || name.Contains("AnonymousType")))) {
 				TypeDef td = type.ResolveTypeDef();
 				return td != null && td.IsCompilerGenerated();
 			}

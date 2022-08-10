@@ -556,9 +556,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var var = nextInst.Variable;
 			var stackVar = inst.Variable;
 			block.Instructions.RemoveAt(pos);
-			StLoc replacement = new StLoc(stackVar, new StLoc(var, value));
+			StLoc nestedStore = new StLoc(var, value);
+			StLoc replacement = new StLoc(stackVar, nestedStore);
 			if (context.CalculateILSpans)
+			{
 				nextInst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				nestedStore.ILSpans.AddRange(inst.ILSpans);
+			}
 			nextInst.ReplaceWith(replacement);
 			return true;
 		}

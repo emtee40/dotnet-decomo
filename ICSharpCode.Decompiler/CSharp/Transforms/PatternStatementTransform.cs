@@ -96,6 +96,14 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			return base.VisitForStatement(forStatement);
 		}
 
+		public override AstNode VisitWhileStatement(WhileStatement whileStatement)
+		{
+			AstNode result = TransformWhileTrueToForLoop(whileStatement);
+			if (result != null)
+				return result;
+			return base.VisitWhileStatement(whileStatement);
+		}
+
 		public override AstNode VisitIfElseStatement(IfElseStatement ifElseStatement)
 		{
 			AstNode simplifiedIfElse = SimplifyCascadingIfElseStatements(ifElseStatement);
@@ -253,6 +261,37 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			return false;
 		}
 		#endregion
+
+		static readonly WhileStatement whileTrueLoopPattern = new WhileStatement {
+			Condition = new PrimitiveExpression(true),
+			EmbeddedStatement = new BlockStatement {
+				Statements = {
+					new Repeat(new AnyNode("statement")),
+				}
+			}
+		};
+
+		ForStatement TransformWhileTrueToForLoop(WhileStatement whileLoop) {
+			var m = whileTrueLoopPattern.Match(whileLoop);
+			if (!m.Success)
+				return null;
+
+			var forStatement = new ForStatement();
+			forStatement.EmbeddedStatement = whileLoop.EmbeddedStatement.Detach();
+			if (context.CalculateILSpans) {
+				var blockStmt = (BlockStatement)forStatement.EmbeddedStatement;
+				if (blockStmt.HiddenStart is null)
+					blockStmt.HiddenStart = whileLoop.Condition;
+				else {
+					var node = new EmptyStatement();
+					blockStmt.HiddenStart.AddAllRecursiveILSpansTo(node);
+					whileLoop.Condition.AddAllRecursiveILSpansTo(node);
+					blockStmt.HiddenStart = node;
+				}
+			}
+			whileLoop.ReplaceWith(forStatement);
+			return forStatement;
+		}
 
 		#region foreach
 
@@ -941,11 +980,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			switch (fieldExpression)
 			{
 				case IdentifierExpression identifier:
-					if (identifier.Identifier != ev.Name)
+					if (!CSharpAstBuilder.IsEventBackingFieldName(identifier.Identifier, ev.Name))
 						return false;
 					break;
 				case MemberReferenceExpression memberRef:
-					if (memberRef.MemberName != ev.Name)
+					if (!CSharpAstBuilder.IsEventBackingFieldName(memberRef.MemberName, ev.Name))
 						return false;
 					break;
 				default:
@@ -1116,7 +1155,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				dd.CopyAnnotationsFrom(methodDef);
 				dd.Modifiers = methodDef.Modifiers & ~(Modifiers.Protected | Modifiers.Override);
 				dd.Body = m.Get<BlockStatement>("body").Single().Detach();
-				dd.AddAnnotation(methodDef.Annotation<MethodDebugInfoBuilder>());
+				var tc = (TryCatchStatement)methodDef.Body.FirstChild;
+				if (context.CalculateILSpans) {
+					dd.Body.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(dd.Body.HiddenStart, methodDef.Body.HiddenStart);
+					dd.Body.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(dd.Body.HiddenEnd, methodDef.Body.HiddenEnd, tc!.FinallyBlock);
+				}
 				if (currentTypeDefinition is null)
 					dd.NameToken = Identifier.Null;
 				else
@@ -1139,7 +1182,13 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			Match m = destructorBodyPattern.Match(dtorDef.Body);
 			if (m.Success)
 			{
-				dtorDef.Body = m.Get<BlockStatement>("body").Single().Detach();
+				BlockStatement dtorDefBody = m.Get<BlockStatement>("body").Single().Detach();
+				var tc = (TryCatchStatement)dtorDef.Body.FirstChild;
+				if (context.CalculateILSpans) {
+					dtorDefBody.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(dtorDefBody.HiddenStart, dtorDef.Body.HiddenStart);
+					dtorDefBody.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(dtorDefBody.HiddenEnd, dtorDef.Body.HiddenEnd, tc!.FinallyBlock);
+				}
+				dtorDef.Body = dtorDefBody;
 				return dtorDef;
 			}
 			return null;
@@ -1166,6 +1215,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (tryCatchFinallyPattern.IsMatch(tryFinally))
 			{
 				TryCatchStatement tryCatch = (TryCatchStatement)tryFinally.TryBlock.Statements.Single();
+				if (context.DecompileRun.Context.CalculateILSpans) {
+					tryCatch.TryBlock.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(tryCatch.TryBlock.HiddenStart, tryFinally.TryBlock.HiddenStart);
+					tryCatch.TryBlock.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(tryCatch.TryBlock.HiddenEnd, tryFinally.TryBlock.HiddenEnd);
+				}
 				tryFinally.TryBlock = tryCatch.TryBlock.Detach();
 				tryCatch.CatchClauses.MoveTo(tryFinally.CatchClauses);
 			}
@@ -1198,7 +1251,18 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (m.Success)
 			{
 				IfElseStatement elseIf = m.Get<IfElseStatement>("nestedIfStatement").Single();
+				var block = (BlockStatement)node.FalseStatement;
 				node.FalseStatement = elseIf.Detach();
+				block.HiddenStart.AddAllRecursiveILSpansTo(node.Condition);
+				if (block.HiddenEnd != null) {
+					var stmt = elseIf.FalseStatement.IsNull ? elseIf.TrueStatement : elseIf.FalseStatement;
+					if (stmt is BlockStatement block2) {
+						if (context.CalculateILSpans)
+							block2.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(block2.HiddenEnd, block.HiddenEnd);
+					}
+					else
+						block.HiddenEnd.AddAllRecursiveILSpansTo(stmt);
+				}
 			}
 
 			return null;

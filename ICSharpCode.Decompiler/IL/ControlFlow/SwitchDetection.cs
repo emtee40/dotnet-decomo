@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2016 Daniel Grunwald
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -16,25 +16,21 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-using ICSharpCode.Decompiler.CSharp.Transforms;
 using ICSharpCode.Decompiler.FlowAnalysis;
 using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
-using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.Decompiler.CSharp.Transforms;
 
 namespace ICSharpCode.Decompiler.IL.ControlFlow
 {
 	/// <summary>
 	/// C# switch statements are not necessarily compiled into
 	/// IL switch instructions (e.g. when the integer values are non-contiguous).
-	/// 
+	///
 	/// Detect sequences of conditional branches that all test a single integer value,
 	/// and simplify them into a ILAst switch instruction (which like C# does not require contiguous values).
 	/// </summary>
@@ -49,11 +45,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 		/// <summary>
 		/// When detecting a switch, it is important to distinguish Branch instructions which will
-		/// eventually decompile to continue; statements. 
-		/// 
+		/// eventually decompile to continue; statements.
+		///
 		/// A LoopContext is constructed for a node and its dominator tree, as for a Branch to be a continue;
 		/// statement, it must be contained within the target-loop
-		/// 
+		///
 		/// This class also supplies the depth of the loop targetted by a continue; statement relative to the
 		/// context node, to avoid (or eventually support) labelled continues to outer loops
 		/// </summary>
@@ -121,10 +117,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			/// <summary>
 			/// Lists all potential targets for break; statements from a domination tree,
 			/// assuming the domination tree must be exited via either break; or continue;
-			/// 
+			///
 			/// First list all nodes in the dominator tree (excluding continue nodes)
 			/// Then return the all successors not contained within said tree.
-			/// 
+			///
 			/// Note that node will be returned once for each outgoing edge.
 			/// Labelled continue statements (depth > 1) are counted as break targets
 			/// </summary>
@@ -200,6 +196,8 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					block.Instructions.RemoveAt(block.Instructions.Count - 1);
 				}
 				sw.AddILRange(block.Instructions[block.Instructions.Count - 1]);
+				if (context.CalculateILSpans)
+					block.Instructions[block.Instructions.Count - 1].AddSelfAndChildrenRecursiveILSpans(sw.ILSpans);
 				block.Instructions[block.Instructions.Count - 1] = sw;
 
 				// mark all inner blocks that were converted to the switch statement for deletion
@@ -207,12 +205,14 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				{
 					Debug.Assert(innerBlock.Parent == block.Parent);
 					Debug.Assert(innerBlock != ((BlockContainer)block.Parent).EntryPoint);
+					if (context.CalculateILSpans)
+						innerBlock.AddSelfAndChildrenRecursiveILSpans(sw.ILSpans);
 					innerBlock.Instructions.Clear();
 				}
 
 				controlFlowGraph = null; // control flow graph is no-longer valid
 				blockContainerNeedsCleanup = true;
-				SortSwitchSections(sw);
+				SortSwitchSections(sw, context.Settings.SortSwitchCasesByILOffset);
 			}
 			else
 			{
@@ -253,16 +253,21 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					return false;
 				});
 			AdjustLabels(sw, context);
-			SortSwitchSections(sw);
+			SortSwitchSections(sw, context.Settings.SortSwitchCasesByILOffset);
 		}
 
-		static void SortSwitchSections(SwitchInstruction sw)
+		static void SortSwitchSections(SwitchInstruction sw, bool sortSwitchCasesByILOffset)
 		{
-			sw.Sections.ReplaceList(sw.Sections.OrderBy(s => s.Body switch {
-				Branch b => b.TargetILOffset,
-				Leave l => l.StartILOffset,
-				_ => (int?)null
-			}).ThenBy(s => s.Labels.Values.FirstOrDefault()));
+			if (sortSwitchCasesByILOffset)
+			{
+				sw.Sections.ReplaceList(sw.Sections.OrderBy(s => s.Body switch {
+					Branch b => b.TargetILOffset,
+					Leave l => l.StartILOffset,
+					_ => (int?)null
+				}).ThenBy(s => s.Labels.Values.FirstOrDefault()));
+			}
+			else
+				sw.Sections.ReplaceList(sw.Sections.OrderBy(s => s.Labels.Values.FirstOrDefault()));
 		}
 
 		static void AdjustLabels(SwitchInstruction sw, ILTransformContext context)
@@ -284,6 +289,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						return;
 				}
 				sw.Value = bop.Left;
+				if (context.CalculateILSpans)
+				{
+					sw.Value.ILSpans.AddRange(bop.ILSpans);
+					sw.Value.ILSpans.AddRange(bop.Right.ILSpans);
+				}
 				foreach (var section in sw.Sections)
 				{
 					section.Labels = section.Labels.AddOffset(offset);
@@ -337,13 +347,13 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			if (analysis.Sections.Count == 2 && IsSingleCondition(flowNodes, caseNodes))
 				return false;
 
-			// if there is no ILSwitch, there's still many control flow patterns that 
+			// if there is no ILSwitch, there's still many control flow patterns that
 			// match a switch statement but were originally just regular if statements,
 			// and converting them to switches results in poor quality code with goto statements
-			// 
+			//
 			// If a single break target cannot be identified, then the equivalent switch statement would require goto statements.
 			// These goto statements may be "goto case x" or "goto default", but these are a hint that the original code was not a switch,
-			// and that the switch statement may be very poor quality. 
+			// and that the switch statement may be very poor quality.
 			// Thus the rule of thumb is no goto statements if the original code didn't include them
 			if (SwitchUsesGoto(flowNodes, caseNodes, out var breakBlock))
 				return false;
@@ -409,7 +419,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 		/// </summary>
 		private bool SwitchUsesGoto(List<ControlFlowNode> flowNodes, List<ControlFlowNode> caseNodes, out Block breakBlock)
 		{
-			// cases with predecessors that aren't part of the switch logic 
+			// cases with predecessors that aren't part of the switch logic
 			// must either require "goto case" statements, or consist of a single "break;"
 			var externalCases = caseNodes.Where(c => c.Predecessors.Any(n => !flowNodes.Contains(n))).ToList();
 
@@ -469,20 +479,20 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 		///   | n
 		///   |/ \
 		///   s   c
-		/// 
+		///
 		///  where
 		///   p: if (a) goto n; goto s;
 		///   n: if (b) goto c; goto s;
-		/// 
+		///
 		///  Can simplify to
 		///    p|n
 		///    / \
 		///   s   c
-		/// 
+		///
 		///  where:
 		///   p|n: if (a &amp;&amp; b) goto c; goto s;
-		/// 
-		///  Note that if n has only 1 successor, but is still a flow node, then a short circuit expression 
+		///
+		///  Note that if n has only 1 successor, but is still a flow node, then a short circuit expression
 		///  has a target (c) with no corresponding block (leave)
 		/// </summary>
 		/// <param name="parent">A node with 2 successors</param>

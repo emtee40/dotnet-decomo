@@ -88,9 +88,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (objectStore.Variable.LoadCount > 2)
 				return false;
 			context.Step("LockTransformMCS", block);
+			LockInstruction lockInstr = new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore);
+			if (context.CalculateILSpans)
+			{
+				lockInstr.OnExpression.ILSpans.AddRange(objectStore.ILSpans);
+				block.Instructions[i - 1].AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				finallyContainer.AddSelfAndChildrenRecursiveILSpans(lockInstr.Body.EndILSpans);
+			}
 			block.Instructions.RemoveAt(i - 1);
 			block.Instructions.RemoveAt(i - 2);
-			body.ReplaceWith(new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore));
+			body.ReplaceWith(lockInstr);
 			return true;
 		}
 
@@ -132,9 +139,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (objectStore.Variable.LoadCount > 1)
 				return false;
 			context.Step("LockTransformV2", block);
+			LockInstruction lockInstr = new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore);
+			if (context.CalculateILSpans)
+			{
+				lockInstr.OnExpression.ILSpans.AddRange(objectStore.ILSpans);
+				block.Instructions[i - 1].AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				finallyContainer.AddSelfAndChildrenRecursiveILSpans(lockInstr.Body.EndILSpans);
+			}
 			block.Instructions.RemoveAt(i - 1);
 			block.Instructions.RemoveAt(i - 2);
-			body.ReplaceWith(new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore));
+			body.ReplaceWith(lockInstr);
 			return true;
 		}
 
@@ -177,9 +191,20 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (objectStore.Variable.LoadCount > 1)
 				return false;
 			context.Step("LockTransformV4", block);
+			LockInstruction lockInstr = new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore);
+			if (context.CalculateILSpans)
+			{
+				var enterCall = (Call)objectStore.Parent!;
+				lockInstr.OnExpression.ILSpans.AddRange(enterCall.ILSpans);
+				enterCall.Arguments[1].AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				lockInstr.OnExpression.ILSpans.AddRange(objectStore.ILSpans);
+
+				flagStore.AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+				finallyContainer.AddSelfAndChildrenRecursiveILSpans(lockInstr.Body.EndILSpans);
+			}
 			block.Instructions.RemoveAt(i - 1);
 			tryContainer.EntryPoint.Instructions.RemoveAt(0);
-			body.ReplaceWith(new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore));
+			body.ReplaceWith(lockInstr);
 			return true;
 		}
 

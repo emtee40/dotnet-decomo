@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
 
 using dnSpy.Contracts.Decompiler;
@@ -82,9 +83,10 @@ namespace ICSharpCode.Decompiler.CSharp
 		internal readonly TypeSystemAstBuilder astBuilder;
 		internal readonly TypeInference typeInference;
 		internal readonly DecompilerSettings settings;
+		private readonly StringBuilder stringBuilder;
 		readonly CancellationToken cancellationToken;
 
-		public ExpressionBuilder(StatementBuilder statementBuilder, IDecompilerTypeSystem typeSystem, ITypeResolveContext decompilationContext, ILFunction currentFunction, DecompilerSettings settings, CancellationToken cancellationToken)
+		public ExpressionBuilder(StatementBuilder statementBuilder, IDecompilerTypeSystem typeSystem, ITypeResolveContext decompilationContext, ILFunction currentFunction, DecompilerSettings settings, StringBuilder sb, CancellationToken cancellationToken)
 		{
 			Debug.Assert(decompilationContext != null);
 			this.statementBuilder = statementBuilder;
@@ -92,6 +94,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			this.decompilationContext = decompilationContext;
 			this.currentFunction = currentFunction;
 			this.settings = settings;
+			this.stringBuilder = sb;
 			this.cancellationToken = cancellationToken;
 			this.compilation = decompilationContext.Compilation;
 			this.resolver = new CSharpResolver(new CSharpTypeResolveContext(compilation.MainModule, null, decompilationContext.CurrentTypeDefinition, decompilationContext.CurrentMember));
@@ -451,12 +454,12 @@ namespace ICSharpCode.Decompiler.CSharp
 					return TranslateStackAllocInitializer(b, type.TypeArguments[0]);
 				}
 			}
-			return new CallBuilder(this, typeSystem, settings).Build(inst);
+			return new CallBuilder(this, typeSystem, settings, stringBuilder).Build(inst);
 		}
 
 		protected internal override TranslatedExpression VisitLdVirtDelegate(LdVirtDelegate inst, TranslationContext context)
 		{
-			return new CallBuilder(this, typeSystem, settings).Build(inst);
+			return new CallBuilder(this, typeSystem, settings, stringBuilder).Build(inst);
 		}
 
 		protected internal override TranslatedExpression VisitNewArr(NewArr inst, TranslationContext context)
@@ -2299,12 +2302,12 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		protected internal override TranslatedExpression VisitCall(Call inst, TranslationContext context)
 		{
-			return WrapInRef(new CallBuilder(this, typeSystem, settings).Build(inst), inst.Method.ReturnType);
+			return WrapInRef(new CallBuilder(this, typeSystem, settings, stringBuilder).Build(inst), inst.Method.ReturnType);
 		}
 
 		protected internal override TranslatedExpression VisitCallVirt(CallVirt inst, TranslationContext context)
 		{
-			return WrapInRef(new CallBuilder(this, typeSystem, settings).Build(inst), inst.Method.ReturnType);
+			return WrapInRef(new CallBuilder(this, typeSystem, settings, stringBuilder).Build(inst), inst.Method.ReturnType);
 		}
 
 		TranslatedExpression WrapInRef(TranslatedExpression expr, IType type)
@@ -2345,6 +2348,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				function,
 				settings,
 				statementBuilder.decompileRun,
+				stringBuilder,
 				cancellationToken
 			);
 			var body = builder.ConvertAsBlock(function.Body);
@@ -2354,19 +2358,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				body.InsertChildAfter(prev, prev = new Comment(warning), Roles.Comment);
 			}
-
-			var stateMachineKind = StateMachineKind.None;
-			if (function.IsIterator)
-				stateMachineKind = StateMachineKind.IteratorMethod;
-			if (function.IsAsync)
-				stateMachineKind = StateMachineKind.AsyncMethod;
-
-			var param = function.Variables.Where(x => x.Kind == VariableKind.Parameter);
-			var moveNext = (dnlib.DotNet.MethodDef)function.MoveNextMethod?.MetadataToken;
-			var md = function.DnlibMethod;
-
-			var stmtsBuilder = new MethodDebugInfoBuilder(0, stateMachineKind, moveNext ?? md, moveNext is not null ? md : null,
-				CreateSourceLocals(function), CreateSourceParameters(param), null);
 
 			bool isLambda = false;
 			if (ame.Parameters.Any(p => p.Type.IsNull))
@@ -2392,6 +2383,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				ame.HasParameterList = false;
 			}
 
+			var dbgBuilder = CSharpAstMethodBodyBuilder.CreateMethodDebugInfoBuilder(function, statementBuilder.decompileRun.Context.SettingsVersion);
+
 			Expression replacement;
 			IType inferredReturnType;
 			if (isLambda)
@@ -2402,6 +2395,9 @@ namespace ICSharpCode.Decompiler.CSharp
 				ame.Parameters.MoveTo(lambda.Parameters);
 				if (body.Statements.Count == 1 && body.Statements.Single() is ReturnStatement returnStmt)
 				{
+					var stmtILSpans = returnStmt.GetAllILSpans();
+					if (stmtILSpans.Count > 0)
+						returnStmt.Expression.AddAnnotation(stmtILSpans);
 					lambda.Body = returnStmt.Expression.Detach();
 					inferredReturnType = lambda.Body.GetResolveResult().Type;
 				}
@@ -2410,11 +2406,12 @@ namespace ICSharpCode.Decompiler.CSharp
 					lambda.Body = body;
 					inferredReturnType = InferReturnType(body);
 				}
+				lambda.Body.WithAnnotation(dbgBuilder);
 				replacement = lambda;
 			}
 			else
 			{
-				ame.AddAnnotation(stmtsBuilder);
+				ame.WithAnnotation(dbgBuilder);
 				ame.Body = body;
 				inferredReturnType = InferReturnType(body);
 				replacement = ame;
@@ -2424,7 +2421,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				inferredReturnType = GetTaskType(inferredReturnType);
 			}
 
-			ame.AddAnnotation(function.ILSpans);
+			replacement.AddAnnotation(function.ILSpans);
 
 			var rr = new DecompiledLambdaResolveResult(
 				function, delegateType, inferredReturnType,
@@ -2435,36 +2432,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			TranslatedExpression translatedLambda = replacement.WithILInstruction(function).WithRR(rr);
 			return new CastExpression(ConvertType(delegateType), translatedLambda)
 				.WithRR(new ConversionResolveResult(delegateType, rr, LambdaConversion.Instance));
-		}
-
-		static SourceLocal[] CreateSourceLocals(ILFunction function) {
-			// Does not work for Local functions, lambdas, and anything else which inlines a different method in the current one.
-			var dict = new Dictionary<dnlib.DotNet.Emit.Local, SourceLocal>();
-			foreach (var v in function.Variables) {
-				if (v.OriginalVariable is null)
-					continue;
-				if (dict.TryGetValue(v.OriginalVariable, out var existing))
-				{
-					v.sourceParamOrLocal = existing;
-				}
-				else
-				{
-					dict[v.OriginalVariable] = v.GetSourceLocal();
-				}
-			}
-			var array = dict.Values.ToArray();
-			//sourceLocalsList.Clear();
-			return array;
-		}
-
-		static SourceParameter[] CreateSourceParameters(IEnumerable<ILVariable> variables) {
-			List<SourceParameter> sourceParametersList = new List<SourceParameter>();
-			foreach (var v in variables) {
-				sourceParametersList.Add(v.GetSourceParameter());
-			}
-			var array = sourceParametersList.ToArray();
-			//sourceParametersList.Clear();
-			return array;
 		}
 
 		protected internal override TranslatedExpression VisitILFunction(ILFunction function, TranslationContext context)
@@ -2527,7 +2494,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (string.IsNullOrEmpty(pd.Name) && !pd.Type.IsArgList())
 				{
 					// needs to be consistent with logic in ILReader.CreateILVarable(ParameterDefinition)
-					pd.Name = "P_" + i;
+					pd.NameToken.Name = "P_" + i;
 				}
 				if (settings.AnonymousTypes && parameter.Type.ContainsAnonymousType())
 					pd.Type = null;
@@ -3287,7 +3254,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		private TranslatedExpression TranslateCallWithNamedArgs(Block block)
 		{
 			return WrapInRef(
-				new CallBuilder(this, typeSystem, settings).CallWithNamedArgs(block),
+				new CallBuilder(this, typeSystem, settings, stringBuilder).CallWithNamedArgs(block),
 				((CallInstruction)block.FinalInstruction).Method.ReturnType);
 		}
 
@@ -3300,7 +3267,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 			var arguments = call.Arguments.ToList();
 			arguments[arguments.Count - 1] = value;
-			return new CallBuilder(this, typeSystem, settings)
+			return new CallBuilder(this, typeSystem, settings, stringBuilder)
 				.Build(call.OpCode, call.Method, arguments)
 				.WithILInstruction(call);
 		}
@@ -3320,7 +3287,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				case NewObj newObjInst:
 					initObjRR = new InitializedObjectResolveResult(newObjInst.Method.DeclaringType);
-					expr = new CallBuilder(this, typeSystem, settings).Build(newObjInst);
+					expr = new CallBuilder(this, typeSystem, settings, stringBuilder).Build(newObjInst);
 					break;
 				case DefaultValue defaultVal:
 					initObjRR = new InitializedObjectResolveResult(defaultVal.Type);
@@ -3398,7 +3365,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					case IL.Transforms.AccessPathKind.Adder:
 						Debug.Assert(lastElement.Member is IMethod);
 						elementsStack.Peek().Add(
-							new CallBuilder(this, typeSystem, settings)
+							new CallBuilder(this, typeSystem, settings, stringBuilder)
 								.BuildCollectionInitializerExpression(lastElement.OpCode, (IMethod)lastElement.Member, initObjRR, info.Values)
 								.WithILInstruction(inst)
 						);
@@ -3410,7 +3377,7 @@ namespace ICSharpCode.Decompiler.CSharp
 							var property = (IProperty)lastElement.Member;
 							Debug.Assert(property.IsIndexer);
 							elementsStack.Peek().Add(
-								new CallBuilder(this, typeSystem, settings)
+								new CallBuilder(this, typeSystem, settings, stringBuilder)
 									.BuildDictionaryInitializerExpression(lastElement.OpCode, property.Setter, initObjRR, GetIndices(lastElement.Indices, indexVariables).ToList(), info.Values.Single())
 									.WithILInstruction(inst)
 							);
@@ -3900,6 +3867,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			IL.SwitchSection defaultSection = inst.GetDefaultSection();
 			SwitchExpression switchExpr = new SwitchExpression();
 			switchExpr.Expression = value;
+			switchExpr.AddAnnotation(inst.EndILSpans);
 			IType resultType;
 			if (context.TypeHint.Kind != TypeKind.Unknown && context.TypeHint.GetStackType() == inst.ResultType)
 			{
@@ -4055,12 +4023,16 @@ namespace ICSharpCode.Decompiler.CSharp
 			var target = TranslateDynamicTarget(inst.Arguments[0], inst.ArgumentInfo[0]);
 			if (inst.BinderFlags.HasFlag(CSharpBinderFlags.InvokeSimpleName) && target.Expression is ThisReferenceExpression)
 			{
-				targetExpr = new IdentifierExpression(inst.Name);
+				targetExpr = IdentifierExpression.Create(inst.Name, BoxedTextColor.InstanceMethod);
 				((IdentifierExpression)targetExpr).TypeArguments.AddRange(inst.TypeArguments.Select(ConvertType));
 			}
 			else
 			{
-				targetExpr = new MemberReferenceExpression(target, inst.Name, inst.TypeArguments.Select(ConvertType));
+				MemberReferenceExpression mre;
+				targetExpr = mre = new MemberReferenceExpression(target, inst.Name, inst.TypeArguments.Select(ConvertType));
+				mre.MemberNameToken.AddAnnotation(inst.ArgumentInfo[0].HasFlag(CSharpArgumentInfoFlags.IsStaticType)
+					? BoxedTextColor.StaticMethod
+					: BoxedTextColor.InstanceMethod);
 			}
 			var arguments = TranslateDynamicArguments(inst.Arguments.Skip(1), inst.ArgumentInfo.Skip(1)).ToList();
 			return new InvocationExpression(targetExpr, arguments.Select(a => a.Expression))
@@ -4347,7 +4319,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		protected internal override TranslatedExpression VisitLdFtn(LdFtn inst, TranslationContext context)
 		{
-			ExpressionWithResolveResult delegateRef = new CallBuilder(this, typeSystem, settings).BuildMethodReference(inst.Method, isVirtual: false);
+			ExpressionWithResolveResult delegateRef = new CallBuilder(this, typeSystem, settings, stringBuilder).BuildMethodReference(inst.Method, isVirtual: false);
 			if (!inst.Method.IsStatic)
 			{
 				// C# 9 function pointers don't support instance methods
@@ -4378,7 +4350,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		protected internal override TranslatedExpression VisitLdVirtFtn(LdVirtFtn inst, TranslationContext context)
 		{
 			// C# 9 function pointers don't support instance methods
-			ExpressionWithResolveResult delegateRef = new CallBuilder(this, typeSystem, settings).BuildMethodReference(inst.Method, isVirtual: true);
+			ExpressionWithResolveResult delegateRef = new CallBuilder(this, typeSystem, settings, stringBuilder).BuildMethodReference(inst.Method, isVirtual: true);
 			return new InvocationExpression(new IdentifierExpression("__ldvirtftn"), delegateRef)
 				.WithRR(new ResolveResult(new PointerType(compilation.FindType(KnownTypeCode.Void))))
 				.WithILInstruction(inst);
@@ -4508,7 +4480,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					&& v.Kind == VariableKind.DeconstructionInitTemporary)
 				{
 					Debug.Assert(inits[initPos].Variable == v);
-					target.ReplaceWith(inits[initPos].Value);
+					var valueInstr = inits[initPos].Value;
+					if (statementBuilder.decompileRun.Context.CalculateILSpans)
+						target.AddSelfAndChildrenRecursiveILSpans(valueInstr.ILSpans);
+					target.ReplaceWith(valueInstr);
 					initPos++;
 				}
 			}
@@ -4586,7 +4561,16 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		protected override TranslatedExpression Default(ILInstruction inst, TranslationContext context)
 		{
-			return ErrorExpression("OpCode not supported: " + inst.OpCode);
+			return InlineAssembly(inst);
+		}
+
+		TranslatedExpression InlineAssembly(ILInstruction inst)
+		{
+			var arguments = new List<Expression>();
+			foreach (ILInstruction ilInstruction in inst.Children)
+				arguments.Add(Translate(ilInstruction));
+			return new InvocationExpression(IdentifierExpression.Create(inst.OpCode.ToString(), BoxedTextColor.OpCode), arguments)
+				   .WithILInstruction(inst).WithRR(ErrorResolveResult.UnknownError);
 		}
 
 		static TranslatedExpression ErrorExpression(string message)

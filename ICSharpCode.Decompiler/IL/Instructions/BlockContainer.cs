@@ -130,10 +130,13 @@ namespace ICSharpCode.Decompiler.IL
 				entryPoint.IncomingEdgeCount--;
 		}
 
+		public object TextReferenceObject => textRefObject ??= new object();
+		private object? textRefObject;
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("BlockContainer", this, DecompilerReferenceFlags.Definition, BoxedTextColor.Text);
+			output.Write("BlockContainer", TextReferenceObject, DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			switch (Kind)
 			{
@@ -153,8 +156,7 @@ namespace ICSharpCode.Decompiler.IL
 					output.Write("(for) ", BoxedTextColor.Text);
 					break;
 			}
-			output.WriteLine("{", BoxedTextColor.Text);
-			output.IncreaseIndent();
+			var braceInfo = WriteHiddenStart(output, null);
 			foreach (var inst in Blocks)
 			{
 				if (inst.Parent == this)
@@ -164,13 +166,40 @@ namespace ICSharpCode.Decompiler.IL
 				else
 				{
 					output.Write("stale reference to ", BoxedTextColor.Text);
-					output.Write(inst.Label, inst, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+					output.Write(inst.Label, inst.TextReferenceObject, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
 				}
 				output.WriteLine();
-				output.WriteLine();
 			}
-			output.DecreaseIndent();
-			output.Write("}", BoxedTextColor.Text);
+			WriteHiddenEnd(output, null, braceInfo, CalculateBraceFlags());
+
+			CodeBracesRangeFlags CalculateBraceFlags()
+			{
+				CodeBracesRangeFlags braceFlags;
+				if (Kind == ContainerKind.Loop || Kind == ContainerKind.While || Kind == ContainerKind.DoWhile || Kind == ContainerKind.For)
+					braceFlags = CodeBracesRangeFlags.LoopBraces;
+				else if (Kind == ContainerKind.Switch)
+					braceFlags = CodeBracesRangeFlags.SwitchBraces;
+				else if (SlotInfo == IfInstruction.TrueInstSlot || SlotInfo == IfInstruction.FalseInstSlot)
+					braceFlags = CodeBracesRangeFlags.ConditionalBraces;
+				else if (SlotInfo == TryInstruction.TryBlockSlot)
+					braceFlags = CodeBracesRangeFlags.TryBraces;
+				else if (SlotInfo == TryCatchHandler.BodySlot)
+					braceFlags = CodeBracesRangeFlags.CatchBraces;
+				else if (SlotInfo == TryCatchHandler.FilterSlot)
+					braceFlags = CodeBracesRangeFlags.FilterBraces;
+				else if (SlotInfo == TryFinally.FinallyBlockSlot)
+					braceFlags = CodeBracesRangeFlags.FinallyBraces;
+				else if (SlotInfo == TryFault.FaultBlockSlot)
+					braceFlags = CodeBracesRangeFlags.FaultBraces;
+				else if (SlotInfo == PinnedRegion.BodySlot)
+					braceFlags = CodeBracesRangeFlags.FixedBraces;
+				else if (SlotInfo == SwitchSection.BodySlot)
+					braceFlags = CodeBracesRangeFlags.CaseBraces;
+				else
+					braceFlags = CodeBracesRangeFlags.OtherBlockBraces;
+
+				return braceFlags;
+			}
 		}
 
 		protected override int GetChildCount()

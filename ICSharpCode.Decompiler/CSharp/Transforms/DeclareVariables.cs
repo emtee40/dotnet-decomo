@@ -20,6 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+
+using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
@@ -596,11 +598,12 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					var init = vds.Variables.Single();
 					init.AddAnnotation(assignment.Left.GetResolveResult());
 
-					if (assignment.Parent is ExpressionStatement es) {
-						vds.AddAnnotation(es.GetAllRecursiveILSpans());
-					} else {
-						vds.AddAnnotation(assignment.GetAllRecursiveILSpans());
-					}
+					var ilSpans = new List<ILSpan>();
+					if (assignment.Parent is ExpressionStatement es)
+						es.GetAllILSpans(ilSpans);
+					assignment.GetAllILSpans(ilSpans);
+					assignment.Left.GetAllRecursiveILSpans(ilSpans);
+					vds.AddAnnotation(ilSpans);
 
 					foreach (object annotation in assignment.Left.Annotations.Concat(assignment.Annotations))
 					{

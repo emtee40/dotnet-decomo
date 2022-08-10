@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2020 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -22,6 +22,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Resources;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
@@ -29,7 +31,7 @@ using ICSharpCode.Decompiler.Util;
 namespace ICSharpCode.Decompiler.IL.Transforms
 {
 	/// <summary>
-	/// 
+	///
 	/// </summary>
 	class DeconstructionTransform : IStatementTransform
 	{
@@ -139,7 +141,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					this.deconstructionResults[index] = freshVar;
 				}
 				delayedActions += _ => {
-					inst.ReplaceWith(new LdLoc(this.deconstructionResults[index]));
+					LdLoc replacement = new LdLoc(this.deconstructionResults[index]);
+					if (context.CalculateILSpans)
+						inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					inst.ReplaceWith(replacement);
 				};
 				return index;
 			}
@@ -190,9 +195,19 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			int startPos = pos;
 			Action<DeconstructInstruction> delayedActions = null;
+			List<ILSpan> deconstructCallILSpans = null;
 			if (MatchDeconstruction(block.Instructions[pos], out IMethod deconstructMethod,
-				out ILInstruction rootTestedOperand))
+					out ILInstruction rootTestedOperand))
 			{
+				if (context.CalculateILSpans)
+				{
+					var call = (CallInstruction)block.Instructions[pos];
+					deconstructCallILSpans = new List<ILSpan>();
+					deconstructCallILSpans.AddRange(call.ILSpans);
+					foreach (ILInstruction argumentInstr in call.Arguments.Skip(1))
+						argumentInstr.AddSelfAndChildrenRecursiveILSpans(deconstructCallILSpans);
+				}
+
 				pos++;
 			}
 			if (!MatchConversions(block, ref pos, out var conversions, out var conversionStLocs, ref delayedActions))
@@ -206,6 +221,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("Deconstruction", block.Instructions[startPos]);
 			DeconstructInstruction replacement = new DeconstructInstruction();
+			if (context.CalculateILSpans && deconstructCallILSpans is not null)
+				replacement.ILSpans.AddRange(deconstructCallILSpans);
 			IType deconstructedType;
 			if (deconstructMethod == null)
 			{
@@ -441,6 +458,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return false;
 				var valueInstCopy = valueInst;
 				addAssignment = (DeconstructInstruction deconstructInst) => {
+					if (context.CalculateILSpans)
+					{
+						call.ILSpans.AddRange(inst.ILSpans);
+						valueInstCopy.ILSpans.AddRange(call.Arguments[call.Arguments.Count - 1].ILSpans);
+					}
 					call.Arguments[call.Arguments.Count - 1] = valueInstCopy;
 					deconstructInst.Assignments.Instructions.Add(call);
 				};

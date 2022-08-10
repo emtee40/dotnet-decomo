@@ -23,6 +23,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
+using dnSpy.Contracts.Text;
+
 using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.IL;
@@ -124,8 +126,10 @@ namespace ICSharpCode.Decompiler.CSharp
 						(arg, name) => {
 							if (name == null)
 								return AddAnnotations(arg.Expression);
-							else
-								return new NamedArgumentExpression(name, AddAnnotations(arg.Expression));
+							return new NamedArgumentExpression {
+								NameToken = Identifier.Create(name).WithAnnotation(BoxedTextColor.Parameter),
+								Expression = AddAnnotations(arg.Expression)
+							};
 						});
 				}
 
@@ -179,13 +183,15 @@ namespace ICSharpCode.Decompiler.CSharp
 		readonly ExpressionBuilder expressionBuilder;
 		readonly CSharpResolver resolver;
 		readonly IDecompilerTypeSystem typeSystem;
+		private readonly StringBuilder stringBuilder;
 
-		public CallBuilder(ExpressionBuilder expressionBuilder, IDecompilerTypeSystem typeSystem, DecompilerSettings settings)
+		public CallBuilder(ExpressionBuilder expressionBuilder, IDecompilerTypeSystem typeSystem, DecompilerSettings settings, StringBuilder sb)
 		{
 			this.expressionBuilder = expressionBuilder;
 			this.resolver = expressionBuilder.resolver;
 			this.settings = settings;
 			this.typeSystem = typeSystem;
+			this.stringBuilder = sb;
 		}
 
 		public TranslatedExpression Build(CallInstruction inst)
@@ -649,8 +655,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			int next;
 			TokenKind kind = TokenKind.String;
 
-			StringBuilder sb = typeSystem.SharedStringBuilder;
-			sb.Length = 0;
+			stringBuilder.Clear();
 
 			while ((next = Next()) > -1)
 			{
@@ -660,29 +665,29 @@ namespace ICSharpCode.Decompiler.CSharp
 						if (Peek() == '{')
 						{
 							kind = TokenKind.String;
-							sb.Append("{{");
+							stringBuilder.Append("{{");
 							Next();
 						}
 						else
 						{
-							if (sb.Length > 0)
+							if (stringBuilder.Length > 0)
 							{
-								yield return (kind, sb.ToString());
+								yield return (kind, stringBuilder.ToString());
 							}
 							kind = TokenKind.Argument;
-							sb.Clear();
+							stringBuilder.Clear();
 						}
 						break;
 					case '}':
 						if (kind != TokenKind.String)
 						{
-							yield return (kind, sb.ToString());
-							sb.Clear();
+							yield return (kind, stringBuilder.ToString());
+							stringBuilder.Clear();
 							kind = TokenKind.String;
 						}
 						else if (Peek() == '}')
 						{
-							sb.Append("}}");
+							stringBuilder.Append("}}");
 							Next();
 						}
 						else
@@ -695,17 +700,17 @@ namespace ICSharpCode.Decompiler.CSharp
 						{
 							kind = TokenKind.ArgumentWithFormat;
 						}
-						sb.Append(':');
+						stringBuilder.Append(':');
 						break;
 					default:
-						sb.Append((char)next);
+						stringBuilder.Append((char)next);
 						break;
 				}
 			}
-			if (sb.Length > 0)
+			if (stringBuilder.Length > 0)
 			{
 				if (kind == TokenKind.String)
-					yield return (kind, sb.ToString());
+					yield return (kind, stringBuilder.ToString());
 				else
 					yield return (TokenKind.Error, null);
 			}

@@ -45,11 +45,11 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write(".", BoxedTextColor.Punctuation);
-			output.Write(resultType);
-			output.Write("(", BoxedTextColor.Punctuation);
+			output.Write(".", BoxedTextColor.OpCode);
+			output.Write(resultType, BoxedTextColor.OpCode);
+			var braceInfo = OpenBrace(output, "(");
 			this.array.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

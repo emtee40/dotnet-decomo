@@ -78,13 +78,11 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			if (typeDefOrRef is null)
 				return null;
 
-			if (typeDefOrRef is TypeSpec spec) {
+			if (typeDefOrRef is TypeSpec spec)
 				return spec.TypeSig.DecodeSignature(module, context);
-			}
-
-			if (typeDefOrRef is TypeDef def) {
+			if (typeDefOrRef is TypeDef def)
 				return module.GetDefinition(def);
-			}
+
 			if (typeDefOrRef is TypeRef typeRef) {
 				lock (module.typeRefDict) {
 					if (module.typeRefDict.TryGetValue(typeRef, out var tsType))
@@ -95,7 +93,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 						tsType = mod.GetDefinitionInternal(resolved).WithOriginalMember(typeRef);
 					else
 					{
-						Console.WriteLine("Failed to resolve TypeRef: {0}", typeRef);
 						bool? isReferenceType;
 						if (isVT != ThreeState.Unknown)
 							isReferenceType = isVT == ThreeState.False;

@@ -130,6 +130,8 @@ namespace ICSharpCode.Decompiler.IL
 
 		public DebugInfo.AsyncDebugInfo AsyncDebugInfo;
 
+		public AsyncMethodDebugInfo? AsyncMethodDebugInfo;
+
 		int ctorCallStart = int.MinValue;
 
 		/// <summary>
@@ -304,12 +306,12 @@ namespace ICSharpCode.Decompiler.IL
 			}
 			if (DelegateType != null)
 			{
-				output.Write("[", BoxedTextColor.Text);
+				var braceInfo2 = OpenBrace(output, "[");
 				DelegateType.WriteTo(output);
-				output.Write("]", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo2, "]", CodeBracesRangeFlags.SquareBrackets);
 			}
-			output.WriteLine(" {", BoxedTextColor.Text);
-			output.IncreaseIndent();
+			output.WriteLine(" ", BoxedTextColor.Text);
+			var braceInfo = WriteHiddenStart(output, null);
 
 			if (IsAsync)
 			{
@@ -322,7 +324,7 @@ namespace ICSharpCode.Decompiler.IL
 			if (DeclarationScope != null)
 			{
 				output.Write("declared as " + Name + " in ", BoxedTextColor.Text);
-				output.Write(DeclarationScope.EntryPoint.Label, DeclarationScope, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+				output.Write(DeclarationScope.EntryPoint.Label, DeclarationScope.TextReferenceObject, DecompilerReferenceFlags.Local, BoxedTextColor.Label);
 				output.WriteLine();
 			}
 
@@ -335,7 +337,7 @@ namespace ICSharpCode.Decompiler.IL
 
 			foreach (string warning in Warnings)
 			{
-				output.WriteLine("//" + warning, BoxedTextColor.Text);
+				output.WriteLine("//" + warning, BoxedTextColor.Comment);
 			}
 
 			body.WriteTo(output, options);
@@ -352,15 +354,22 @@ namespace ICSharpCode.Decompiler.IL
 				var unusedILRanges = FindUnusedILRanges();
 				if (!unusedILRanges.IsEmpty)
 				{
-					output.Write("// Unused IL Ranges: ", BoxedTextColor.Text);
+					output.Write("// Unused IL Ranges: ", BoxedTextColor.Comment);
 					output.Write(string.Join(", ", unusedILRanges.Intervals.Select(
-						range => $"[{range.Start:x4}..{range.InclusiveEnd:x4}]")), BoxedTextColor.Text);
+						range => $"[{range.Start:x4}..{range.InclusiveEnd:x4}]")), BoxedTextColor.Comment);
 					output.WriteLine();
 				}
 			}
 
-			output.DecreaseIndent();
-			output.WriteLine("}", BoxedTextColor.Text);
+			CodeBracesRangeFlags flags;
+			if (kind == ILFunctionKind.Delegate)
+				flags = CodeBracesRangeFlags.AnonymousMethodBraces;
+			else if (kind == ILFunctionKind.LocalFunction)
+				flags = CodeBracesRangeFlags.LocalFunctionBraces;
+			else
+				flags = CodeBracesRangeFlags.MethodBraces;
+
+			WriteHiddenEnd(output, null, braceInfo, flags);
 		}
 
 		LongSet FindUnusedILRanges()

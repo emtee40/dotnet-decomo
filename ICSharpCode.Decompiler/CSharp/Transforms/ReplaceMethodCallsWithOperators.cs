@@ -19,6 +19,8 @@
 using System.Linq;
 using System.Reflection;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
 using ICSharpCode.Decompiler.Semantics;
@@ -53,6 +55,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			var method = invocationExpression.GetSymbol() as IMethod;
 			if (method == null)
 				return;
+			var builder = invocationExpression.Annotation<MethodDebugInfoBuilder>();
 			var arguments = invocationExpression.Arguments.ToArray();
 
 			// Reduce "String.Concat(a, b)" to "a + b"
@@ -130,7 +133,9 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				case "System.Activator.CreateInstance":
 					if (arguments.Length == 0 && method.TypeArguments.Count == 1 && IsInstantiableTypeParameter(method.TypeArguments[0]))
 					{
-						invocationExpression.ReplaceWith(new ObjectCreateExpression(context.TypeSystemAstBuilder.ConvertType(method.TypeArguments.First())));
+						invocationExpression.ReplaceWith(
+							new ObjectCreateExpression(context.TypeSystemAstBuilder.ConvertType(method.TypeArguments.First()))
+								.WithAnnotation(invocationExpression.GetAllRecursiveILSpans()).WithAnnotation(builder));
 					}
 					break;
 				case "System.Runtime.CompilerServices.RuntimeHelpers.GetSubArray":
@@ -194,7 +199,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 			if (method.Name == "op_True" && arguments.Length == 1 && invocationExpression.Role == Roles.Condition)
 			{
-				invocationExpression.ReplaceWith(arguments[0].UnwrapInDirectionExpression());
+				invocationExpression.ReplaceWith(arguments[0].UnwrapInDirectionExpression().WithAnnotation(invocationExpression.GetAllRecursiveILSpans()).WithAnnotation(builder));
 				return;
 			}
 

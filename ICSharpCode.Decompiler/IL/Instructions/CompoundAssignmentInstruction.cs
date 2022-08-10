@@ -111,19 +111,19 @@ namespace ICSharpCode.Decompiler.IL
 			switch (TargetKind)
 			{
 				case CompoundTargetKind.Address:
-					output.Write(".address", BoxedTextColor.Text);
+					output.Write(".address", BoxedTextColor.OpCode);
 					break;
 				case CompoundTargetKind.Property:
-					output.Write(".property", BoxedTextColor.Text);
+					output.Write(".property", BoxedTextColor.OpCode);
 					break;
 			}
 			switch (EvalMode)
 			{
 				case CompoundEvalMode.EvaluatesToNewValue:
-					output.Write(".new", BoxedTextColor.Text);
+					output.Write(".new", BoxedTextColor.OpCode);
 					break;
 				case CompoundEvalMode.EvaluatesToOldValue:
-					output.Write(".old", BoxedTextColor.Text);
+					output.Write(".old", BoxedTextColor.OpCode);
 					break;
 			}
 		}
@@ -289,31 +289,32 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("." + BinaryNumericInstruction.GetOperatorName(Operator), BoxedTextColor.Text);
+			output.Write("." + BinaryNumericInstruction.GetOperatorName(Operator), BoxedTextColor.OpCode);
 			if (CheckForOverflow)
 			{
-				output.Write(".ovf", BoxedTextColor.Text);
+				output.Write(".ovf", BoxedTextColor.OpCode);
 			}
 			if (Sign == Sign.Unsigned)
 			{
-				output.Write(".unsigned", BoxedTextColor.Text);
+				output.Write(".unsigned", BoxedTextColor.OpCode);
 			}
 			else if (Sign == Sign.Signed)
 			{
-				output.Write(".signed", BoxedTextColor.Text);
+				output.Write(".signed", BoxedTextColor.OpCode);
 			}
-			output.Write(".", BoxedTextColor.Text);
-			output.Write(UnderlyingResultType.ToString().ToLowerInvariant(), BoxedTextColor.Text);
+			output.Write(".", BoxedTextColor.OpCode);
+			output.Write(UnderlyingResultType.ToString().ToLowerInvariant(), BoxedTextColor.OpCode);
 			if (IsLifted)
 			{
-				output.Write(".lifted", BoxedTextColor.Text);
+				output.Write(".lifted", BoxedTextColor.OpCode);
 			}
 			base.WriteSuffix(output);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			Target.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			Value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 
@@ -345,11 +346,12 @@ namespace ICSharpCode.Decompiler.IL
 			base.WriteSuffix(output);
 			output.Write(" ", BoxedTextColor.Text);
 			Method.WriteTo(output);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			this.Target.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.Value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 
@@ -378,8 +380,8 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write(".", BoxedTextColor.Punctuation);
-			output.Write(Operation.ToString().ToLower(), BoxedTextColor.Text);
+			output.Write(".", BoxedTextColor.OpCode);
+			output.Write(Operation.ToString().ToLower(), BoxedTextColor.OpCode);
 			DynamicInstruction.WriteBinderFlags(BinderFlags, output, options);
 			base.WriteSuffix(output);
 			output.Write(" ", BoxedTextColor.Text);

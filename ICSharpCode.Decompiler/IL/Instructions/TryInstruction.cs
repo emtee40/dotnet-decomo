@@ -25,8 +25,6 @@ using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 using ICSharpCode.Decompiler.Util;
 
-using ICSharpCode.Decompiler.Util;
-
 namespace ICSharpCode.Decompiler.IL
 {
 	public abstract class TryInstruction : ILInstruction
@@ -81,11 +79,11 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write(".try ", BoxedTextColor.Text);
+			output.Write(".try", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			TryBlock.WriteTo(output, options);
 			foreach (var handler in Handlers)
 			{
-				output.Write(" ", BoxedTextColor.Text);
 				handler.WriteTo(output, options);
 			}
 		}
@@ -209,16 +207,22 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("catch ", BoxedTextColor.Text);
+			output.Write("catch", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			if (variable != null)
 			{
-				output.Write(variable.Name, variable, DecompilerReferenceFlags.Definition, BoxedTextColor.Text);
-				output.Write(" : ", BoxedTextColor.Text);
+				output.Write(variable.Name!, variable.GetTextReferenceObject(), DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Local);
+				output.Write(" ", BoxedTextColor.Text);
+				output.Write(":", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				Disassembler.DisassemblerHelpers.WriteOperand(output, variable.Type);
 			}
-			output.Write(" when (", BoxedTextColor.Text);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("when", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			filter.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 			output.Write(" ", BoxedTextColor.Text);
 			body.WriteTo(output, options);
 		}
@@ -264,9 +268,11 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write(".try ", BoxedTextColor.Text);
+			output.Write(".try", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			TryBlock.WriteTo(output, options);
-			output.Write(" finally ", BoxedTextColor.Text);
+			output.Write("finally", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			finallyBlock.WriteTo(output, options);
 		}
 
@@ -363,9 +369,11 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write(".try ", BoxedTextColor.Text);
+			output.Write(".try", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			TryBlock.WriteTo(output, options);
-			output.Write(" fault ", BoxedTextColor.Text);
+			output.Write("fault", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
 			faultBlock.WriteTo(output, options);
 		}
 

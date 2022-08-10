@@ -17,6 +17,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Immutable;
+using System.Text;
 using System.Threading;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
@@ -57,7 +58,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		/// </summary>
 		public IImmutableSet<string> RequiredNamespacesSuperset => DecompileRun.Namespaces.ToImmutableHashSet();
 
-		internal TransformContext(IDecompilerTypeSystem typeSystem, DecompileRun decompileRun, ITypeResolveContext decompilationContext, TypeSystemAstBuilder typeSystemAstBuilder)
+		public bool CalculateILSpans => DecompileRun.Context.CalculateILSpans;
+
+		public StringBuilder StringBuilder { get; }
+
+		internal TransformContext(IDecompilerTypeSystem typeSystem, DecompileRun decompileRun, ITypeResolveContext decompilationContext, TypeSystemAstBuilder typeSystemAstBuilder, StringBuilder stringBuilder)
 		{
 			this.TypeSystem = typeSystem;
 			this.DecompileRun = decompileRun;
@@ -65,6 +70,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			this.TypeSystemAstBuilder = typeSystemAstBuilder;
 			this.CancellationToken = decompileRun.CancellationToken;
 			this.Settings = decompileRun.Settings;
+			this.StringBuilder = stringBuilder;
 		}
 	}
 }

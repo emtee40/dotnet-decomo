@@ -84,7 +84,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				callsites.Add(callSiteCacheField, callSiteInfo);
 			}
 
-			var storesToRemove = new List<StLoc>();
+			var storesToRemove = new Dictionary<StLoc, ILInstruction>();
 
 			foreach (var invokeCall in function.Descendants.OfType<CallVirt>())
 			{
@@ -137,9 +137,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						{
 							var value = stLoc.Value;
 							if (value.MatchLdsFld(out var cacheFieldCopy) && cacheFieldCopy.Equals(cacheField))
-								storesToRemove.Add(stLoc);
+								storesToRemove.Add(stLoc, replacement);
 							if (value.MatchLdFld(out cacheFieldLoad, out var targetFieldCopy) && cacheFieldLoad.MatchLdsFld(out cacheFieldCopy) && cacheField.Equals(cacheFieldCopy) && targetField.Equals(targetFieldCopy))
-								storesToRemove.Add(stLoc);
+								storesToRemove.Add(stLoc, replacement);
 						}
 					}
 				}
@@ -148,8 +148,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 			foreach (var inst in storesToRemove)
 			{
-				Block parentBlock = (Block)inst.Parent;
-				parentBlock.Instructions.RemoveAt(inst.ChildIndex);
+				if (context.CalculateILSpans)
+					inst.Key.AddSelfAndChildrenRecursiveILSpans(inst.Value.ILSpans);
+				Block parentBlock = (Block)inst.Key.Parent;
+				parentBlock.Instructions.RemoveAt(inst.Key.ChildIndex);
 			}
 
 			foreach (var container in modifiedContainers)

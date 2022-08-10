@@ -190,30 +190,32 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("." + GetOperatorName(Operator), BoxedTextColor.Text);
+			output.Write("." + GetOperatorName(Operator), BoxedTextColor.OpCode);
 			if (CheckForOverflow)
 			{
-				output.Write(".ovf", BoxedTextColor.Text);
+				output.Write(".ovf", BoxedTextColor.OpCode);
 			}
 			if (Sign == Sign.Unsigned)
 			{
-				output.Write(".unsigned", BoxedTextColor.Text);
+				output.Write(".unsigned", BoxedTextColor.OpCode);
 			}
 			else if (Sign == Sign.Signed)
 			{
-				output.Write(".signed", BoxedTextColor.Text);
+				output.Write(".signed", BoxedTextColor.OpCode);
 			}
-			output.Write(".", BoxedTextColor.Text);
-			output.Write(resultType.ToString().ToLowerInvariant(), BoxedTextColor.Text);
+			output.Write(".", BoxedTextColor.OpCode);
+			output.Write(resultType.ToString().ToLowerInvariant(), BoxedTextColor.OpCode);
 			if (IsLifted)
 			{
-				output.Write(".lifted", BoxedTextColor.Text);
+				output.Write(".lifted", BoxedTextColor.OpCode);
 			}
-			output.Write("(", BoxedTextColor.Text);
+
+			var brace = OpenBrace(output, "(");
 			Left.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			Right.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, brace, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

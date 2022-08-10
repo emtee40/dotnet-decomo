@@ -19,13 +19,12 @@
 
 using System;
 using System.Diagnostics;
-using System.Linq;
+
 using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Diagnostics.CodeAnalysis;
 
-using ICSharpCode.Decompiler.TypeSystem;
 namespace ICSharpCode.Decompiler.IL
 {
 	partial class MatchInstruction : ILInstruction
@@ -262,33 +261,38 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			if (CheckNotNull)
 			{
-				output.Write(".notnull", BoxedTextColor.Text);
+				output.Write(".notnull", BoxedTextColor.OpCode);
 			}
+			BraceInfo braceInfo;
 			if (CheckType)
 			{
-				output.Write(".type[", BoxedTextColor.Text);
+				output.Write(".type", BoxedTextColor.OpCode);
+				braceInfo = OpenBrace(output, "[");
 				variable.Type.WriteTo(output);
-				output.Write("]", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo, "]", CodeBracesRangeFlags.SquareBrackets);
 			}
 			if (IsDeconstructCall)
 			{
-				output.Write(".deconstruct[", BoxedTextColor.Text);
-				method.WriteTo(output);
-				output.Write("]", BoxedTextColor.Text);
+				output.Write(".deconstruct", BoxedTextColor.OpCode);
+				braceInfo = OpenBrace(output, "[");
+				method!.WriteTo(output);
+				CloseBrace(output, braceInfo, "]", CodeBracesRangeFlags.SquareBrackets);
 			}
 			if (IsDeconstructTuple)
 			{
-				output.Write(".tuple", BoxedTextColor.Text);
+				output.Write(".tuple", BoxedTextColor.OpCode);
 			}
 			output.Write(" ", BoxedTextColor.Text);
-			output.Write("(", BoxedTextColor.Text);
+			braceInfo = OpenBrace(output, "(");
 			Variable.WriteTo(output);
-			output.Write(" = ", BoxedTextColor.Text);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("=", BoxedTextColor.Operator);
+			output.Write(" ", BoxedTextColor.Text);
 			TestedOperand.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 			if (SubPatterns.Count > 0)
 			{
-				output.WriteLine("{", BoxedTextColor.Text);
+				braceInfo = OpenBrace(output, "{");
 				output.IncreaseIndent();
 				foreach (var pattern in SubPatterns)
 				{
@@ -296,7 +300,7 @@ namespace ICSharpCode.Decompiler.IL
 					output.WriteLine();
 				}
 				output.DecreaseIndent();
-				output.Write("}", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo, "}", CodeBracesRangeFlags.CurlyBraces);
 			}
 		}
 	}

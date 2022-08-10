@@ -89,12 +89,18 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 									if (result.NextBlockOrExitContainer is BlockContainer exitContainer)
 									{
 										context.Step("branch jumpTableBlock => leave exitContainer", branch);
-										branch.ReplaceWith(new Leave(exitContainer));
+										Leave replacement = new Leave(exitContainer);
+										if (context.CalculateILSpans)
+											branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+										branch.ReplaceWith(replacement);
 									}
 									else
 									{
 										context.Step("branch jumpTableBlock => branch nextBlock", branch);
-										branch.ReplaceWith(new Branch((Block)result.NextBlockOrExitContainer));
+										Branch replacement = new Branch((Block)result.NextBlockOrExitContainer);
+										if (context.CalculateILSpans)
+											branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+										branch.ReplaceWith(replacement);
 									}
 								}
 							}
@@ -166,11 +172,17 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 							if (load.Parent is CastClass cc && cc.Type.Equals(result.Handler.Variable.Type))
 							{
-								cc.ReplaceWith(new LdLoc(result.Handler.Variable).WithILRange(cc).WithILRange(load));
+								LdLoc replacement = new LdLoc(result.Handler.Variable).WithILRange(cc).WithILRange(load);
+								if (context.CalculateILSpans)
+									cc.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+								cc.ReplaceWith(replacement);
 							}
 							else
 							{
-								load.ReplaceWith(new LdLoc(result.Handler.Variable).WithILRange(load));
+								LdLoc replacement = new LdLoc(result.Handler.Variable).WithILRange(load);
+								if (context.CalculateILSpans)
+									load.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+								load.ReplaceWith(replacement);
 							}
 						}
 					}
@@ -186,7 +198,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					{
 						if (branch.TargetBlock != b)
 							continue;
-						branch.ReplaceWith(defaultSection.Body.Clone());
+						var clone = defaultSection.Body.Clone();
+						if (context.CalculateILSpans)
+							branch.AddSelfAndChildrenRecursiveILSpans(clone.ILSpans);
+						branch.ReplaceWith(clone);
 					}
 				}
 			}
@@ -204,12 +219,21 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				out Block captureBlock, out Block throwBlock))
 			{
 				context.Step($"ExceptionDispatchInfo.Capture({v.Name}).Throw() => throw;", typedExceptionVariableStore);
+				var reThrow = new Rethrow();
+				if (context.CalculateILSpans)
+				{
+					captureBlock.AddSelfAndChildrenRecursiveILSpans(reThrow.ILSpans);
+					throwBlock.AddSelfAndChildrenRecursiveILSpans(reThrow.ILSpans);
+					typedExceptionVariableStore.AddSelfAndChildrenRecursiveILSpans(reThrow.ILSpans);
+					for (int i = 1; i < 3; i++)
+						block.Instructions[typedExceptionVariableStore.ChildIndex + i].AddSelfAndChildrenRecursiveILSpans(reThrow.ILSpans);
+				}
 				block.Instructions.RemoveRange(typedExceptionVariableStore.ChildIndex + 1, 2);
 				captureBlock.Remove();
 				throwBlock.Remove();
 				removedBlocks.Add(captureBlock);
 				removedBlocks.Add(throwBlock);
-				typedExceptionVariableStore.ReplaceWith(new Rethrow());
+				typedExceptionVariableStore.ReplaceWith(reThrow);
 			}
 		}
 

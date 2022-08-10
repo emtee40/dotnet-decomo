@@ -31,7 +31,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 {
 	/// <summary>
 	/// Converts LINQ Expression Trees to ILFunctions/ILAst instructions.
-	/// 
+	///
 	/// We build a tree of Func{ILInstruction}s, which are only executed, if the whole transform succeeds.
 	/// </summary>
 	public class TransformExpressionTrees : IStatementTransform
@@ -116,8 +116,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				}
 				if (TryConvertExpressionTree(block.Instructions[i], block.Instructions[i]))
 				{
+					var instr = block.Instructions[i];
 					foreach (var inst in instructionsToRemove)
+					{
+						if (context.CalculateILSpans)
+							inst.AddSelfAndChildrenRecursiveILSpans(instr.ILSpans);
 						block.Instructions.Remove(inst);
+					}
+
 					instructionsToRemove.Clear();
 				}
 				break;
@@ -170,6 +176,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			function.Kind = IsExpressionTree(functionType) ? ILFunctionKind.ExpressionTree : ILFunctionKind.Delegate;
 			function.Variables.AddRange(parameterVariablesList);
 			function.AddILRange(instruction);
+			if (context.CalculateILSpans)
+				instruction.AddSelfAndChildrenRecursiveILSpans(function.ILSpans);
 			lambdaStack.Push(function);
 			var (bodyInstruction, type) = ConvertInstruction(instruction.Arguments[0]);
 			lambdaStack.Pop();

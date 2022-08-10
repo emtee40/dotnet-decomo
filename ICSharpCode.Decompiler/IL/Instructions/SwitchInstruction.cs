@@ -104,21 +104,21 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("switch", BoxedTextColor.Text);
+			output.Write("switch", BoxedTextColor.OpCode);
 			if (IsLifted)
-				output.Write(".lifted", BoxedTextColor.Text);
-			output.Write(" (", BoxedTextColor.Text);
+				output.Write(".lifted", BoxedTextColor.OpCode);
+			output.Write(" ", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			value.WriteTo(output, options);
-			output.Write(") ", BoxedTextColor.Text);
-			output.WriteLine("{", BoxedTextColor.Text);
-			output.IncreaseIndent();
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
+			output.Write(" ", BoxedTextColor.Text);
+			braceInfo = WriteHiddenStart(output, null);
 			foreach (var section in this.Sections)
 			{
 				section.WriteTo(output, options);
 				output.WriteLine();
 			}
-			output.DecreaseIndent();
-			output.Write("}", BoxedTextColor.Text);
+			WriteHiddenEnd(output, null, braceInfo, CodeBracesRangeFlags.SwitchBraces);
 		}
 
 		protected override int GetChildCount()
@@ -234,17 +234,21 @@ namespace ICSharpCode.Decompiler.IL
 			}
 		}
 
+		public object TextReferenceObject => textRefObject ??= new object();
+		private object? textRefObject;
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("case", this, DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+			output.Write("case", TextReferenceObject, DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Keyword);
 			output.Write(" ", BoxedTextColor.Text);
 			if (HasNullLabel)
 			{
-				output.Write("null", BoxedTextColor.Text);
+				output.Write("null", BoxedTextColor.Keyword);
 				if (!Labels.IsEmpty)
 				{
-					output.Write(", ", BoxedTextColor.Text);
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
 					output.Write(Labels.ToString(), BoxedTextColor.Text);
 				}
 			}
@@ -252,7 +256,8 @@ namespace ICSharpCode.Decompiler.IL
 			{
 				output.Write(Labels.ToString(), BoxedTextColor.Text);
 			}
-			output.Write(": ", BoxedTextColor.Text);
+			output.Write(":", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 
 			body.WriteTo(output, options);
 		}

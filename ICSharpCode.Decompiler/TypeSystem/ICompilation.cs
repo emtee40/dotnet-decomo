@@ -74,8 +74,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		CacheManager CacheManager { get; }
 
 		IModule GetOrAddModule(ModuleDef module);
-
-		StringBuilder SharedStringBuilder { get; }
 	}
 
 	public interface ICompilationProvider

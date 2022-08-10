@@ -23,12 +23,12 @@ namespace ICSharpCode.Decompiler.IL
 			WriteILRange(output, options);
 			output.Write(OpCode);
 			if (IsChecked)
-				output.Write(".checked", BoxedTextColor.Text);
+				output.Write(".checked", BoxedTextColor.OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
+
+using dnSpy.Contracts.Decompiler;
 
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
@@ -101,7 +100,12 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			{
 				if (statement is BlockStatement b && b.Statements.Count == 1 && IsAllowedAsEmbeddedStatement(b.Statements.First(), parent))
 				{
-					statement.ReplaceWith(b.Statements.First().Detach());
+
+					Statement newNode = b.Statements.First().Detach();
+					var spans = b.GetAllILSpans();
+					if (spans.Count > 0)
+						newNode.AddAnnotation(spans);
+					statement.ReplaceWith(newNode);
 				}
 				else if (!IsAllowedAsEmbeddedStatement(statement, parent))
 				{
@@ -218,6 +222,14 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				return;
 			propertyDeclaration.Modifiers |= propertyDeclaration.Getter.Modifiers;
 			propertyDeclaration.ExpressionBody = m.Get<Expression>("expression").Single().Detach();
+			if (context.CalculateILSpans)
+			{
+				var retSpans = propertyDeclaration.Getter.Body.Statements.Single().GetAllILSpans();
+				if (retSpans.Count > 0)
+					propertyDeclaration.ExpressionBody.AddAnnotation(retSpans);
+				propertyDeclaration.ExpressionBody.AddAnnotation(propertyDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+			}
+
 			propertyDeclaration.Getter.Remove();
 		}
 
@@ -230,6 +242,13 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				return;
 			indexerDeclaration.Modifiers |= indexerDeclaration.Getter.Modifiers;
 			indexerDeclaration.ExpressionBody = m.Get<Expression>("expression").Single().Detach();
+			if (context.CalculateILSpans)
+			{
+				var retSpans = indexerDeclaration.Getter.Body.Statements.Single().GetAllILSpans();
+				if (retSpans.Count > 0)
+					indexerDeclaration.ExpressionBody.AddAnnotation(retSpans);
+				indexerDeclaration.ExpressionBody.AddAnnotation(indexerDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+			}
 			indexerDeclaration.Getter.Remove();
 		}
 	}

@@ -21,6 +21,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+
 using dnlib.DotNet;
 using dnSpy.Contracts.Decompiler;
 using ICSharpCode.Decompiler.Util;
@@ -366,8 +368,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				if (reflName != null)
 					return reflName;
 
-				var sb = module.Compilation.SharedStringBuilder;
-				sb.Length = 0;
+				var sb = new StringBuilder();
 				reflName = FullNameFactory.FullName(handle, true, null, sb);
 
 				return LazyInit.GetOrSet(ref this.reflectionName, reflName);
@@ -636,6 +637,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			public override int GetHashCode()
 			{
 				return 0x11dda32b ^ backing.module.PEFile.GetHashCode() ^ backing.handle.GetHashCode();
+			}
+
+			public override string ToString()
+			{
+				return $"{backing.handle.MDToken.Raw:X8} {backing.fullTypeName}";
 			}
 
 			bool IEquatable<IType>.Equals(IType other) => Equals(other);

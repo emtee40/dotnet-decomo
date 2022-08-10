@@ -96,11 +96,12 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			valueInst.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			fallbackInst.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

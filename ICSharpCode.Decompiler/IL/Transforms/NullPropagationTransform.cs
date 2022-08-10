@@ -17,6 +17,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
@@ -110,6 +111,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			Mode mode)
 		{
 			bool removedRewrapOrNullableCtor = false;
+			var oldNonNullInstILSpans = nonNullInst.ILSpans;
 			if (NullableLiftingTransform.MatchNullableCtor(nonNullInst, out _, out var arg))
 			{
 				nonNullInst = arg;
@@ -130,7 +132,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// testedVar != null ? testedVar.AccessChain : null
 				// => testedVar?.AccessChain
 				IntroduceUnwrap(testedVar, varLoad, mode);
-				return new NullableRewrap(nonNullInst);
+				var rewrap = new NullableRewrap(nonNullInst);
+				if (context.CalculateILSpans)
+				{
+					if (removedRewrapOrNullableCtor)
+						rewrap.ILSpans.AddRange(oldNonNullInstILSpans);
+					rewrap.ILSpans.AddRange(nullInst.ILSpans);
+				}
+				return rewrap;
 			}
 			else if (nullInst.MatchDefaultValue(out var type) && type.IsKnownType(KnownTypeCode.NullableOfT))
 			{
@@ -138,7 +147,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				// testedVar != null ? testedVar.AccessChain : default(T?)
 				// => testedVar?.AccessChain
 				IntroduceUnwrap(testedVar, varLoad, mode);
-				return new NullableRewrap(nonNullInst);
+				var rewrap = new NullableRewrap(nonNullInst);
+				if (context.CalculateILSpans)
+				{
+					if (removedRewrapOrNullableCtor)
+						rewrap.ILSpans.AddRange(oldNonNullInstILSpans);
+					rewrap.ILSpans.AddRange(nullInst.ILSpans);
+				}
+				return rewrap;
 			}
 			else if (!removedRewrapOrNullableCtor && NullableType.IsNonNullableValueType(returnType))
 			{
@@ -204,13 +220,30 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						throw new NotSupportedException();
 				}
 				// Remove the fallback conditions and blocks
+				if (context.CalculateILSpans)
+				{
+					foreach (ILInstruction instruction in block.Instructions.Skip(pos + 1).Take(2))
+						instruction.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
 				block.Instructions.RemoveRange(pos + 1, 2);
 				// if the endBlock is only reachable through the current block,
 				// combine both blocks.
 				if (endBlock?.IncomingEdgeCount == 1)
 				{
-					block.Instructions.AddRange(endBlock.Instructions);
+					var exitBranch = block.Instructions[pos + 2];
 					block.Instructions.RemoveAt(pos + 2);
+
+					if (context.CalculateILSpans)
+					{
+						exitBranch.AddSelfAndChildrenRecursiveILSpans(endBlock.ILSpans);
+						if (block.Instructions.Count > 0)
+							block.Instructions[block.Instructions.Count - 1].EndILSpans.AddRange(endBlock.ILSpans);
+						else
+							block.ILSpans.AddRange(endBlock.ILSpans);
+						block.EndILSpans.AddRange(endBlock.EndILSpans);
+					}
+
+					block.Instructions.AddRange(endBlock.Instructions);
 					endBlock.Remove();
 				}
 				ILInlining.InlineIfPossible(block, pos, context);
@@ -232,9 +265,17 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			// if (testedVar != null) { testedVar.AccessChain(); }
 			// => testedVar?.AccessChain();
 			IntroduceUnwrap(testedVar, varLoad, mode);
-			ifInst.ReplaceWith(new NullableRewrap(
+			NullableRewrap replacement = new NullableRewrap(
 				bodyInst
-			).WithILRange(ifInst));
+			).WithILRange(ifInst);
+			if (context.CalculateILSpans)
+			{
+				replacement.ILSpans.AddRange(ifInst.ILSpans);
+				ifInst.Condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				if (bodyInst != body.Instructions[0])
+					replacement.ILSpans.AddRange(body.Instructions[0].ILSpans);
+			}
+			ifInst.ReplaceWith(replacement);
 		}
 
 		bool IsValidAccessChain(ILVariable testedVar, Mode mode, ILInstruction inst, out ILInstruction finalLoad)
@@ -401,6 +442,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						varLoad.ResultType,
 						new LdLoc(testedVar).WithILRange(varLoad.Children[0])
 					).WithILRange(varLoad);
+					if (context.CalculateILSpans)
+					{
+						replacement.ILSpans.AddRange(varLoad.ILSpans);
+						((NullableUnwrap)replacement).Argument.ILSpans.AddRange(varLoad.Children[0].ILSpans);
+					}
 					break;
 				case Mode.NullableByReference:
 					replacement = new NullableUnwrap(
@@ -408,6 +454,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						new LdLoc(testedVar).WithILRange(varLoad.Children[0]),
 						refInput: true
 					).WithILRange(varLoad);
+					if (context.CalculateILSpans)
+					{
+						replacement.ILSpans.AddRange(varLoad.ILSpans);
+						((NullableUnwrap)replacement).Argument.ILSpans.AddRange(varLoad.Children[0].ILSpans);
+					}
 					break;
 				default:
 					throw new ArgumentOutOfRangeException(nameof(mode));

@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -29,8 +28,6 @@ using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using dnlib.DotNet;
 using ICSharpCode.Decompiler.CSharp.Transforms;
-using ICSharpCode.Decompiler.DebugInfo;
-using ICSharpCode.Decompiler.Disassembler;
 using ICSharpCode.Decompiler.Documentation;
 using ICSharpCode.Decompiler.IL;
 using ICSharpCode.Decompiler.IL.ControlFlow;
@@ -39,7 +36,7 @@ using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
-using System.IO;
+
 using System.Text;
 using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
 using dnlib.DotNet.Emit;
@@ -206,8 +203,6 @@ namespace ICSharpCode.Decompiler.CSharp
 		/// </summary>
 		public IDecompilerTypeSystem TypeSystem => typeSystem;
 
-		public StringBuilder StringBuilder { get; }
-
 		/// <summary>
 		/// Gets or sets the optional provider for XML documentation strings.
 		/// </summary>
@@ -229,7 +224,6 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		public CSharpDecompiler()
 		{
-			StringBuilder = new StringBuilder();
 		}
 
 		/// <summary>
@@ -257,7 +251,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			this.settings = settings;
 			this.module = typeSystem.MainModule;
 			this.metadata = module.metadata;
-			StringBuilder = typeSystem.SharedStringBuilder;
 		}
 
 		#region MemberIsHidden
@@ -420,7 +413,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		void RunTransforms(AstNode rootNode, DecompileRun decompileRun, ITypeResolveContext decompilationContext)
 		{
 			var typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
-			var context = new TransformContext(typeSystem, decompileRun, decompilationContext, typeSystemAstBuilder);
+			var context = new TransformContext(typeSystem, decompileRun, decompilationContext, typeSystemAstBuilder, new StringBuilder());
 			foreach (var transform in astTransforms)
 			{
 				CancellationToken.ThrowIfCancellationRequested();
@@ -1250,6 +1243,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						function,
 						localSettings,
 						decompileRun,
+						new StringBuilder(),
 						CancellationToken
 					);
 					body = statementBuilder.ConvertAsBlock(function.Body);

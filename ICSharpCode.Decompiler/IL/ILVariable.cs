@@ -485,8 +485,8 @@ namespace ICSharpCode.Decompiler.IL
 		}
 
 		public SourceLocal GetSourceLocal() {
-			Debug.Assert(OriginalParameter == null);
-			Debug.Assert(Name != null);
+			Debug2.Assert(OriginalParameter == null);
+			Debug2.Assert(Name != null);
 			var hoistedField = StateMachineField?.MetadataToken as dnlib.DotNet.FieldDef;
 			if (sourceParamOrLocal == null)
 				Interlocked.CompareExchange(ref sourceParamOrLocal,
@@ -505,8 +505,8 @@ namespace ICSharpCode.Decompiler.IL
 		}
 
 		public SourceParameter GetSourceParameter() {
-			Debug.Assert(OriginalParameter != null);
-			Debug.Assert(Name != null);
+			Debug2.Assert(OriginalParameter != null);
+			Debug2.Assert(Name != null);
 			var hoistedField = StateMachineField?.MetadataToken as dnlib.DotNet.FieldDef;
 			if (sourceParamOrLocal == null)
 				Interlocked.CompareExchange(ref sourceParamOrLocal,
@@ -581,38 +581,69 @@ namespace ICSharpCode.Decompiler.IL
 				default:
 					throw new ArgumentOutOfRangeException();
 			}
-			output.Write(this.Name, this, DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Text);
-			output.Write(" : ", BoxedTextColor.Text);
+			output.Write(this.Name!, GetTextReferenceObject(), DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Local);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write(":", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			Type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Text);
+
+			const DecompilerReferenceFlags numberFlags = DecompilerReferenceFlags.Local | DecompilerReferenceFlags.Hidden | DecompilerReferenceFlags.NoFollow;
+
+			var start = output.NextPosition;
+			output.Write("(", BoxedTextColor.Punctuation);
 			if (Kind == VariableKind.Parameter || Kind == VariableKind.Local || Kind == VariableKind.PinnedLocal || Kind == VariableKind.PinnedRegionLocal)
 			{
-				output.Write("Index={0}, ", Index);
+				output.Write("Index", BoxedTextColor.Text);
+				output.Write("=", BoxedTextColor.Operator);
+				if (Index.HasValue)
+					output.Write(Index.Value.ToString(), Index.Value, numberFlags, BoxedTextColor.Number);
+				else
+					output.Write("?", BoxedTextColor.Punctuation);
+				output.Write(",", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 			}
-			output.Write("LoadCount={0}, AddressCount={1}, StoreCount={2})", LoadCount, AddressCount, StoreCount);
+			output.Write("LoadCount", BoxedTextColor.Text);
+			output.Write("=", BoxedTextColor.Operator);
+			output.Write(LoadCount.ToString(), LoadCount, numberFlags, BoxedTextColor.Number);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("AddressCount", BoxedTextColor.Text);
+			output.Write("=", BoxedTextColor.Operator);
+			output.Write(AddressCount.ToString(), AddressCount, numberFlags, BoxedTextColor.Number);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("StoreCount", BoxedTextColor.Text);
+			output.Write("=", BoxedTextColor.Operator);
+			output.Write(StoreCount.ToString(), StoreCount, numberFlags, BoxedTextColor.Number);
+			var end = output.NextPosition;
+			output.Write(")", BoxedTextColor.Punctuation);
+			output.AddBracePair(new TextSpan(start, 1), new TextSpan(end, 1), CodeBracesRangeFlags.Parentheses);
+
 			if (Kind != VariableKind.Parameter)
 			{
+				output.Write(" ", BoxedTextColor.Text);
 				if (initialValueIsInitialized)
 				{
-					output.Write(" init", BoxedTextColor.Text);
+					output.Write("init", BoxedTextColor.Text);
 				}
 				else
 				{
-					output.Write(" uninit", BoxedTextColor.Text);
+					output.Write("uninit", BoxedTextColor.Text);
 				}
+				output.Write(" ", BoxedTextColor.Text);
 				if (usesInitialValue)
 				{
-					output.Write(" used", BoxedTextColor.Text);
+					output.Write("used", BoxedTextColor.Text);
 				}
 				else
 				{
-					output.Write(" unused", BoxedTextColor.Text);
+					output.Write("unused", BoxedTextColor.Text);
 				}
 			}
 			if (CaptureScope != null)
 			{
 				output.Write(" captured in ", BoxedTextColor.Text);
-				output.Write(CaptureScope.EntryPoint.Label, CaptureScope, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+				output.Write(CaptureScope.EntryPoint.Label, CaptureScope.TextReferenceObject, DecompilerReferenceFlags.Local, BoxedTextColor.Label);
 			}
 			if (StateMachineField != null)
 			{
@@ -622,7 +653,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		internal void WriteTo(IDecompilerOutput output)
 		{
-			output.Write(this.Name, this, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+			output.Write(this.Name!, GetTextReferenceObject(), DecompilerReferenceFlags.Local, BoxedTextColor.Local);
 		}
 
 		/// <summary>

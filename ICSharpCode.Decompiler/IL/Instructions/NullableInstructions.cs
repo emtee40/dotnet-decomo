@@ -23,8 +23,6 @@ using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 using ICSharpCode.Decompiler.IL.Transforms;
 
-using ICSharpCode.Decompiler.IL.Transforms;
-
 namespace ICSharpCode.Decompiler.IL
 {
 	/// <summary>
@@ -95,15 +93,15 @@ namespace ICSharpCode.Decompiler.IL
 
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
-			output.Write("nullable.unwrap.", BoxedTextColor.Text);
+			output.Write("nullable.unwrap.", BoxedTextColor.OpCode);
 			if (RefInput)
 			{
-				output.Write("refinput.", BoxedTextColor.Text);
+				output.Write("refinput.", BoxedTextColor.OpCode);
 			}
-			output.Write(ResultType);
-			output.Write("(", BoxedTextColor.Text);
+			output.Write(ResultType, BoxedTextColor.OpCode);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		public override StackType ResultType { get; }

@@ -19,6 +19,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				var blockStatement = switchSection.Statements.First() as BlockStatement;
 				if (blockStatement == null || blockStatement.Statements.Any(ContainsLocalDeclaration))
 					continue;
+				if (blockStatement.HiddenStart != null || blockStatement.HiddenEnd != null)
+					continue;
+				if (blockStatement.GetAllILSpans().Count > 0)
+					continue;
 
 				blockStatement.Remove();
 				blockStatement.Statements.MoveTo(switchSection.Statements);

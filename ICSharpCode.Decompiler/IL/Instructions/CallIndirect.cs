@@ -81,25 +81,29 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("call.indirect ", BoxedTextColor.Text);
+			output.Write("call.indirect", BoxedTextColor.OpCode);
+			output.Write(" ", BoxedTextColor.Text);
 			FunctionPointerType.ReturnType.WriteTo(output);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			functionPointer.WriteTo(output, options);
 			int firstArgument = IsInstance ? 1 : 0;
 			if (firstArgument == 1)
 			{
-				output.Write(", ", BoxedTextColor.Text);
+				output.Write(",", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				Arguments[0].WriteTo(output, options);
 			}
 			foreach (var (inst, type) in Arguments.Zip(FunctionPointerType.ParameterTypes, (a, b) => (a, b)))
 			{
-				output.Write(", ", BoxedTextColor.Text);
+				output.Write(",", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				inst.WriteTo(output, options);
-				output.Write(" : ", BoxedTextColor.Text);
+				output.Write(" ", BoxedTextColor.Text);
+				output.Write(":", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				type.WriteTo(output);
 			}
-			if (Arguments.Count > 0)
-				output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		protected override int GetChildCount()

@@ -72,7 +72,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				var switchInst = (SwitchInstruction)container.EntryPoint.Instructions[0];
 				switchInst.Value.AcceptVisitor(this);
 
-				HandleSwitchExpression(container, switchInst);
+				//HandleSwitchExpression(container, switchInst);
 			}
 			// No need to call base.VisitBlockContainer, see comment in VisitBlock.
 		}
@@ -256,6 +256,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					context.Step("push negation into comparison", inst);
 					comp.Kind = comp.Kind.Negate();
 					comp.AddILRange(inst);
+					if (context.CalculateILSpans)
+					{
+						comp.ILSpans.AddRange(inst.ILSpans);
+						comp.ILSpans.AddRange(inst.Right.ILSpans);
+					}
 					inst.ReplaceWith(comp);
 				}
 				comp.AcceptVisitor(this);
@@ -271,6 +276,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				ifInst.Condition = Comp.LogicNot(lhs).WithILRange(inst);
 				ifInst.TrueInst = new LdcI4(1).WithILRange(ldc0);
 				ifInst.FalseInst = Comp.LogicNot(rhs).WithILRange(inst);
+				if (context.CalculateILSpans)
+					ifInst.TrueInst.ILSpans.AddRange(ldc0.ILSpans);
 				inst.ReplaceWith(ifInst);
 				ifInst.AcceptVisitor(this);
 			}
@@ -285,6 +292,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				ifInst.Condition = Comp.LogicNot(lhs).WithILRange(inst);
 				ifInst.TrueInst = Comp.LogicNot(rhs).WithILRange(inst);
 				ifInst.FalseInst = new LdcI4(0).WithILRange(ldc1);
+				if (context.CalculateILSpans)
+					ifInst.FalseInst.ILSpans.AddRange(ldc1.ILSpans);
 				inst.ReplaceWith(ifInst);
 				ifInst.AcceptVisitor(this);
 			}
@@ -340,6 +349,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (TransformArrayInitializers.TransformSpanTArrayInitialization(inst, context, out block))
 			{
 				context.Step("TransformSpanTArrayInitialization: single-dim", inst);
+				if (context.CalculateILSpans)
+					inst.AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
 				inst.ReplaceWith(block);
 				return;
 			}
@@ -571,15 +582,20 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return;
 			if (inst.MatchIfInstructionPositiveCondition(out var condition, out var trueInst, out var falseInst))
 			{
-				ILInstruction transformed = UserDefinedLogicTransform.Transform(condition, trueInst, falseInst);
+				ILInstruction transformed = UserDefinedLogicTransform.Transform(condition, trueInst, falseInst, context.CalculateILSpans);
 				if (transformed == null)
 				{
-					transformed = UserDefinedLogicTransform.TransformDynamic(condition, trueInst, falseInst);
+					transformed = UserDefinedLogicTransform.TransformDynamic(condition, trueInst, falseInst, context.CalculateILSpans);
 				}
 				if (transformed != null)
 				{
 					context.Step("User-defined short-circuiting logic operator (roslyn pattern)", condition);
 					transformed.AddILRange(inst);
+					if (context.CalculateILSpans)
+					{
+						transformed.ILSpans.AddRange(inst.ILSpans);
+						inst.Condition.AddSelfAndChildrenRecursiveILSpans(transformed.ILSpans);
+					}
 					inst.ReplaceWith(transformed);
 					return;
 				}
@@ -717,11 +733,25 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 					else if (block.Instructions[0] is Leave leave)
 					{
+						if (context.CalculateILSpans)
+							leave.Value.ILSpans.AddRange(leave.ILSpans);
 						section.Body = leave.Value;
 					}
 					else
 					{
 						throw new InvalidOperationException();
+					}
+
+					if (context.CalculateILSpans)
+					{
+						long index = 0;
+						bool done = false;
+						for (;;) {
+							var span = block.GetAllILSpans(ref index, ref done);
+							if (done)
+								break;
+							section.Body.ILSpans.Add(span);
+						}
 					}
 				}
 				else
@@ -788,6 +818,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!invokeMember.Arguments[0].Match(getMember.Target).Success)
 				return false;
 			context.Step("+= / -= dynamic.isevent pattern -> dynamic.compound.op", inst);
+			if (context.CalculateILSpans)
+			{
+				dynamicCompoundAssign.ILSpans.AddRange(inst.ILSpans);
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(dynamicCompoundAssign.ILSpans);
+				trueInst.AddSelfAndChildrenRecursiveILSpans(dynamicCompoundAssign.ILSpans);
+			}
 			inst.ReplaceWith(dynamicCompoundAssign);
 			return true;
 		}
@@ -818,7 +854,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (inst.Name != dynamicGetMember.Name || !DynamicCompoundAssign.IsExpressionTypeSupported(binaryOp.Operation))
 				return;
 			context.Step("dynamic.setmember.compound -> dynamic.compound.op", inst);
-			inst.ReplaceWith(new DynamicCompoundAssign(binaryOp.Operation, binaryOp.BinderFlags, binaryOp.Left, binaryOp.LeftArgumentInfo, binaryOp.Right, binaryOp.RightArgumentInfo));
+			DynamicCompoundAssign replacement = new DynamicCompoundAssign(binaryOp.Operation, binaryOp.BinderFlags, binaryOp.Left, binaryOp.LeftArgumentInfo, binaryOp.Right, binaryOp.RightArgumentInfo);
+			if (context.CalculateILSpans)
+			{
+				replacement.ILSpans.AddRange(inst.ILSpans);
+				replacement.ILSpans.AddRange(binaryOp.ILSpans);
+				inst.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			}
+			inst.ReplaceWith(replacement);
 		}
 
 		/// <summary>
@@ -849,7 +892,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!DynamicCompoundAssign.IsExpressionTypeSupported(binaryOp.Operation))
 				return;
 			context.Step("dynamic.setindex.compound -> dynamic.compound.op", inst);
-			inst.ReplaceWith(new DynamicCompoundAssign(binaryOp.Operation, binaryOp.BinderFlags, binaryOp.Left, binaryOp.LeftArgumentInfo, binaryOp.Right, binaryOp.RightArgumentInfo));
+			var replacement = new DynamicCompoundAssign(binaryOp.Operation, binaryOp.BinderFlags, binaryOp.Left, binaryOp.LeftArgumentInfo, binaryOp.Right, binaryOp.RightArgumentInfo);
+			if (context.CalculateILSpans)
+			{
+				replacement.ILSpans.AddRange(inst.ILSpans);
+				for (int j = 0; j < dynamicGetIndex.Arguments.Count; j++)
+					inst.Arguments[j].AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				replacement.ILSpans.AddRange(binaryOp.ILSpans);
+			}
+			inst.ReplaceWith(replacement);
 		}
 
 		protected internal override void VisitBinaryNumericInstruction(BinaryNumericInstruction inst)

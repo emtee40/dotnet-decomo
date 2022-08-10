@@ -53,14 +53,14 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 			if (context.Settings.UsingDeclarations)
 			{
-				var stringBuilder = context.TypeSystem.SharedStringBuilder;
+				var stringBuilder = context.StringBuilder;
 
 				var insertionPoint = rootNode.Children.LastOrDefault(n => n is PreProcessorDirective p && p.Type == PreProcessorDirectiveType.Define);
 
 				// Now add using declarations for those namespaces:
 				foreach (NamespaceRef ns in GetNamespacesInReverseOrder(context, requiredImports.ImportedNamespaces))
 				{
-					Debug.Assert(context.RequiredNamespacesSuperset.Contains(ns.Namespace), $"Should not insert using declaration for namespace that is missing from the superset: {ns}");
+					Debug.Assert(context.RequiredNamespacesSuperset.Contains(ns.Namespace), $"Should not insert using declaration for namespace that is missing from the superset: {ns.Namespace}");
 					// we go backwards (OrderByDescending) through the list of namespaces because we insert them backwards
 					// (always inserting at the start of the list)
 
@@ -102,7 +102,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 			public FindRequiredImports(TransformContext context)
 			{
-				this.stringBuilder = context.TypeSystem.SharedStringBuilder;
+				this.stringBuilder = context.StringBuilder;
 				this.currentNamespace = context.CurrentTypeDefinition?.Namespace ?? string.Empty;
 			}
 
@@ -380,11 +380,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			return namespaceRefList;
 		}
 
-		sealed class ReverseSortSystemUsingStatementsFirstComparer : IComparer<NamespaceRef> {
+		private sealed class ReverseSortSystemUsingStatementsFirstComparer : IComparer<NamespaceRef> {
 			public static readonly ReverseSortSystemUsingStatementsFirstComparer Instance = new ReverseSortSystemUsingStatementsFirstComparer();
 			public int Compare(NamespaceRef x, NamespaceRef y) {
-				bool sx = x.Namespace == "System" || x.Namespace.StartsWith("System.");
-				bool sy = y.Namespace == "System" || y.Namespace.StartsWith("System.");
+				bool sx = x.Namespace == "System" || x.Namespace.StartsWith("System.", StringComparison.Ordinal);
+				bool sy = y.Namespace == "System" || y.Namespace.StartsWith("System.", StringComparison.Ordinal);
 				if (sx && sy)
 					return StringComparer.OrdinalIgnoreCase.Compare(y.Namespace, x.Namespace);
 				if (sx && !sy)
@@ -395,7 +395,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 		}
 
-		sealed class ReverseSortNamespacesAlphabeticallyComparer : IComparer<NamespaceRef> {
+		private sealed class ReverseSortNamespacesAlphabeticallyComparer : IComparer<NamespaceRef> {
 			public static readonly ReverseSortNamespacesAlphabeticallyComparer Instance = new ReverseSortNamespacesAlphabeticallyComparer();
 			public int Compare(NamespaceRef x, NamespaceRef y) => StringComparer.OrdinalIgnoreCase.Compare(y.Namespace, x.Namespace);
 		}

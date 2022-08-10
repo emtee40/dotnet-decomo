@@ -1187,7 +1187,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 							// pre-roslyn compiles "yield break;" into "Dispose(); goto return_false;",
 							// so convert the dispose call into a state transition to the final state
 							stateAfterBranch = -1;
-							call.ReplaceWith(new Nop() { Comment = "Dispose call" });
+							Nop nop = new Nop() { Comment = "Dispose call" };
+							if (context.CalculateILSpans)
+								call.AddSelfAndChildrenRecursiveILSpans(nop.ILSpans);
+							call.ReplaceWith(nop);
 						}
 						Debug.Assert(blockState[branch.TargetBlock.ChildIndex] == stateAfterBranch || blockState[branch.TargetBlock.ChildIndex] == 0);
 						blockState[branch.TargetBlock.ChildIndex] = stateAfterBranch;

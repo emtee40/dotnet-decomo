@@ -125,7 +125,7 @@ namespace ICSharpCode.Decompiler.IL
 			WriteILRange(output, options);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
-			output.Write(TargetLabel, (object)targetBlock ?? TargetILOffset, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
+			output.Write(TargetLabel, targetBlock?.TextReferenceObject, DecompilerReferenceFlags.Local, BoxedTextColor.Label);
 		}
 	}
 

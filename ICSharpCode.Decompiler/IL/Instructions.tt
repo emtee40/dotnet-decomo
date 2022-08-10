@@ -745,7 +745,7 @@ namespace ICSharpCode.Decompiler.IL
 	static Action<OpCode> MayThrowIfNotDelayed = HasFlag("(DelayExceptions ? InstructionFlags.None : InstructionFlags.MayThrow)") + (opCode => {
 		opCode.Members.Add("public bool DelayExceptions; // NullReferenceException/IndexOutOfBoundsException only occurs when the reference is dereferenced");
 		opCode.GenerateWriteTo = true;
-		opCode.WriteOpCodePrefix.Add("if (DelayExceptions)" + Environment.NewLine + "\toutput.Write(\"delayex.\", BoxedTextColor.Text);");
+		opCode.WriteOpCodePrefix.Add("if (DelayExceptions)" + Environment.NewLine + "\toutput.Write(\"delayex.\", BoxedTextColor.OpCode);");
 		opCode.PerformMatchConditions.Add("DelayExceptions == o.DelayExceptions");
 	});
 
@@ -770,9 +770,9 @@ namespace ICSharpCode.Decompiler.IL
 		opCode.MatchParameters.Add(new MatchParamInfo { TypeName = "ILInstruction", Name = "argument", FieldName = "Argument" });
 		opCode.PerformMatchConditions.Add("this.Argument.PerformMatch(o.Argument, ref match)");
 		opCode.BaseConstructorArguments.Add("argument");
-		opCode.WriteArguments.Add("output.Write(\"(\", BoxedTextColor.Punctuation);");
+		opCode.WriteArguments.Add("var braceInfo = OpenBrace(output, \"(\");");
 		opCode.WriteArguments.Add("Argument.WriteTo(output, options);");
-		opCode.WriteArguments.Add("output.Write(\")\", BoxedTextColor.Punctuation);");
+		opCode.WriteArguments.Add("CloseBrace(output, braceInfo, \")\", CodeBracesRangeFlags.Parentheses);");
 	};
 
 	// Binary trait: the instruction has two arguments named 'Left' and 'Right'
@@ -786,12 +786,12 @@ namespace ICSharpCode.Decompiler.IL
 		opCode.MatchParameters.Add(new MatchParamInfo { TypeName = "ILInstruction", Name = "right", FieldName = "Right" });
 		opCode.PerformMatchConditions.Add("this.Left.PerformMatch(o.Left, ref match)");
 		opCode.PerformMatchConditions.Add("this.Right.PerformMatch(o.Right, ref match)");
-		opCode.WriteArguments.Add("output.Write(\"(\", BoxedTextColor.Punctuation);");
+		opCode.WriteArguments.Add("var braceInfo = OpenBrace(output, \"(\");");
 		opCode.WriteArguments.Add("Left.WriteTo(output, options);");
 		opCode.WriteArguments.Add("output.Write(\",\", BoxedTextColor.Punctuation);");
 		opCode.WriteArguments.Add("output.Write(\" \", BoxedTextColor.Text);");
 		opCode.WriteArguments.Add("Right.WriteTo(output, options);");
-		opCode.WriteArguments.Add("output.Write(\")\", BoxedTextColor.Punctuation);");
+		opCode.WriteArguments.Add("CloseBrace(output, braceInfo, \")\", CodeBracesRangeFlags.Parentheses);");
 	};
 
 	static Action<OpCode> CustomArguments(params (string name, string[] expectedTypes)[] arguments)
@@ -840,7 +840,7 @@ namespace ICSharpCode.Decompiler.IL
 	{
 		return opCode => {
 			opCode.GenerateWriteTo = true;
-			opCode.WriteArguments.Add("output.Write(\"(\", BoxedTextColor.Punctuation);");
+			opCode.WriteArguments.Add("var braceInfo = OpenBrace(output, \"(\");");
 			StringBuilder transformChildren = new StringBuilder();
 			ChildInfo collection = null;
 			int childCount = children.Length;
@@ -858,10 +858,19 @@ namespace ICSharpCode.Decompiler.IL
 					if (i == 0)
 						opCode.WriteArguments.Add("bool first = true;");
 					opCode.WriteArguments.Add("foreach (var " + arg + " in " + argProp + ") {");
-					if (i > 0)
-						opCode.WriteArguments.Add("\toutput.Write(\", \", BoxedTextColor.Text);");
-					else
-						opCode.WriteArguments.Add("\tif (!first) output.Write(\", \", BoxedTextColor.Text); else first = false;");
+					if (i > 0) {
+						opCode.WriteArguments.Add("\toutput.Write(\",\", BoxedTextColor.Punctuation);");
+						opCode.WriteArguments.Add("\toutput.Write(\" \", BoxedTextColor.Text);");
+					}
+					else {
+						opCode.WriteArguments.Add("\tif (!first)");
+						opCode.WriteArguments.Add("\t{");
+						opCode.WriteArguments.Add("\t\toutput.Write(\",\", BoxedTextColor.Punctuation);");
+						opCode.WriteArguments.Add("\t\toutput.Write(\" \", BoxedTextColor.Text);");
+						opCode.WriteArguments.Add("\t}");
+						opCode.WriteArguments.Add("\telse");
+						opCode.WriteArguments.Add("\t\tfirst = false;");
+					}
 					opCode.WriteArguments.Add("\t" + arg + ".WriteTo(output, options);");
 					opCode.WriteArguments.Add("}");
 					opCode.Members.Add("public static readonly SlotInfo " + children[i].SlotName + " = " + children[i].GetSlotInit() + ";");
@@ -872,8 +881,10 @@ namespace ICSharpCode.Decompiler.IL
 					opCode.ConstructorBody.Add("this." + argProp + " = " + arg + ";");
 					opCode.MatchParameters.Add(new MatchParamInfo { TypeName = "ILInstruction", Name = arg, FieldName = argProp });
 					opCode.PerformMatchConditions.Add("this." + arg + ".PerformMatch(o." + arg + ", ref match)");
-					if (i > 0)
-						opCode.WriteArguments.Add("output.Write(\", \", BoxedTextColor.Text);");
+					if (i > 0) {
+						opCode.WriteArguments.Add("output.Write(\",\", BoxedTextColor.Punctuation);");
+						opCode.WriteArguments.Add("output.Write(\" \", BoxedTextColor.Text);");
+					}
 					opCode.WriteArguments.Add("this." + arg + ".WriteTo(output, options);");
 					opCode.Members.Add("public static readonly SlotInfo " + children[i].SlotName + " = " + children[i].GetSlotInit() + ";");
 					opCode.Members.Add("ILInstruction " + arg + " = null!;");
@@ -898,7 +909,7 @@ namespace ICSharpCode.Decompiler.IL
 					opCode.Invariants.Add("DebugAssert(" + checkString + ");");
 				}
 			}
-			opCode.WriteArguments.Add("output.Write(\")\", BoxedTextColor.Punctuation);");
+			opCode.WriteArguments.Add("CloseBrace(output, braceInfo, \")\", CodeBracesRangeFlags.Parentheses);");
 			StringBuilder b;
 			b = new StringBuilder();
 			b.AppendLine("protected sealed override int GetChildCount()");
@@ -1142,7 +1153,7 @@ protected override void Disconnected()
 			opCode.PerformMatchConditions.Add($"this.{flagName} == o.{flagName}");
 			opCode.Members.Add($"public bool {flagName};");
 			opCode.GenerateWriteTo = true;
-			opCode.WriteOpCodePrefix.Add($"if ({flagName}){Environment.NewLine}\toutput.Write(\"{flagName.ToLowerInvariant()}.\", BoxedTextColor.Text);");
+			opCode.WriteOpCodePrefix.Add($"if ({flagName}){Environment.NewLine}\toutput.Write(\"{flagName.ToLowerInvariant()}.\", BoxedTextColor.OpCode);");
 		};
 	}
 
@@ -1172,7 +1183,7 @@ protected override void Disconnected()
 		opCode.Members.Add("/// <summary>Gets/Sets whether the memory access is volatile.</summary>" + Environment.NewLine
 						+ "public bool IsVolatile { get; set; }");
 		opCode.GenerateWriteTo = true;
-		opCode.WriteOpCodePrefix.Add("if (IsVolatile)" + Environment.NewLine + "\toutput.Write(\"volatile.\", BoxedTextColor.Text);");
+		opCode.WriteOpCodePrefix.Add("if (IsVolatile)" + Environment.NewLine + "\toutput.Write(\"volatile.\", BoxedTextColor.OpCode);");
 		opCode.PerformMatchConditions.Add("IsVolatile == o.IsVolatile");
 	};
 
@@ -1189,7 +1200,7 @@ protected override void Disconnected()
 		opCode.Members.Add("/// <summary>Gets whether the 'readonly' prefix was applied to this instruction.</summary>" + Environment.NewLine
 						+ "public bool IsReadOnly { get; set; }");
 		opCode.GenerateWriteTo = true;
-		opCode.WriteOpCodePrefix.Add("if (IsReadOnly)" + Environment.NewLine + "\toutput.Write(\"readonly.\", BoxedTextColor.Text);");
+		opCode.WriteOpCodePrefix.Add("if (IsReadOnly)" + Environment.NewLine + "\toutput.Write(\"readonly.\", BoxedTextColor.OpCode);");
 		opCode.PerformMatchConditions.Add("IsReadOnly == o.IsReadOnly");
 	};
 

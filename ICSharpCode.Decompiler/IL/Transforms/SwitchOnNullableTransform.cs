@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2017 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -44,7 +44,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				for (int i = block.Instructions.Count - 1; i >= 0; i--)
 				{
 					SwitchInstruction newSwitch;
-					if (MatchSwitchOnNullable(block.Instructions, i, out newSwitch))
+					if (MatchSwitchOnNullable(block.Instructions, i, out newSwitch, context.CalculateILSpans))
 					{
 						newSwitch.AddILRange(block.Instructions[i - 2]);
 						block.Instructions[i + 1].ReplaceWith(newSwitch);
@@ -53,7 +53,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						changed = true;
 						continue;
 					}
-					if (MatchRoslynSwitchOnNullable(block.Instructions, i, out newSwitch))
+					if (MatchRoslynSwitchOnNullable(block.Instructions, i, out newSwitch, context.CalculateILSpans))
 					{
 						newSwitch.AddILRange(block.Instructions[i]);
 						newSwitch.AddILRange(block.Instructions[i + 1]);
@@ -77,7 +77,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// <summary>
 		/// Matches legacy C# switch on nullable.
 		/// </summary>
-		bool MatchSwitchOnNullable(InstructionCollection<ILInstruction> instructions, int i, out SwitchInstruction newSwitch)
+		bool MatchSwitchOnNullable(InstructionCollection<ILInstruction> instructions, int i, out SwitchInstruction newSwitch, bool calculateILSpans)
 		{
 			newSwitch = null;
 			// match first block:
@@ -117,7 +117,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			if (!(switchBlock.Instructions[0] is SwitchInstruction switchInst))
 				return false;
-			newSwitch = BuildLiftedSwitch(nullCaseBlock, switchInst, new LdLoc(switchValueVar));
+			var valueInst = new LdLoc(switchValueVar);
+			if (calculateILSpans)
+			{
+				instructions[i - 2].AddSelfAndChildrenRecursiveILSpans(valueInst.ILSpans);
+				instructions[i - 1].AddSelfAndChildrenRecursiveILSpans(valueInst.ILSpans);
+				instructions[i].AddSelfAndChildrenRecursiveILSpans(valueInst.ILSpans);
+				switchInst.Value.AddSelfAndChildrenRecursiveILSpans(valueInst.ILSpans);
+			}
+			newSwitch = BuildLiftedSwitch(nullCaseBlock, switchInst, valueInst);
 			return true;
 		}
 
@@ -125,6 +133,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			SwitchInstruction newSwitch = new SwitchInstruction(switchValue);
 			newSwitch.IsLifted = true;
+			newSwitch.ILSpans.AddRange(switchInst.ILSpans);
+			newSwitch.EndILSpans.AddRange(switchInst.EndILSpans);
 			newSwitch.Sections.AddRange(switchInst.Sections);
 			newSwitch.Sections.Add(new SwitchSection { Body = new Branch(nullCaseBlock), HasNullLabel = true });
 			return newSwitch;
@@ -133,7 +143,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// <summary>
 		/// Matches Roslyn C# switch on nullable.
 		/// </summary>
-		bool MatchRoslynSwitchOnNullable(InstructionCollection<ILInstruction> instructions, int i, out SwitchInstruction newSwitch)
+		bool MatchRoslynSwitchOnNullable(InstructionCollection<ILInstruction> instructions, int i, out SwitchInstruction newSwitch, bool calculateILSpans)
 		{
 			newSwitch = null;
 			// match first block:
@@ -192,6 +202,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				switchValue = new LdLoc(v).WithILRange(target);
 			else
 				switchValue = new LdObj(target, ((CallInstruction)getHasValue).Method.DeclaringType);
+			if (calculateILSpans)
+			{
+				instructions[i].AddSelfAndChildrenRecursiveILSpans(switchValue.ILSpans);
+				instructions[i + 1].AddSelfAndChildrenRecursiveILSpans(switchValue.ILSpans);
+				if (switchBlock.Instructions.Count == 2)
+					switchBlock.Instructions[0].AddSelfAndChildrenRecursiveILSpans(switchValue.ILSpans);
+				switchInst.Value.AddSelfAndChildrenRecursiveILSpans(switchValue.ILSpans);
+			}
 			newSwitch = BuildLiftedSwitch(nullCaseBlock, switchInst, switchValue);
 			return true;
 		}

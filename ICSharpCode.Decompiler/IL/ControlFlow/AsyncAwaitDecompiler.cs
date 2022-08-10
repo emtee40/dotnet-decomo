@@ -22,6 +22,9 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using dnlib.DotNet;
+
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.DebugInfo;
 using IField = ICSharpCode.Decompiler.TypeSystem.IField;
 using IType = ICSharpCode.Decompiler.TypeSystem.IType;
@@ -160,6 +163,76 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 			awaitDebugInfos.SortBy(row => row.YieldOffset);
 			function.AsyncDebugInfo = new AsyncDebugInfo(catchHandlerOffset, awaitDebugInfos.ToImmutableArray());
+
+			if (context.CalculateILSpans)
+			{
+				catchHandlerOffset2 = (uint)catchHandlerOffset;
+				var stepInfos = new AsyncStepInfo[asyncStepInfoMap.Count];
+				int w = 0;
+				foreach (var kv in asyncStepInfoMap) {
+					var info = kv.Value;
+					// VB state machines have some extra labels that we can ignore
+					//Debug.Assert(CompilerName == PredefinedCompilerNames.MicrosoftVisualBasic || (info.YieldOffset != 0 && info.ResumeLabel != null));
+					if (info.YieldOffset == 0 || info.ResumeLabel == null)
+						continue;
+					stepInfos[w++] = new AsyncStepInfo(info.YieldOffset, moveNextFunction.DnlibMethod, (uint)info.ResumeLabel.StartILOffset);
+				}
+				if (stepInfos.Length != w)
+					Array.Resize(ref stepInfos, w);
+				if (function.Method.MetadataToken.MethodSig.RetType.RemovePinnedAndModifiers().GetElementType() != ElementType.Void)
+					catchHandlerOffset2 = uint.MaxValue;
+				function.AsyncMethodDebugInfo = new AsyncMethodDebugInfo(stepInfos, builderField.MetadataToken as FieldDef,
+					catchHandlerOffset2, setResultOffset);
+			}
+		}
+
+		struct TempAsyncStepInfo {
+			// Right after 'state = next-state-value;'
+			public uint YieldOffset;
+			// Where the state machine continues, a unique label in MoveNext
+			public Block ResumeLabel;
+		}
+		readonly Dictionary<int, TempAsyncStepInfo> asyncStepInfoMap = new Dictionary<int, TempAsyncStepInfo>();
+		uint setResultOffset = uint.MaxValue;
+		uint catchHandlerOffset2 = uint.MaxValue;
+
+		protected void AddYieldOffset(IList<ILInstruction> body, int index, int count, int stateId) {
+			if (!context.CalculateILSpans)
+				return;
+			asyncStepInfoMap.TryGetValue(stateId, out var info);
+			Debug.Assert(info.YieldOffset == 0);
+			info.YieldOffset = GetNextOffset(body, index, count);
+			asyncStepInfoMap[stateId] = info;
+		}
+
+		protected void AddResumeLabel(Block resumeBlock, int stateId) {
+			if (!context.CalculateILSpans)
+				return;
+			asyncStepInfoMap.TryGetValue(stateId, out var info);
+			if (info.ResumeLabel == null || info.ResumeLabel.StartILOffset == 0 || resumeBlock.StartILOffset > info.ResumeLabel.StartILOffset) {
+				info.ResumeLabel = resumeBlock;
+				asyncStepInfoMap[stateId] = info;
+			}
+		}
+
+		static uint GetNextOffset(IList<ILInstruction> body, int index, int count) {
+			uint offs = 0;
+			for (int i = 0; i < count; i++) {
+				foreach (var span in body[index + i].GetSelfAndChildrenRecursiveILSpans())
+					offs = Math.Max(offs, span.End);
+			}
+			Debug.Assert(offs != 0);
+			return offs;
+		}
+
+		static uint GetOffset(IList<ILInstruction> body, int index, int count) {
+			uint offs = uint.MaxValue;
+			for (int i = 0; i < count; i++) {
+				foreach (var span in body[index + i].GetSelfAndChildrenRecursiveILSpans())
+					offs = Math.Min(offs, span.Start);
+			}
+			Debug.Assert(offs != uint.MaxValue);
+			return offs == uint.MaxValue ? 0 : offs;
 		}
 
 		private void CleanUpBodyOfMoveNext(ILFunction function)
@@ -801,6 +874,11 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			MatchCompleteCall(block, ref pos);
 			if (!MatchCall(block.Instructions[pos], "SetResult", out var args))
 				throw new SymbolicAnalysisFailedException();
+			if (context.CalculateILSpans) {
+				var ilSpans = ILSpan.OrderAndCompact(block.Instructions[pos].GetSelfAndChildrenRecursiveILSpans());
+				if (ilSpans.Count > 0)
+					setResultOffset = ilSpans[0].Start;
+			}
 			if (!IsBuilderOrPromiseFieldOnThis(args[0]))
 				throw new SymbolicAnalysisFailedException();
 			switch (methodType)
@@ -1015,7 +1093,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (branch.TargetBlock == setResultReturnBlock)
 				{
-					branch.ReplaceWith(new Leave((BlockContainer)function.Body, resultVar == null ? null : new LdLoc(resultVar)).WithILRange(branch));
+					Leave leave = new Leave((BlockContainer)function.Body, resultVar == null ? null : new LdLoc(resultVar)).WithILRange(branch);
+					if (context.CalculateILSpans)
+						leave.ILSpans.AddRange(branch.ILSpans);
+					branch.ReplaceWith(leave);
 				}
 			}
 			if (setResultYieldBlock != null)
@@ -1043,9 +1124,12 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			{
 				if (moveNextLeaves.Contains(leave))
 				{
-					leave.ReplaceWith(new InvalidBranch {
+					InvalidBranch invalidBranch = new InvalidBranch {
 						Message = "leave MoveNext - await not detected correctly"
-					}.WithILRange(leave));
+					}.WithILRange(leave);
+					if (context.CalculateILSpans)
+						leave.AddSelfAndChildrenRecursiveILSpans(invalidBranch.ILSpans);
+					leave.ReplaceWith(invalidBranch);
 				}
 			}
 			// Delete dead loads of the state cache variable:
@@ -1081,6 +1165,12 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				sra.doFinallyBodies = doFinallyBodies;
 				sra.AssignStateRanges(container, LongSet.Universe);
 				var stateToBlockMap = sra.GetBlockStateSetMapping(container);
+				if (context.CalculateILSpans) {
+					foreach (var kv in stateToBlockMap) {
+						if (kv.Key.Start == kv.Key.End)
+							AddResumeLabel(kv.Value, (int)kv.Key.Start);
+					}
+				}
 
 				foreach (var block in container.Blocks)
 				{
@@ -1181,7 +1271,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			else
 			{
 				Debug.Assert(breakTarget is BlockContainer);
-				branch.ReplaceWith(new Leave((BlockContainer)breakTarget).WithILRange(branch));
+				Leave leave = new Leave((BlockContainer)breakTarget).WithILRange(branch);
+				if (context.CalculateILSpans)
+					leave.ILSpans.AddRange(branch.ILSpans);
+				branch.ReplaceWith(leave);
 			}
 			return true;
 		}
@@ -1356,6 +1449,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				// also delete the assignment to cachedStateVar
 				pos--;
 			}
+			AddYieldOffset(block.Instructions, pos, block.Instructions.Count - pos, state);
 			block.Instructions.RemoveRange(pos, block.Instructions.Count - pos);
 			// delete preceding dead stores:
 			while (pos > 0 && block.Instructions[pos - 1] is StLoc stloc2
@@ -1509,10 +1603,16 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				return;
 			// All checks successful, let's transform.
 			context.Step("Transform await pattern", block);
+			ILInstruction awaitedExpr = UnwrapConvUnknown(getAwaiterCall.Arguments.Single());
+			if (context.CalculateILSpans)
+			{
+				awaitedExpr.ILSpans.AddRange(stLocAwaiter.ILSpans);
+				awaitedExpr.ILSpans.AddRange(getAwaiterCall.ILSpans);
+			}
 			block.Instructions.RemoveAt(block.Instructions.Count - 3); // remove getAwaiter call
 			block.Instructions.RemoveAt(block.Instructions.Count - 2); // remove if (isCompleted)
 			((Branch)block.Instructions.Last()).TargetBlock = completedBlock; // instead, directly jump to completed block
-			Await awaitInst = new Await(UnwrapConvUnknown(getAwaiterCall.Arguments.Single()));
+			Await awaitInst = new Await(awaitedExpr);
 			awaitInst.GetResultMethod = getResultCall.Method;
 			awaitInst.GetAwaiterMethod = getAwaiterCall.Method;
 			getResultCall.ReplaceWith(awaitInst);
@@ -1527,10 +1627,12 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			}
 		}
 
-		static ILInstruction UnwrapConvUnknown(ILInstruction inst)
+		ILInstruction UnwrapConvUnknown(ILInstruction inst)
 		{
 			if (inst is Conv conv && conv.TargetType == PrimitiveType.Unknown)
 			{
+				if (context.CalculateILSpans)
+					conv.Argument.ILSpans.AddRange(conv.ILSpans);
 				return conv.Argument;
 			}
 			return inst;
@@ -1720,7 +1822,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			// if there's any remaining loads (there shouldn't be), replace them with the constant 1
 			foreach (LdLoc load in doFinallyBodies.LoadInstructions.ToArray())
 			{
-				load.ReplaceWith(new LdcI4(1).WithILRange(load));
+				LdcI4 ldci41 = new LdcI4(1).WithILRange(load);
+				if (context.CalculateILSpans)
+					ldci41.ILSpans.AddRange(load.ILSpans);
+				load.ReplaceWith(ldci41);
 			}
 			context.StepEndGroup(keepIfEmpty: true);
 		}

@@ -68,6 +68,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				replacement.ILSpans.Clear();
 				replacement.ILSpans.AddRange(br.ILSpans);
+
+				// Move the ILSpans to the condition to ensure proper ILSpan calculation when short circuiting.
+				block.AddSelfAndChildrenRecursiveILSpans(br.TargetBlock.Instructions[br.TargetBlock.Instructions.Count - 2].ILSpans);
 			}
 			br.ReplaceWith(replacement);
 			s.RemoveIfRedundant = true;

@@ -91,35 +91,44 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
+			BraceInfo braceInfo;
 			if (options.UseLogicOperationSugar)
 			{
 				if (MatchLogicAnd(out var lhs, out var rhs))
 				{
-					output.Write("logic.and(", BoxedTextColor.Text);
+					output.Write("logic.and", BoxedTextColor.OpCode);
+					braceInfo = OpenBrace(output, "(");
 					lhs.WriteTo(output, options);
-					output.Write(", ", BoxedTextColor.Text);
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
 					rhs.WriteTo(output, options);
-					output.Write(")", BoxedTextColor.Text);
+					CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 					return;
 				}
 				if (MatchLogicOr(out lhs, out rhs))
 				{
-					output.Write("logic.or(", BoxedTextColor.Text);
+					output.Write("logic.or", BoxedTextColor.OpCode);
+					braceInfo = OpenBrace(output, "(");
 					lhs.WriteTo(output, options);
-					output.Write(", ", BoxedTextColor.Text);
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
 					rhs.WriteTo(output, options);
-					output.Write(")", BoxedTextColor.Text);
+					CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 					return;
 				}
 			}
-			output.Write(OpCode);
-			output.Write(" (", BoxedTextColor.Text);
+			output.Write("if", BoxedTextColor.Keyword);
+			output.Write(" ", BoxedTextColor.Text);
+			braceInfo = OpenBrace(output, "(");
 			condition.WriteTo(output, options);
-			output.Write(") ", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
+			output.Write(" ", BoxedTextColor.Text);
 			trueInst.WriteTo(output, options);
 			if (falseInst.OpCode != OpCode.Nop)
 			{
-				output.Write(" else ", BoxedTextColor.Text);
+				output.Write(" ", BoxedTextColor.Text);
+				output.Write("else", BoxedTextColor.Keyword);
+				output.Write(" ", BoxedTextColor.Text);
 				falseInst.WriteTo(output, options);
 			}
 		}

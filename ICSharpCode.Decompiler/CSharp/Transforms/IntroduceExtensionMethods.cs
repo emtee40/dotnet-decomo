@@ -126,11 +126,15 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			{
 				identifierExpression.Detach();
 				memberRefExpr = new MemberReferenceExpression(firstArgument.Detach(), method.Name, identifierExpression.TypeArguments.Detach());
+				memberRefExpr.AddAnnotation(identifierExpression.Annotation<dnlib.DotNet.IMemberRef>());
 				invocationExpression.Target = memberRefExpr;
 			}
 			else
 			{
+				var ilSpans = memberRefExpr.Target.GetAllRecursiveILSpans();
 				memberRefExpr.Target = firstArgument.Detach();
+				if (ilSpans.Count > 0)
+					memberRefExpr.Target.AddAnnotation(ilSpans);
 			}
 			if (invocationExpression.GetResolveResult() is CSharpInvocationResolveResult irr)
 			{

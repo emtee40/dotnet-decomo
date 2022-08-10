@@ -322,23 +322,23 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			if (CheckForOverflow)
 			{
-				output.Write(".ovf", BoxedTextColor.Text);
+				output.Write(".ovf", BoxedTextColor.OpCode);
 			}
 			if (InputSign == Sign.Unsigned)
 			{
-				output.Write(".unsigned", BoxedTextColor.Text);
+				output.Write(".unsigned", BoxedTextColor.OpCode);
 			}
 			else if (InputSign == Sign.Signed)
 			{
-				output.Write(".signed", BoxedTextColor.Text);
+				output.Write(".signed", BoxedTextColor.OpCode);
 			}
 			if (IsLifted)
 			{
-				output.Write(".lifted", BoxedTextColor.Text);
+				output.Write(".lifted", BoxedTextColor.OpCode);
 			}
 			output.Write(" ", BoxedTextColor.Text);
-			output.Write(InputType);
-			output.Write("->", BoxedTextColor.Text);
+			output.Write(InputType, BoxedTextColor.Text);
+			output.Write("->", BoxedTextColor.Operator);
 			output.Write(TargetType);
 			output.Write(" ", BoxedTextColor.Text);
 			switch (Kind)
@@ -353,9 +353,9 @@ namespace ICSharpCode.Decompiler.IL
 					output.Write("<invalid>", BoxedTextColor.Text);
 					break;
 			}
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		protected override InstructionFlags ComputeFlags()

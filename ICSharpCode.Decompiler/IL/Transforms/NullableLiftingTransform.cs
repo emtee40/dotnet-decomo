@@ -21,6 +21,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
 
@@ -110,6 +112,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var lifted = Lift(ifInst, ifInst.Condition, thenLeave.Value, elseLeave.Value);
 			if (lifted != null)
 			{
+				if (context.CalculateILSpans)
+				{
+					lifted.ILSpans.AddRange(thenLeave.ILSpans);
+					thenLeave.ILSpans.Clear();
+					thenLeave.ILSpans.AddRange(elseLeave.ILSpans);
+				}
 				thenLeave.Value = lifted;
 				ifInst.ReplaceWith(thenLeave);
 				block.Instructions.Remove(elseLeave);
@@ -153,8 +161,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			// ifInst is usually the IfInstruction to which condition belongs;
 			// but can also be a BinaryNumericInstruction.
+			List<ILSpan> negationSpans = null;
 			while (condition.MatchLogicNot(out var arg))
 			{
+				if (context.CalculateILSpans)
+				{
+					negationSpans ??= new List<ILSpan>();
+					negationSpans.AddRange(condition.ILSpans);
+					negationSpans.AddRange(((Comp)condition).Right.ILSpans);
+				}
 				condition = arg;
 				ExtensionMethods.Swap(ref trueInst, ref falseInst);
 			}
@@ -163,7 +178,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				var nullPropagated = new NullPropagationTransform(context)
 					.Run(condition, trueInst, falseInst)?.WithILRange(ifInst);
 				if (nullPropagated != null)
+				{
+					if (context.CalculateILSpans)
+					{
+						nullPropagated.ILSpans.AddRange(ifInst.ILSpans);
+						if (negationSpans is not null)
+							nullPropagated.ILSpans.AddRange(negationSpans);
+					}
 					return nullPropagated;
+				}
 			}
 			if (!context.Settings.LiftNullables)
 				return null;
@@ -171,7 +194,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				// (v1 != null && ... && vn != null) ? trueInst : falseInst
 				// => normal lifting
-				return LiftNormal(trueInst, falseInst)?.WithILRange(ifInst);
+				ILInstruction replacement = LiftNormal(trueInst, falseInst)?.WithILRange(ifInst);
+				if (context.CalculateILSpans && replacement is not null)
+				{
+					replacement.ILSpans.AddRange(ifInst.ILSpans);
+					condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					if (negationSpans is not null)
+						replacement.ILSpans.AddRange(negationSpans);
+				}
+				return replacement;
 			}
 			if (MatchCompOrDecimal(condition, out var comp))
 			{
@@ -189,20 +220,46 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						// (a.GetValueOrDefault() == b.GetValueOrDefault()) ? (a.HasValue == b.HasValue) : false
 						// => a == b
-						return LiftCSharpEqualityComparison(comp, ComparisonKind.Equality, trueInst)
-							?? LiftCSharpUserEqualityComparison(comp, ComparisonKind.Equality, trueInst);
+						ILInstruction liftedCSharpComparision = LiftCSharpEqualityComparison(comp, ComparisonKind.Equality, trueInst)
+																?? LiftCSharpUserEqualityComparison(comp, ComparisonKind.Equality, trueInst);
+						if (context.CalculateILSpans && liftedCSharpComparision is not null)
+						{
+							liftedCSharpComparision.ILSpans.AddRange(ifInst.ILSpans);
+							liftedCSharpComparision.ILSpans.AddRange(falseInst.ILSpans);
+							trueInst.AddSelfAndChildrenRecursiveILSpans(liftedCSharpComparision.ILSpans);
+							if (negationSpans is not null)
+								liftedCSharpComparision.ILSpans.AddRange(negationSpans);
+						}
+						return liftedCSharpComparision;
 					}
 					else if (falseInst.MatchLdcI4(1))
 					{
 						// (a.GetValueOrDefault() == b.GetValueOrDefault()) ? (a.HasValue != b.HasValue) : true
 						// => a != b
-						return LiftCSharpEqualityComparison(comp, ComparisonKind.Inequality, trueInst)
-							?? LiftCSharpUserEqualityComparison(comp, ComparisonKind.Inequality, trueInst);
+						ILInstruction liftedCSharpComparision = LiftCSharpEqualityComparison(comp, ComparisonKind.Inequality, trueInst)
+																?? LiftCSharpUserEqualityComparison(comp, ComparisonKind.Inequality, trueInst);
+						if (context.CalculateILSpans && liftedCSharpComparision is not null)
+						{
+							liftedCSharpComparision.ILSpans.AddRange(ifInst.ILSpans);
+							liftedCSharpComparision.ILSpans.AddRange(falseInst.ILSpans);
+							trueInst.AddSelfAndChildrenRecursiveILSpans(liftedCSharpComparision.ILSpans);
+							if (negationSpans is not null)
+								liftedCSharpComparision.ILSpans.AddRange(negationSpans);
+						}
+						return liftedCSharpComparision;
 					}
 					else if (IsGenericNewPattern(comp.Left, comp.Right, trueInst, falseInst))
 					{
 						// (default(T) == null) ? Activator.CreateInstance<T>() : default(T)
 						// => Activator.CreateInstance<T>()
+						if (context.CalculateILSpans)
+						{
+							trueInst.ILSpans.AddRange(ifInst.ILSpans);
+							condition.AddSelfAndChildrenRecursiveILSpans(trueInst.ILSpans);
+							falseInst.AddSelfAndChildrenRecursiveILSpans(trueInst.ILSpans);
+							if (negationSpans is not null)
+								trueInst.ILSpans.AddRange(negationSpans);
+						}
 						return trueInst;
 					}
 				}
@@ -214,12 +271,30 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						// comp(lhs, rhs) ? (v1 != null && ... && vn != null) : false
 						// => comp.lifted[C#](lhs, rhs)
-						return LiftCSharpComparison(comp, comp.Kind);
+						ILInstruction liftedCSharpComparision = LiftCSharpComparison(comp, comp.Kind);
+						if (context.CalculateILSpans && liftedCSharpComparision is not null)
+						{
+							liftedCSharpComparision.ILSpans.AddRange(ifInst.ILSpans);
+							liftedCSharpComparision.ILSpans.AddRange(falseInst.ILSpans);
+							trueInst.AddSelfAndChildrenRecursiveILSpans(liftedCSharpComparision.ILSpans);
+							if (negationSpans is not null)
+								liftedCSharpComparision.ILSpans.AddRange(negationSpans);
+						}
+						return liftedCSharpComparision;
 					}
 					if (trueInst.MatchLdcI4(0) && AnalyzeCondition(falseInst))
 					{
 						// comp(lhs, rhs) ? false : (v1 != null && ... && vn != null)
-						return LiftCSharpComparison(comp, comp.Kind.Negate());
+						ILInstruction liftedCSharpComparision = LiftCSharpComparison(comp, comp.Kind.Negate());
+						if (context.CalculateILSpans && liftedCSharpComparision is not null)
+						{
+							liftedCSharpComparision.ILSpans.AddRange(ifInst.ILSpans);
+							liftedCSharpComparision.ILSpans.AddRange(trueInst.ILSpans);
+							falseInst.AddSelfAndChildrenRecursiveILSpans(liftedCSharpComparision.ILSpans);
+							if (negationSpans is not null)
+								liftedCSharpComparision.ILSpans.AddRange(negationSpans);
+						}
+						return liftedCSharpComparision;
 					}
 					if (falseInst.MatchLdcI4(1) && AnalyzeNegatedCondition(trueInst))
 					{
@@ -227,7 +302,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						// => !comp.lifted[C#](lhs, rhs)
 						ILInstruction result = LiftCSharpComparison(comp, comp.Kind);
 						if (result == null)
-							return result;
+							return null;
+						if (context.CalculateILSpans )
+						{
+							result.ILSpans.AddRange(ifInst.ILSpans);
+							result.ILSpans.AddRange(falseInst.ILSpans);
+							trueInst.AddSelfAndChildrenRecursiveILSpans(result.ILSpans);
+							if (negationSpans is not null)
+								result.ILSpans.AddRange(negationSpans);
+						}
 						return Comp.LogicNot(result);
 					}
 					if (trueInst.MatchLdcI4(1) && AnalyzeNegatedCondition(falseInst))
@@ -235,7 +318,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						// comp(lhs, rhs) ? true : !(v1 != null && ... && vn != null)
 						ILInstruction result = LiftCSharpComparison(comp, comp.Kind.Negate());
 						if (result == null)
-							return result;
+							return null;
+						if (context.CalculateILSpans)
+						{
+							result.ILSpans.AddRange(ifInst.ILSpans);
+							result.ILSpans.AddRange(trueInst.ILSpans);
+							falseInst.AddSelfAndChildrenRecursiveILSpans(result.ILSpans);
+							if (negationSpans is not null)
+								result.ILSpans.AddRange(negationSpans);
+						}
 						return Comp.LogicNot(result);
 					}
 				}
@@ -250,44 +341,82 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// v.GetValueOrDefault() ? v.HasValue : false
 					// ==> v == true
 					context.Step("NullableLiftingTransform: v == true", ifInst);
-					return new Comp(ComparisonKind.Equality, ComparisonLiftingKind.CSharp,
+					Comp newComp = new Comp(ComparisonKind.Equality, ComparisonLiftingKind.CSharp,
 						StackType.I4, Sign.None,
 						new LdLoc(v).WithILRange(trueInst),
 						new LdcI4(1).WithILRange(falseInst)
 					).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						newComp.ILSpans.AddRange(ifInst.ILSpans);
+						condition.AddSelfAndChildrenRecursiveILSpans(newComp.ILSpans);
+						trueInst.AddSelfAndChildrenRecursiveILSpans(newComp.Left.ILSpans);
+						newComp.Right.ILSpans.AddRange(falseInst.ILSpans);
+						if (negationSpans is not null)
+							newComp.ILSpans.AddRange(negationSpans);
+					}
+					return newComp;
 				}
 				else if (trueInst.MatchLdcI4(0) && MatchHasValueCall(falseInst, v))
 				{
 					// v.GetValueOrDefault() ? false : v.HasValue
 					// ==> v == false
 					context.Step("NullableLiftingTransform: v == false", ifInst);
-					return new Comp(ComparisonKind.Equality, ComparisonLiftingKind.CSharp,
+					Comp newComp = new Comp(ComparisonKind.Equality, ComparisonLiftingKind.CSharp,
 						StackType.I4, Sign.None,
 						new LdLoc(v).WithILRange(falseInst),
 						trueInst // LdcI4(0)
 					).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						newComp.ILSpans.AddRange(ifInst.ILSpans);
+						condition.AddSelfAndChildrenRecursiveILSpans(newComp.ILSpans);
+						falseInst.AddSelfAndChildrenRecursiveILSpans(newComp.Left.ILSpans);
+						if (negationSpans is not null)
+							newComp.ILSpans.AddRange(negationSpans);
+					}
+					return newComp;
 				}
 				else if (MatchNegatedHasValueCall(trueInst, v) && falseInst.MatchLdcI4(1))
 				{
 					// v.GetValueOrDefault() ? !v.HasValue : true
 					// ==> v != true
 					context.Step("NullableLiftingTransform: v != true", ifInst);
-					return new Comp(ComparisonKind.Inequality, ComparisonLiftingKind.CSharp,
+					Comp newComp = new Comp(ComparisonKind.Inequality, ComparisonLiftingKind.CSharp,
 						StackType.I4, Sign.None,
 						new LdLoc(v).WithILRange(trueInst),
 						falseInst // LdcI4(1)
 					).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						newComp.ILSpans.AddRange(ifInst.ILSpans);
+						condition.AddSelfAndChildrenRecursiveILSpans(newComp.ILSpans);
+						trueInst.AddSelfAndChildrenRecursiveILSpans(newComp.Left.ILSpans);
+						if (negationSpans is not null)
+							newComp.ILSpans.AddRange(negationSpans);
+					}
+					return newComp;
 				}
 				else if (trueInst.MatchLdcI4(1) && MatchNegatedHasValueCall(falseInst, v))
 				{
 					// v.GetValueOrDefault() ? true : !v.HasValue
 					// ==> v != false
 					context.Step("NullableLiftingTransform: v != false", ifInst);
-					return new Comp(ComparisonKind.Inequality, ComparisonLiftingKind.CSharp,
+					Comp newComp = new Comp(ComparisonKind.Inequality, ComparisonLiftingKind.CSharp,
 						StackType.I4, Sign.None,
 						new LdLoc(v).WithILRange(falseInst),
 						new LdcI4(0).WithILRange(trueInst)
 					).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						newComp.ILSpans.AddRange(ifInst.ILSpans);
+						condition.AddSelfAndChildrenRecursiveILSpans(newComp.ILSpans);
+						falseInst.AddSelfAndChildrenRecursiveILSpans(newComp.Left.ILSpans);
+						newComp.Right.ILSpans.AddRange(trueInst.ILSpans);
+						if (negationSpans is not null)
+							newComp.ILSpans.AddRange(negationSpans);
+					}
+					return newComp;
 				}
 			}
 			// Handle & and | on bool?:
@@ -299,7 +428,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// condition ? v : (bool?)false
 					// => condition & v
 					context.Step("NullableLiftingTransform: 3vl.bool.and(bool, bool?)", ifInst);
-					return new ThreeValuedBoolAnd(condition, trueInst).WithILRange(ifInst);
+					var replacement = new ThreeValuedBoolAnd(condition, trueInst).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						replacement.ILSpans.AddRange(ifInst.ILSpans);
+						falseInst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+						if (negationSpans is not null)
+							replacement.ILSpans.AddRange(negationSpans);
+					}
+					return replacement;
 				}
 				if (falseInst.MatchLdLoc(out var v2))
 				{
@@ -310,12 +447,28 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						if (v == nullable1 && v2 == nullable2)
 						{
 							context.Step("NullableLiftingTransform: 3vl.bool.or(bool?, bool?)", ifInst);
-							return new ThreeValuedBoolOr(trueInst, falseInst).WithILRange(ifInst);
+							var replacement = new ThreeValuedBoolOr(trueInst, falseInst).WithILRange(ifInst);
+							if (context.CalculateILSpans)
+							{
+								replacement.ILSpans.AddRange(ifInst.ILSpans);
+								condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+								if (negationSpans is not null)
+									replacement.ILSpans.AddRange(negationSpans);
+							}
+							return replacement;
 						}
 						else if (v == nullable2 && v2 == nullable1)
 						{
 							context.Step("NullableLiftingTransform: 3vl.bool.and(bool?, bool?)", ifInst);
-							return new ThreeValuedBoolAnd(falseInst, trueInst).WithILRange(ifInst);
+							var replacement = new ThreeValuedBoolAnd(falseInst, trueInst).WithILRange(ifInst);
+							if (context.CalculateILSpans)
+							{
+								replacement.ILSpans.AddRange(ifInst.ILSpans);
+								condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+								if (negationSpans is not null)
+									replacement.ILSpans.AddRange(negationSpans);
+							}
+							return replacement;
 						}
 					}
 				}
@@ -328,7 +481,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// condition ? (bool?)true : v
 					// => condition | v
 					context.Step("NullableLiftingTransform: 3vl.logic.or(bool, bool?)", ifInst);
-					return new ThreeValuedBoolOr(condition, falseInst).WithILRange(ifInst);
+					var replacement = new ThreeValuedBoolOr(condition, falseInst).WithILRange(ifInst);
+					if (context.CalculateILSpans)
+					{
+						replacement.ILSpans.AddRange(ifInst.ILSpans);
+						trueInst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+						if (negationSpans is not null)
+							replacement.ILSpans.AddRange(negationSpans);
+					}
+					return replacement;
 				}
 			}
 			return null;
@@ -450,11 +611,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				}
 			}
 
-			internal ILInstruction MakeLifted(ComparisonKind newComparisonKind, ILInstruction left, ILInstruction right)
+			internal ILInstruction MakeLifted(ComparisonKind newComparisonKind, ILInstruction left, ILInstruction right, bool calculateILSpans)
 			{
 				if (Instruction is Comp comp)
 				{
-					return new Comp(newComparisonKind, ComparisonLiftingKind.CSharp, comp.InputType, comp.Sign, left, right).WithILRange(Instruction);
+					Comp replacement = new Comp(newComparisonKind, ComparisonLiftingKind.CSharp, comp.InputType, comp.Sign, left, right).WithILRange(Instruction);
+					if (calculateILSpans)
+						replacement.ILSpans.AddRange(Instruction.ILSpans);
+					return replacement;
 				}
 				else if (Instruction is Call call)
 				{
@@ -474,12 +638,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					{
 						return null;
 					}
-					return new Call(CSharp.Resolver.CSharpOperators.LiftUserDefinedOperator(method)) {
+
+					Call replacement = new Call(CSharp.Resolver.CSharpOperators.LiftUserDefinedOperator(method)) {
 						Arguments = { left, right },
 						ConstrainedTo = call.ConstrainedTo,
 						ILStackWasEmpty = call.ILStackWasEmpty,
 						IsTail = call.IsTail
 					}.WithILRange(call);
+					if (calculateILSpans)
+						replacement.ILSpans.AddRange(Instruction.ILSpans);
+					return replacement;
 				}
 				else
 				{
@@ -518,7 +686,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				)
 				{
 					context.Step("NullableLiftingTransform: C# (in)equality comparison", valueComp.Instruction);
-					return valueComp.MakeLifted(newComparisonKind, left, right);
+					return valueComp.MakeLifted(newComparisonKind, left, right, context.CalculateILSpans);
 				}
 			}
 			else if (newComparisonKind == ComparisonKind.Equality && !hasValueTestNegated && MatchHasValueCall(hasValueTest, out ILVariable v))
@@ -561,7 +729,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					return null;
 				}
 				context.Step("NullableLiftingTransform: C# comparison", comp.Instruction);
-				return comp.MakeLifted(newComparisonKind, left, right);
+				return comp.MakeLifted(newComparisonKind, left, right, context.CalculateILSpans);
 			}
 			return null;
 		}
@@ -599,9 +767,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!falseInst.MatchLdcI4(newComparisonKind == ComparisonKind.Equality ? 1 : 0))
 				return null;
 			bool trueInstNegated = false;
+			List<ILSpan> negationSpans = null;
 			while (trueInst.MatchLogicNot(out var arg))
 			{
 				trueInstNegated = !trueInstNegated;
+				if (context.CalculateILSpans)
+				{
+					negationSpans ??= new List<ILSpan>();
+					negationSpans.AddRange(trueInst.ILSpans);
+					negationSpans.AddRange(((Comp)trueInst).Right.ILSpans);
+				}
 				trueInst = arg;
 			}
 			if (!(trueInst is Call call))
@@ -629,9 +804,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					ILStackWasEmpty = call.ILStackWasEmpty,
 					IsTail = call.IsTail,
 				}.WithILRange(call);
+				if (context.CalculateILSpans)
+				{
+					replacement.ILSpans.AddRange(call.ILSpans);
+					hasValueComp.Instruction.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				}
 				if (trueInstNegated)
 				{
 					replacement = Comp.LogicNot(replacement);
+					if (context.CalculateILSpans && negationSpans is not null)
+						replacement.ILSpans.AddRange(negationSpans);
 				}
 				return replacement;
 			}
@@ -642,9 +824,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		{
 			// (v1 != null && ... && vn != null) ? trueInst : falseInst
 			bool trueInstNegated = false;
+			List<ILSpan> negationSpans = null;
 			while (trueInst.MatchLogicNot(out var arg))
 			{
 				trueInstNegated = !trueInstNegated;
+				if (context.CalculateILSpans)
+				{
+					negationSpans ??= new List<ILSpan>();
+					negationSpans.AddRange(trueInst.ILSpans);
+					negationSpans.AddRange(((Comp)trueInst).Right.ILSpans);
+				}
 				trueInst = arg;
 			}
 			if (trueInst is Call call && !call.IsLifted
@@ -675,9 +864,16 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						ILStackWasEmpty = call.ILStackWasEmpty,
 						IsTail = call.IsTail
 					}.WithILRange(call);
+					if (context.CalculateILSpans)
+					{
+						result.ILSpans.AddRange(call.ILSpans);
+						result.ILSpans.AddRange(falseInst.ILSpans);
+					}
 					if (trueInstNegated)
 					{
 						result = Comp.LogicNot(result);
+						if (context.CalculateILSpans && negationSpans is not null)
+							result.ILSpans.AddRange(negationSpans);
 					}
 					return result;
 				}
@@ -698,12 +894,21 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		/// </summary>
 		ILInstruction LiftNormal(ILInstruction trueInst, ILInstruction falseInst)
 		{
+			List<ILSpan> realTrueILSpans = null;
 			if (trueInst.MatchIfInstructionPositiveCondition(out var nestedCondition, out var nestedTrue, out var nestedFalse))
 			{
 				// Sometimes Roslyn generates pointless conditions like:
 				//   if (nullable.HasValue && (!nullable.HasValue || nullable.GetValueOrDefault() == b))
 				if (MatchHasValueCall(nestedCondition, out ILVariable v) && nullableVars.Contains(v))
 				{
+					if (context.CalculateILSpans)
+					{
+						realTrueILSpans = new List<ILSpan>();
+						var trueInstAsIf = (IfInstruction)trueInst;
+						realTrueILSpans.AddRange(trueInst.ILSpans);
+						trueInstAsIf.Condition.AddSelfAndChildrenRecursiveILSpans(realTrueILSpans);
+						nestedFalse.AddSelfAndChildrenRecursiveILSpans(realTrueILSpans);
+					}
 					trueInst = nestedTrue;
 				}
 			}
@@ -719,13 +924,19 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// v.HasValue ? ldloc v : fallback
 					// => v ?? fallback
 					context.Step("v.HasValue ? v : fallback => v ?? fallback", trueInst);
+					if (context.CalculateILSpans && realTrueILSpans is not null)
+						trueInst.ILSpans.AddRange(realTrueILSpans);
 					return new NullCoalescingInstruction(NullCoalescingKind.Nullable, trueInst, falseInst) {
 						UnderlyingResultType = NullableType.GetUnderlyingType(nullableVars[0].Type).GetStackType()
 					};
 				}
 				ILInstruction result = LiftCSharpUserComparison(trueInst, falseInst);
 				if (result != null)
+				{
+					if (context.CalculateILSpans && realTrueILSpans is not null)
+						result.ILSpans.AddRange(realTrueILSpans);
 					return result;
+				}
 			}
 			ILInstruction lifted;
 			if (nullableVars.Count == 1 && MatchGetValueOrDefault(exprToLift, nullableVars[0]))
@@ -737,6 +948,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step("v.HasValue ? v.GetValueOrDefault() : fallback => v ?? fallback", trueInst);
 				var inputUType = NullableType.GetUnderlyingType(nullableVars[0].Type);
 				lifted = new LdLoc(nullableVars[0]);
+				if (context.CalculateILSpans)
+				{
+					trueInst.AddSelfAndChildrenRecursiveILSpans(lifted.ILSpans);
+					if (realTrueILSpans is not null)
+						lifted.ILSpans.AddRange(realTrueILSpans);
+				}
 				if (!inputUType.Equals(utype) && utype.ToPrimitiveType() != PrimitiveType.None)
 				{
 					// While the ILAst allows implicit conversions between short and int
@@ -755,6 +972,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				context.Step("NullableLiftingTransform.DoLift", trueInst);
 				BitSet bits;
+				if (context.CalculateILSpans)
+				{
+					if (exprToLift != trueInst)
+						exprToLift.ILSpans.AddRange(trueInst.ILSpans);
+					if (realTrueILSpans is not null)
+						exprToLift.ILSpans.AddRange(realTrueILSpans);
+				}
+
 				(lifted, bits) = DoLift(exprToLift);
 				if (lifted == null)
 				{
@@ -782,6 +1007,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					UnderlyingResultType = exprToLift.ResultType
 				};
 			}
+			else if (context.CalculateILSpans)
+				falseInst.AddSelfAndChildrenRecursiveILSpans(lifted.ILSpans);
 			return lifted;
 		}
 
@@ -816,7 +1043,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 				}
 				if (foundIndices.Any())
-					return (new LdLoc(inputVar).WithILRange(inst), foundIndices);
+				{
+					LdLoc ldloc = new LdLoc(inputVar).WithILRange(inst);
+					if (context.CalculateILSpans)
+						inst.AddSelfAndChildrenRecursiveILSpans(ldloc.ILSpans);
+					return (ldloc, foundIndices);
+				}
 				else
 					return (null, null);
 			}
@@ -833,6 +1065,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						return (null, null);
 					}
 					var newInst = new Conv(arg, conv.InputType, conv.InputSign, conv.TargetType, conv.CheckForOverflow, isLifted: true).WithILRange(conv);
+					if (context.CalculateILSpans)
+						newInst.ILSpans.AddRange(conv.ILSpans);
 					return (newInst, bits);
 				}
 			}
@@ -842,6 +1076,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				if (arg != null)
 				{
 					var newInst = new BitNot(arg, isLifted: true, stackType: bitnot.ResultType).WithILRange(bitnot);
+					if (context.CalculateILSpans)
+						newInst.ILSpans.AddRange(bitnot.ILSpans);
 					return (newInst, bits);
 				}
 			}
@@ -863,6 +1099,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						binary.CheckForOverflow, binary.Sign,
 						isLifted: true
 					).WithILRange(binary);
+					if (context.CalculateILSpans)
+						newInst.ILSpans.AddRange(binary.ILSpans);
 					return (newInst, bits);
 				}
 			}
@@ -877,6 +1115,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				var (arg, bits) = DoLift(comp.Left);
 				Debug.Assert(arg != null);
 				var newInst = new Comp(comp.Kind, ComparisonLiftingKind.ThreeValuedLogic, comp.InputType, comp.Sign, arg, comp.Right.Clone()).WithILRange(comp);
+				if (context.CalculateILSpans)
+					newInst.ILSpans.AddRange(comp.ILSpans);
 				return (newInst, bits);
 			}
 			else if (inst is Call call && call.Method.IsOperator)
@@ -914,6 +1154,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					IsTail = call.IsTail,
 					ILStackWasEmpty = call.ILStackWasEmpty,
 				}.WithILRange(call);
+				if (context.CalculateILSpans)
+					newInst.ILSpans.AddRange(call.ILSpans);
 				newInst.Arguments.AddRange(newArgs);
 				return (newInst, newBits);
 			}

@@ -467,6 +467,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				.WithILRange(storeInst);
 			if (context.CalculateILSpans)
 			{
+				usingInstr.ILSpans.AddRange(storeInst.ILSpans);
 				usingInstr.Body.EndILSpans.AddRange(container.GetSelfAndChildrenRecursiveILSpans());
 			}
 			block.Instructions.RemoveAt(i);

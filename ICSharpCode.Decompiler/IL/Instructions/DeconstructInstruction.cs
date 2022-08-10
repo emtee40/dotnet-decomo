@@ -164,7 +164,7 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write("deconstruct ", BoxedTextColor.Text);
-			output.WriteLine("{", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "{");
 			output.IncreaseIndent();
 			output.WriteLine("init:", BoxedTextColor.Text);
 			output.IncreaseIndent();
@@ -186,7 +186,7 @@ namespace ICSharpCode.Decompiler.IL
 			assignments.WriteTo(output, options);
 			output.DecreaseIndent();
 			output.WriteLine();
-			output.Write("}", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, "}", CodeBracesRangeFlags.CurlyBraces);
 		}
 
 		internal static bool IsConversionStLoc(ILInstruction inst, out ILVariable variable, out ILVariable inputVariable)

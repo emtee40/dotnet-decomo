@@ -215,24 +215,42 @@ namespace ICSharpCode.Decompiler.IL
 			get { return DnlibExtensions.OffsetToString(this.StartILOffset); }
 		}
 
+		public object TextReferenceObject => textRefObject ??= new object();
+		private object? textRefObject;
+
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
 			output.Write("Block ", BoxedTextColor.Text);
-			output.Write(Label, this, DecompilerReferenceFlags.Definition, BoxedTextColor.Text);
+			output.Write(Label, TextReferenceObject, DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Label);
 			if (Kind != BlockKind.ControlFlow)
-				output.Write($" ({Kind})", BoxedTextColor.Text);
+			{
+				output.Write(" ", BoxedTextColor.Text);
+				var braceInfo2 = OpenBrace(output, "(");
+				output.Write(Kind.ToString(), BoxedTextColor.Text);
+				CloseBrace(output, braceInfo2, ")", CodeBracesRangeFlags.Parentheses);
+			}
 			if (Parent is BlockContainer)
-				output.Write($" (incoming: {IncomingEdgeCount})", BoxedTextColor.Text);
+			{
+				output.Write(" ", BoxedTextColor.Text);
+				var braceInfo2 = OpenBrace(output, "(");
+				output.Write("incoming", BoxedTextColor.Text);
+				output.Write(":", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
+				output.Write(IncomingEdgeCount.ToString(), IncomingEdgeCount, numberFlags, BoxedTextColor.Number);
+				CloseBrace(output, braceInfo2, ")", CodeBracesRangeFlags.Parentheses);
+			}
 			output.Write(" ", BoxedTextColor.Text);
-			output.WriteLine("{", BoxedTextColor.Text);
-			output.IncreaseIndent();
+			var braceInfo = WriteHiddenStart(output, null);
 			int index = 0;
 			foreach (var inst in Instructions)
 			{
 				if (options.ShowChildIndexInBlock)
 				{
-					output.Write("[" + index + "] ", BoxedTextColor.Text);
+					var braceInfo2 = OpenBrace(output, "[");
+					output.Write(index.ToString(), index, numberFlags, BoxedTextColor.Number);
+					CloseBrace(output, braceInfo2, "]", CodeBracesRangeFlags.SquareBrackets);
+					output.Write(" ", BoxedTextColor.Text);
 					index++;
 				}
 				inst.WriteTo(output, options);
@@ -240,12 +258,38 @@ namespace ICSharpCode.Decompiler.IL
 			}
 			if (finalInstruction.OpCode != OpCode.Nop)
 			{
-				output.Write("final: ", BoxedTextColor.Text);
+				output.Write("final", BoxedTextColor.Text);
+				output.Write(":", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				finalInstruction.WriteTo(output, options);
 				output.WriteLine();
 			}
-			output.DecreaseIndent();
-			output.Write("}", BoxedTextColor.Text);
+			WriteHiddenEnd(output, null, braceInfo, CalculateBraceFlags());
+
+			CodeBracesRangeFlags CalculateBraceFlags()
+			{
+				CodeBracesRangeFlags braceFlags;
+				if (SlotInfo == IfInstruction.TrueInstSlot || SlotInfo == IfInstruction.FalseInstSlot)
+					braceFlags = CodeBracesRangeFlags.ConditionalBraces;
+				else if (SlotInfo == TryInstruction.TryBlockSlot)
+					braceFlags = CodeBracesRangeFlags.TryBraces;
+				else if (SlotInfo == TryCatchHandler.BodySlot)
+					braceFlags = CodeBracesRangeFlags.CatchBraces;
+				else if (SlotInfo == TryCatchHandler.FilterSlot)
+					braceFlags = CodeBracesRangeFlags.FilterBraces;
+				else if (SlotInfo == TryFinally.FinallyBlockSlot)
+					braceFlags = CodeBracesRangeFlags.FinallyBraces;
+				else if (SlotInfo == TryFault.FaultBlockSlot)
+					braceFlags = CodeBracesRangeFlags.FaultBraces;
+				else if (SlotInfo == PinnedRegion.BodySlot)
+					braceFlags = CodeBracesRangeFlags.FixedBraces;
+				else if (SlotInfo == SwitchSection.BodySlot)
+					braceFlags = CodeBracesRangeFlags.CaseBraces;
+				else
+					braceFlags = CodeBracesRangeFlags.OtherBlockBraces;
+
+				return braceFlags;
+			}
 		}
 
 		protected override int GetChildCount()

@@ -19,6 +19,8 @@
 using System;
 using System.Linq;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.TypeSystem;
 
 namespace ICSharpCode.Decompiler.IL.Transforms
@@ -48,8 +50,6 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 					if (CachedDelegateInitializationRoslynInStaticWithLocal(inst) || CachedDelegateInitializationRoslynWithLocal(inst))
 					{
-						if (context.CalculateILSpans)
-							inst.AddSelfAndChildrenRecursiveILSpans(block.Instructions[i - 1].ILSpans);
 						block.Instructions.RemoveAt(i);
 						continue;
 					}
@@ -90,33 +90,25 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (usages.Length != 1)
 				return false;
 			context.Step("CachedDelegateInitializationWithField", inst);
+			var onlyUsage = usages[0];
 			if (context.CalculateILSpans) {
-				long index = 0;
-				bool done = false;
-				for (;;) {
-					var b = inst.GetAllILSpans(ref index, ref done);
-					if (done)
-						break;
-					newObj.ILSpans.Add(b);
-				}
+				newObj.ILSpans.AddRange(inst.ILSpans);
 				inst.Condition.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
 				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
 
-				index = 0;
-				done = false;
+				long index = 0;
+				bool done = false;
 				for (;;) {
 					var b = inst.TrueInst.GetAllILSpans(ref index, ref done);
 					if (done)
 						break;
 					newObj.ILSpans.Add(b);
 				}
-				foreach (var instr in trueInst.Instructions.Skip(1))
-					instr.AddSelfAndChildrenRecursiveILSpans(newObj.ILSpans);
-				newObj.ILSpans.AddRange(storeInst.ILSpans);
 
-				newObj.ILSpans.AddRange(usages[0].ILSpans);
+				newObj.ILSpans.AddRange(storeInst.ILSpans);
+				newObj.ILSpans.AddRange(onlyUsage.ILSpans);
 			}
-			usages[0].ReplaceWith(value);
+			onlyUsage.ReplaceWith(value);
 			return true;
 		}
 
@@ -154,6 +146,24 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (usages.Length != 1)
 				return false;
 			context.Step("CachedDelegateInitializationWithLocal", inst);
+			if (context.CalculateILSpans)
+			{
+				var storeBlock = (Block)otherStore.Parent;
+				ILSpanUtils.AddILSpans(storeBlock, storeBlock.Instructions, otherStore.ChildIndex);
+
+				storeInst.ILSpans.AddRange(inst.ILSpans);
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(storeInst.ILSpans);
+				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(storeInst.ILSpans);
+
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = inst.TrueInst.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					storeInst.ILSpans.Add(b);
+				}
+			}
 			((Block)otherStore.Parent).Instructions.Remove(otherStore);
 			inst.ReplaceWith(storeInst);
 			return true;
@@ -188,7 +198,26 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("CachedDelegateInitializationRoslynInStaticWithLocal", inst);
 			if (context.CalculateILSpans)
+			{
 				storeBeforeIf.Value.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+
+				storeBeforeIf.ILSpans.AddRange(inst.ILSpans);
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = inst.TrueInst.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					storeBeforeIf.ILSpans.Add(b);
+				}
+
+				storeBeforeIf.ILSpans.AddRange(storeInst.ILSpans);
+				storeBeforeIf.ILSpans.AddRange(stobj.ILSpans);
+				stobj.Target.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+			}
 			storeBeforeIf.Value = stobj.Value;
 			return true;
 		}
@@ -222,7 +251,26 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				return false;
 			context.Step("CachedDelegateInitializationRoslynWithLocal", inst);
 			if (context.CalculateILSpans)
+			{
 				storeBeforeIf.Value.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+
+				storeBeforeIf.ILSpans.AddRange(inst.ILSpans);
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+
+				long index = 0;
+				bool done = false;
+				for (;;) {
+					var b = inst.TrueInst.GetAllILSpans(ref index, ref done);
+					if (done)
+						break;
+					storeBeforeIf.ILSpans.Add(b);
+				}
+
+				storeBeforeIf.ILSpans.AddRange(storeInst.ILSpans);
+				storeBeforeIf.ILSpans.AddRange(stobj.ILSpans);
+				stobj.Target.AddSelfAndChildrenRecursiveILSpans(storeBeforeIf.ILSpans);
+			}
 			storeBeforeIf.Value = stobj.Value;
 			return true;
 		}
@@ -266,7 +314,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!DelegateConstruction.MatchDelegateConstruction(delegateConstruction, out _, out _, out _, true))
 				return false;
 			context.Step("CachedDelegateInitializationVB", inst);
-			inst.ReplaceWith(new StLoc(s, delegateConstruction));
+			var replacement = new StLoc(s, delegateConstruction);
+			if (context.CalculateILSpans)
+			{
+				replacement.ILSpans.AddRange(inst.ILSpans);
+				inst.Condition.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				inst.FalseInst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+
+				replacement.ILSpans.AddRange(trueInst.Instructions[0].ILSpans);
+				replacement.ILSpans.AddRange(stobj.ILSpans);
+				stobj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+			}
+			inst.ReplaceWith(replacement);
 			return true;
 		}
 	}

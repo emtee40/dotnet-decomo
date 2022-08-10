@@ -58,11 +58,11 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			if (IsLifted)
 			{
-				output.Write(".lifted", BoxedTextColor.Text);
+				output.Write(".lifted", BoxedTextColor.OpCode);
 			}
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			this.Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

@@ -18,8 +18,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using dnlib.DotNet;
+
+using dnSpy.Contracts.Decompiler;
+
 using IField = ICSharpCode.Decompiler.TypeSystem.IField;
 using IMethod = ICSharpCode.Decompiler.TypeSystem.IMethod;
 
@@ -65,6 +69,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				return;
 			var currentCtor = (IMethod)constructorDeclaration.GetSymbol();
 			ConstructorInitializer ci;
+			List<ILSpan> ilSpans;
 			switch (stmt.Expression)
 			{
 				// Pattern for reference types:
@@ -72,7 +77,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				case InvocationExpression invocation:
 					if (!(invocation.Target is MemberReferenceExpression mre) || mre.MemberName != ".ctor")
 						return;
-					if (!(invocation.GetSymbol() is IMethod ctor && ctor.IsConstructor))
+					IMethod ctor = invocation.GetSymbol() as IMethod ?? invocation.Annotation<IMethod>();
+					if (!(ctor is not null && ctor.IsConstructor))
 						return;
 					ci = new ConstructorInitializer();
 					var target = mre.Target;
@@ -90,9 +96,19 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						return;
 					// Move arguments from invocation to initializer:
 					invocation.Arguments.MoveTo(ci.Arguments);
+					ilSpans = stmt.GetAllRecursiveILSpans();
 					// Add the initializer: (unless it is the default 'base()')
 					if (!(ci.ConstructorInitializerType == ConstructorInitializerType.Base && ci.Arguments.Count == 0))
+					{
 						constructorDeclaration.Initializer = ci.CopyAnnotationsFrom(invocation);
+						ci.AddAnnotation(ilSpans);
+					}
+					else
+					{
+						constructorDeclaration.Body.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(
+							!context.CalculateILSpans ? null : ILSpan.OrderAndCompactList(ilSpans),
+							constructorDeclaration.Body.HiddenStart);
+					}
 					// Remove the statement:
 					stmt.Remove();
 					break;
@@ -108,9 +124,19 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						return;
 					// Move arguments from invocation to initializer:
 					oce.Arguments.MoveTo(ci.Arguments);
+					ilSpans = stmt.GetAllRecursiveILSpans();
 					// Add the initializer: (unless it is the default 'base()')
 					if (!(ci.ConstructorInitializerType == ConstructorInitializerType.Base && ci.Arguments.Count == 0))
+					{
 						constructorDeclaration.Initializer = ci.CopyAnnotationsFrom(oce);
+						ci.AddAnnotation(ilSpans);
+					}
+					else
+					{
+						constructorDeclaration.Body.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(
+							!context.CalculateILSpans ? null : ILSpan.OrderAndCompactList(ilSpans),
+							constructorDeclaration.Body.HiddenStart);
+					}
 					// Remove the statement:
 					stmt.Remove();
 					break;
@@ -238,8 +264,18 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					}
 					if (allSame)
 					{
-						foreach (var ctor in instanceCtorsNotChainingWithThis)
-							ctor.Body.First().Remove();
+						var ctorILSpans = new List<Tuple<MethodDebugInfoBuilder, List<ILSpan>>>(instanceCtorsNotChainingWithThis.Length);
+						for (int i = 0; i < instanceCtorsNotChainingWithThis.Length; i++)
+						{
+							ConstructorDeclaration ctor = instanceCtorsNotChainingWithThis[i];
+							var stmt = ctor.Body.First();
+							stmt.Remove();
+							var mm = ctor.Annotation<MethodDebugInfoBuilder>() ?? ctor.Body.Annotation<MethodDebugInfoBuilder>();
+							Debug.Assert(mm != null);
+							if (mm != null)
+								ctorILSpans.Add(Tuple.Create(mm, stmt.GetAllRecursiveILSpans()));
+						}
+
 						if (fieldOrPropertyOrEventDecl == null)
 							continue;
 						if (ctorIsUnsafe && IntroduceUnsafeModifier.IsUnsafe(initializer))
@@ -252,7 +288,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						}
 						else
 						{
-							fieldOrPropertyOrEventDecl.GetChildrenByRole(Roles.Variable).Single().Initializer = initializer.Detach();
+							initializer.Remove();
+							initializer.RemoveAllILSpansRecursive();
+							fieldOrPropertyOrEventDecl.GetChildrenByRole(Roles.Variable).Single().Initializer = initializer;
+							fieldOrPropertyOrEventDecl.AddAnnotation(ctorILSpans);
 						}
 					}
 				} while (allSame);
@@ -268,6 +307,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 		void RemoveSingleEmptyConstructor(IEnumerable<AstNode> members, ITypeDefinition contextTypeDefinition)
 		{
+			if (!context.Settings.RemoveEmptyDefaultConstructors || context.Settings.ForceShowAllMembers)
+				return;
 			// if we're outside of a type definition skip this altogether
 			if (contextTypeDefinition == null)
 				return;
@@ -310,6 +351,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				if (ctorMethod?.MetadataToken is MethodDef ctorMethodDef)
 				{
 					bool declaringTypeIsBeforeFieldInit = ctorMethodDef.DeclaringType.IsBeforeFieldInit;
+					var mm = staticCtor.Annotation<MethodDebugInfoBuilder>() ?? staticCtor.Body.Annotation<MethodDebugInfoBuilder>();
 					while (true)
 					{
 						ExpressionStatement es = staticCtor.Body.Statements.FirstOrDefault() as ExpressionStatement;
@@ -359,6 +401,12 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 							{
 								break;
 							}
+							var ilSpans = assignment.GetAllRecursiveILSpans();
+							assignment.RemoveAllILSpansRecursive();
+							var ctorILSpans = new List<Tuple<MethodDebugInfoBuilder, List<ILSpan>>>(1);
+							if (mm != null)
+								ctorILSpans.Add(Tuple.Create(mm, ilSpans));
+							fieldOrPropertyDecl.AddAnnotation(ctorILSpans);
 							es.Remove();
 						}
 						else
@@ -366,7 +414,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 							break;
 						}
 					}
-					if (declaringTypeIsBeforeFieldInit && staticCtor.Body.Statements.Count == 0)
+					if (!context.Settings.ForceShowAllMembers && context.Settings.RemoveEmptyDefaultConstructors && declaringTypeIsBeforeFieldInit && staticCtor.Body.Statements.Count == 0)
 					{
 						staticCtor.Remove();
 					}

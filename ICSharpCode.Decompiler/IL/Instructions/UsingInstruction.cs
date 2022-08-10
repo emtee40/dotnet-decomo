@@ -51,25 +51,31 @@ namespace ICSharpCode.Decompiler.IL
 		public override void WriteTo(IDecompilerOutput output, ILAstWritingOptions options)
 		{
 			WriteILRange(output, options);
-			output.Write("using", BoxedTextColor.Text);
+			output.Write("using", BoxedTextColor.Keyword);
 			if (IsAsync)
 			{
-				output.Write(".async", BoxedTextColor.Text);
+				output.Write(".async", BoxedTextColor.Keyword);
 			}
 			if (IsRefStruct)
 			{
-				output.Write(".ref", BoxedTextColor.Text);
+				output.Write(".ref", BoxedTextColor.Keyword);
 			}
-			output.Write(" (", BoxedTextColor.Text);
+			output.Write(" ", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			Variable.WriteTo(output);
-			output.Write(" = ", BoxedTextColor.Text);
+			output.Write(" ", BoxedTextColor.Text);
+			output.Write("=", BoxedTextColor.Operator);
+			output.Write(" ", BoxedTextColor.Text);
 			ResourceExpression.WriteTo(output, options);
-			output.WriteLine(") {", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
+			output.Write(" ", BoxedTextColor.Text);
+			braceInfo = OpenBrace(output, "{");
+			output.WriteLine("{", BoxedTextColor.Punctuation);
 			output.IncreaseIndent();
 			Body.WriteTo(output, options);
 			output.DecreaseIndent();
 			output.WriteLine();
-			output.Write("}", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, "}", CodeBracesRangeFlags.UsingBraces);
 		}
 	}
 }

@@ -186,39 +186,41 @@ namespace ICSharpCode.Decompiler.IL
 			WriteILRange(output, options);
 			if (options.UseLogicOperationSugar && MatchLogicNot(out var arg))
 			{
-				output.Write("logic.not(", BoxedTextColor.Text);
+				output.Write("logic.not", BoxedTextColor.OpCode);
+				var braceInfo2 = OpenBrace(output, "(");
 				arg.WriteTo(output, options);
-				output.Write(")", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo2, ")", CodeBracesRangeFlags.Parentheses);
 				return;
 			}
 			output.Write(OpCode);
-			output.Write(".", BoxedTextColor.Text);
-			output.Write(InputType.ToString().ToLower(), BoxedTextColor.Text);
+			output.Write(".", BoxedTextColor.OpCode);
+			output.Write(InputType.ToString().ToLower(), BoxedTextColor.OpCode);
 			switch (Sign)
 			{
 				case Sign.Signed:
-					output.Write(".signed", BoxedTextColor.Text);
+					output.Write(".signed", BoxedTextColor.OpCode);
 					break;
 				case Sign.Unsigned:
-					output.Write(".unsigned", BoxedTextColor.Text);
+					output.Write(".unsigned", BoxedTextColor.OpCode);
 					break;
 			}
 			switch (LiftingKind)
 			{
 				case ComparisonLiftingKind.CSharp:
-					output.Write(".lifted[C#]", BoxedTextColor.Text);
+					output.Write(".lifted[C#]", BoxedTextColor.OpCode);
 					break;
 				case ComparisonLiftingKind.ThreeValuedLogic:
-					output.Write(".lifted[3VL]", BoxedTextColor.Text);
+					output.Write(".lifted[3VL]", BoxedTextColor.OpCode);
 					break;
 			}
-			output.Write("(", BoxedTextColor.Text);
+
+			var braceInfo = OpenBrace(output, "(");
 			Left.WriteTo(output, options);
 			output.Write(" ", BoxedTextColor.Text);
-			output.Write(Kind.GetToken(), BoxedTextColor.Text);
+			output.Write(Kind.GetToken(), BoxedTextColor.Operator);
 			output.Write(" ", BoxedTextColor.Text);
 			Right.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		public static Comp LogicNot(ILInstruction arg)

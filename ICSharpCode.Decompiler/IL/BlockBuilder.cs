@@ -41,7 +41,9 @@ namespace ICSharpCode.Decompiler.IL
 		/// Gets/Sets whether to create extended basic blocks instead of basic blocks.
 		/// The default is <c>false</c>.
 		/// </summary>
+		#pragma warning disable CS0649
 		public bool CreateExtendedBlocks;
+		#pragma warning restore CS0649
 
 		internal BlockBuilder(CilBody body,
 							  Dictionary<ExceptionHandler, ILVariable> variableByExceptionHandler,

@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2018 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -137,7 +137,7 @@ namespace ICSharpCode.Decompiler.IL
 						// blocks can only exit containers via leave instructions, not fallthrough, so the only relevant context is `continueTarget`
 						VisitContainers(inst, continueTarget);
 
-						// reducing nesting inside Try/Using/Lock etc, may make the endpoint unreachable. 
+						// reducing nesting inside Try/Using/Lock etc, may make the endpoint unreachable.
 						// This should only happen by replacing a Leave with the exit instruction we're about to delete, but I can't see a good way to assert this
 						// This would be better placed in ReduceNesting, but it's more difficult to find the affected instructions/blocks there than here
 						if (i == block.Instructions.Count - 2 && inst.HasFlag(InstructionFlags.EndPointUnreachable))
@@ -195,7 +195,13 @@ namespace ICSharpCode.Decompiler.IL
 					return;
 
 				context.Step("Replace leave with keyword exit", ifInst.TrueInst);
-				block.Instructions.Last().ReplaceWith(keywordExit.Clone());
+				ILInstruction exitClone = keywordExit.Clone();
+				if (context.CalculateILSpans)
+				{
+					exitClone.ILSpans.Clear();
+					exitClone.ILSpans.AddRange(leave.ILSpans);
+				}
+				block.Instructions.Last().ReplaceWith(exitClone);
 			}
 
 			ConditionDetection.InvertIf(block, ifInst, context);
@@ -234,7 +240,13 @@ namespace ICSharpCode.Decompiler.IL
 				{
 					Debug.Assert(ifInst.TrueInst is Leave);
 					context.Step("Replace leave with keyword exit", ifInst.TrueInst);
-					ifInst.TrueInst.ReplaceWith(exitInst.Clone());
+					ILInstruction exitInstClone = exitInst.Clone();
+					if (context.CalculateILSpans)
+					{
+						exitInstClone.ILSpans.Clear();
+						exitInstClone.ILSpans.AddRange(ifInst.TrueInst.ILSpans);
+					}
+					ifInst.TrueInst.ReplaceWith(exitInstClone);
 				}
 				return true;
 			}
@@ -330,8 +342,17 @@ namespace ICSharpCode.Decompiler.IL
 			// instruction eventually follows the container
 			if (parentBlock.Instructions.SecondToLastOrDefault() == switchContainer)
 			{
-				if (defaultBlock.Instructions.Last().MatchLeave(switchContainer))
-					defaultBlock.Instructions.Last().ReplaceWith(parentBlock.Instructions.Last());
+				var lastInstrDefaultBlock = defaultBlock.Instructions.Last();
+				if (lastInstrDefaultBlock.MatchLeave(switchContainer))
+				{
+					ILInstruction clone = parentBlock.Instructions.Last().Clone();
+					if (context.CalculateILSpans)
+					{
+						clone.ILSpans.Clear();
+						clone.ILSpans.AddRange(lastInstrDefaultBlock.ILSpans);
+					}
+					lastInstrDefaultBlock.ReplaceWith(clone);
+				}
 
 				parentBlock.Instructions.RemoveLast();
 			}
@@ -339,10 +360,21 @@ namespace ICSharpCode.Decompiler.IL
 			// replace all break; statements with the exitInst
 			var leaveInstructions = switchContainer.Descendants.Where(inst => inst.MatchLeave(switchContainer));
 			foreach (var leaveInst in leaveInstructions.ToArray())
-				leaveInst.ReplaceWith(exitInst.Clone());
+			{
+				var exitInstClone = exitInst.Clone();
+				if (context.CalculateILSpans)
+				{
+					exitInstClone.ILSpans.Clear();
+					exitInstClone.ILSpans.AddRange(leaveInst.ILSpans);
+				}
+				leaveInst.ReplaceWith(exitInstClone);
+			}
 
 			// replace the default section branch with a break;
-			defaultSection.Body.ReplaceWith(new Leave(switchContainer));
+			Leave bodyReplacement = new Leave(switchContainer);
+			if (context.CalculateILSpans)
+				bodyReplacement.ILSpans.AddRange(defaultSection.Body.ILSpans);
+			defaultSection.Body.ReplaceWith(bodyReplacement);
 
 			// remove all default blocks from the switch container
 			var defaultBlocks = defaultTree.Select(c => (Block)c.UserData).ToList();
@@ -641,6 +673,10 @@ namespace ICSharpCode.Decompiler.IL
 			{
 				context.Step("Removing try-finally around PinnedRegion", pinnedRegion);
 				tryFinally.ReplaceWith(pinnedRegion);
+				if (context.CalculateILSpans)
+				{
+					tryFinally.FinallyBlock.AddSelfAndChildrenRecursiveILSpans(pinnedRegion.Body.EndILSpans);
+				}
 			}
 		}
 	}

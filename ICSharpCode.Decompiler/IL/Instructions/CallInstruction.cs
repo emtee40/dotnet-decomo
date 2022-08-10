@@ -143,23 +143,28 @@ namespace ICSharpCode.Decompiler.IL
 			WriteILRange(output, options);
 			if (ConstrainedTo != null)
 			{
-				output.Write("constrained[", BoxedTextColor.Text);
+				output.Write("constrained", BoxedTextColor.OpCode);
+				var braceInfo2 = OpenBrace(output, "[");
 				ConstrainedTo.WriteTo(output, ILNameSyntax.ShortTypeName);
-				output.Write("].", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo2, "]", CodeBracesRangeFlags.SquareBrackets);
+				output.Write(".", BoxedTextColor.OpCode);
 			}
 			if (IsTail)
-				output.Write("tail.", BoxedTextColor.Text);
+				output.Write("tail.", BoxedTextColor.OpCode);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			Method.WriteTo(output);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			for (int i = 0; i < Arguments.Count; i++)
 			{
 				if (i > 0)
-					output.Write(", ", BoxedTextColor.Text);
+				{
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
+				}
 				Arguments[i].WriteTo(output, options);
 			}
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		protected internal sealed override bool PerformMatch(ILInstruction? other, ref Patterns.Match match)

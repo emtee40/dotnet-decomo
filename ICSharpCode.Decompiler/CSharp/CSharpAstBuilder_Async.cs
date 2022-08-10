@@ -20,8 +20,6 @@ namespace ICSharpCode.Decompiler.CSharp
 				this.Body = body;
 				this.Builder = builder;
 				this.IlFunction = function;
-				this.CurrentMethodIsAsync = function.IsAsync;
-				this.CurrentMethodIsYieldReturn = function.IsIterator;
 			}
 
 			public readonly EntityDeclaration MethodNode;
@@ -33,10 +31,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			public readonly MethodDebugInfoBuilder Builder;
 
 			public readonly ILFunction IlFunction;
-
-			public readonly bool CurrentMethodIsAsync;
-
-			public readonly bool CurrentMethodIsYieldReturn;
 		}
 
 		private sealed class AsyncMethodBodyDecompilationState
@@ -75,7 +69,6 @@ namespace ICSharpCode.Decompiler.CSharp
 
 					if (result.IlFunction is not null)
 					{
-						//AddAnnotationsToDeclaration(result.IlFunction.Method, result.MethodNode, result.IlFunction);
 						AddDefinesForConditionalAttributes(result.IlFunction);
 						CleanUpMethodDeclaration(result.MethodNode, result.Body, result.IlFunction);
 					}

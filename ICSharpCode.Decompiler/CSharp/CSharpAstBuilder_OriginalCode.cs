@@ -81,7 +81,7 @@ namespace ICSharpCode.Decompiler.CSharp
 							var properties = field.DeclaringType.Properties;
 							foreach (var pd in properties)
 							{
-								if (pd.Name != propertyName)
+								if (pd.Name.String != propertyName)
 									continue;
 								return pd.GetMethod is not null && pd.SetMethod is null;
 							}
@@ -94,7 +94,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						return true;
 				}
 				// event-fields are not [CompilerGenerated]
-				if (settings.AutomaticEvents && field.DeclaringType.Events.Any(ev => ev.Name == field.Name))
+				if (settings.AutomaticEvents && field.DeclaringType.Events.Any(ev => IsEventBackingFieldName(field.Name, ev.Name)))
 					return true;
 				if (settings.ArrayInitializers && field.DeclaringType.Name.StartsWith("<PrivateImplementationDetails>", StringComparison.Ordinal)) {
 					// hide fields starting with '__StaticArrayInit'
@@ -109,6 +109,14 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 
 			return false;
+		}
+
+		internal static bool IsEventBackingFieldName(string fieldName, string eventName) {
+			if (fieldName == eventName)
+				return true;
+
+			const string VB_PATTERN = "Event";
+			return fieldName.Length == VB_PATTERN.Length + eventName.Length && fieldName.StartsWith(eventName, StringComparison.Ordinal) && fieldName.EndsWith(VB_PATTERN, StringComparison.Ordinal);
 		}
 
 		static bool IsSwitchOnStringCache(FieldDef field)
@@ -144,7 +152,11 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		static bool IsClosureType(TypeDef type)
 		{
-			if (!type.HasGeneratedName() || !type.IsCompilerGenerated())
+			if (!type.IsCompilerGenerated())
+				return false;
+			if (type.Name.StartsWith("_Closure$__"))
+				return true;
+			if (!type.HasGeneratedName())
 				return false;
 			if (type.Name.Contains("DisplayClass") || type.Name.Contains("AnonStorey")|| type.Name.Contains("Closure$"))
 				return true;
@@ -272,7 +284,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (string.IsNullOrEmpty(parameter.Name) && !parameter.Type.IsArgList())
 				{
 					// needs to be consistent with logic in ILReader.CreateILVarable(ParameterDefinition)
-					parameter.Name = "P_" + i;
+					parameter.NameToken.Name = "P_" + i;
 				}
 				i++;
 			}
@@ -285,11 +297,6 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (!entity.HasAttribute(KnownAttribute.PreserveBaseOverrides))
 				return false;
 			return true;
-		}
-
-		internal static bool IsWindowsFormsInitializeComponentMethod(ICSharpCode.Decompiler.TypeSystem.IMethod method)
-		{
-			return method.ReturnType.Kind == TypeKind.Void && method.Name == "InitializeComponent" && method.DeclaringTypeDefinition.GetNonInterfaceBaseTypes().Any(t => t.FullName == "System.Windows.Forms.Control");
 		}
 
 		internal static bool RemoveAttribute(EntityDeclaration entityDecl, KnownAttribute attributeType)
@@ -339,6 +346,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (method.IsStatic)
 			{
 				yield break; // cannot create forwarder for static interface impl
+			}
+			if (memberDecl.HasModifier(Modifiers.Extern))
+			{
+				yield break; // cannot create forwarder for extern method
 			}
 			var genericContext = new Decompiler.TypeSystem.GenericContext(method);
 			var methodHandle = (MethodDef)method.MetadataToken;
@@ -408,19 +419,6 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 			}
 			return false;
-		}
-
-		internal static void AddAnnotationsToDeclaration(ICSharpCode.Decompiler.TypeSystem.IMethod method, EntityDeclaration entityDecl, ILFunction function)
-		{
-			int i = 0;
-			var parameters = function.Variables.Where(v => v.Kind == VariableKind.Parameter).ToDictionary(v => v.Index);
-			foreach (var parameter in entityDecl.GetChildrenByRole(Roles.Parameter))
-			{
-				if (parameters.TryGetValue(i, out var v))
-					parameter.AddAnnotation(new ILVariableResolveResult(v, method.Parameters[i].Type));
-				i++;
-			}
-			entityDecl.AddAnnotation(function);
 		}
 
 		internal static void CleanUpMethodDeclaration(EntityDeclaration entityDecl, BlockStatement body, ILFunction function, bool decompileBody = true)

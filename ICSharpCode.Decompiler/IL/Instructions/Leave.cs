@@ -123,10 +123,11 @@ namespace ICSharpCode.Decompiler.IL
 			if (targetContainer != null)
 			{
 				output.Write(" ", BoxedTextColor.Text);
-				output.Write(TargetLabel, targetContainer, DecompilerReferenceFlags.Local, BoxedTextColor.Text);
-				output.Write(" (", BoxedTextColor.Text);
+				output.Write(TargetLabel, targetContainer.TextReferenceObject, DecompilerReferenceFlags.Local, BoxedTextColor.Label);
+				output.Write(" ", BoxedTextColor.Text);
+				var braceInfo = OpenBrace(output, "(");
 				value.WriteTo(output, options);
-				output.Write(")", BoxedTextColor.Text);
+				CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 			}
 		}
 	}

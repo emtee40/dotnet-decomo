@@ -1915,6 +1915,18 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
+		bool removeEmptyDefaultConstructors = true;
+
+		public bool RemoveEmptyDefaultConstructors {
+			get { return removeEmptyDefaultConstructors; }
+			set {
+				if (removeEmptyDefaultConstructors != value) {
+					removeEmptyDefaultConstructors = value;
+					OnPropertyChanged(nameof(RemoveEmptyDefaultConstructors));
+				}
+			}
+		}
+
 		bool showTokenAndRvaComments = true;
 
 		/// <summary>
@@ -2033,6 +2045,17 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 		bool hexadecimalNumbers = false;
+
+		public bool SortSwitchCasesByILOffset {
+			get { return sortSwitchCasesByILOffset; }
+			set {
+				if (sortSwitchCasesByILOffset != value) {
+					sortSwitchCasesByILOffset = value;
+					OnPropertyChanged(nameof(SortSwitchCasesByILOffset));
+				}
+			}
+		}
+		bool sortSwitchCasesByILOffset = true;
 
 		CSharpFormattingOptions csharpFormattingOptions;
 

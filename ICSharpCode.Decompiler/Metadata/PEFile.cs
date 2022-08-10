@@ -43,13 +43,10 @@ namespace ICSharpCode.Decompiler.Metadata
 	/// </remarks>
 	public class PEFile : IDisposable, TypeSystem.IModuleReference
 	{
-		public StringBuilder StringBuilder { get; }
-
 		public ModuleDef Module { get; }
 
 		public PEFile(ModuleDef reader)
 		{
-			StringBuilder = new StringBuilder();
 			this.Module = reader ?? throw new ArgumentNullException(nameof(reader));
 		}
 

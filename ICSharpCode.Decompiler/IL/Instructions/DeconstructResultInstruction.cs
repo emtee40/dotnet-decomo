@@ -45,9 +45,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			output.Write(Index.ToString(), BoxedTextColor.Text);
-			output.Write("(", BoxedTextColor.Text);
+			var braceInfo = OpenBrace(output, "(");
 			this.Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Text);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 
 		MatchInstruction? FindMatch()

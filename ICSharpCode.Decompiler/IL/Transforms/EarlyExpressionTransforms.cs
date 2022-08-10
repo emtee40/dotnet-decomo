@@ -16,7 +16,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Collections.Generic;
 using System.Linq;
+
+using dnSpy.Contracts.Decompiler;
 
 using ICSharpCode.Decompiler.TypeSystem;
 
@@ -170,8 +173,14 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			// ldobj(...(ldloca V))
 			var temp = inst.Target;
 			var range = temp.ILRanges;
+			List<ILSpan> ldfldaILSpans = null;
 			while (temp.MatchLdFlda(out var ldfldaTarget, out _))
 			{
+				if (context.CalculateILSpans)
+				{
+					ldfldaILSpans ??= new List<ILSpan>();
+					ldfldaILSpans.AddRange(temp.ILSpans);
+				}
 				temp = ldfldaTarget;
 				range = range.Concat(temp.ILRanges);
 			}
@@ -182,6 +191,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				foreach (var r in range)
 				{
 					replacement = replacement.WithILRange(r);
+				}
+				if (context.CalculateILSpans)
+				{
+					temp.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					if (ldfldaILSpans is not null)
+						replacement.ILSpans.AddRange(ldfldaILSpans);
 				}
 				temp.ReplaceWith(replacement);
 			}

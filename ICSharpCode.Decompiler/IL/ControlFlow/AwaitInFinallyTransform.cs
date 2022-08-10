@@ -211,13 +211,19 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						{
 							context.Step("Simplify end of finally", beforeExceptionCaptureBlock);
 							beforeExceptionCaptureBlock.Instructions.RemoveRange(beforeExceptionCaptureBlock.Instructions.Count - 3, 2);
-							branch.ReplaceWith(new Leave(finallyContainer).WithILRange(branch));
+							Leave replacement = new Leave(finallyContainer).WithILRange(branch);
+							if (context.CalculateILSpans)
+								branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+							branch.ReplaceWith(replacement);
 						}
 						else if (cond.MatchCompNotEqualsNull(out arg) && arg.MatchLdLoc(objectVariableCopy))
 						{
 							context.Step("Simplify end of finally", beforeExceptionCaptureBlock);
 							beforeExceptionCaptureBlock.Instructions.RemoveRange(beforeExceptionCaptureBlock.Instructions.Count - 3, 2);
-							branch.ReplaceWith(new Leave(finallyContainer).WithILRange(branch));
+							Leave replacement = new Leave(finallyContainer).WithILRange(branch);
+							if (context.CalculateILSpans)
+								branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+							branch.ReplaceWith(replacement);
 						}
 					}
 				}
@@ -227,14 +233,20 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					if (branch.TargetBlock == entryPointOfFinally && branch.IsDescendantOf(tryCatch.TryBlock))
 					{
 						context.Step("branch to finally => branch after finally", branch);
-						branch.ReplaceWith(new Branch(afterFinallyBlock).WithILRange(branch));
+						Branch replacement = new Branch(afterFinallyBlock).WithILRange(branch);
+						if (context.CalculateILSpans)
+							branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+						branch.ReplaceWith(replacement);
 					}
 					else if (branch.TargetBlock == capturePatternStart)
 					{
 						if (branch.IsDescendantOf(finallyContainer))
 						{
 							context.Step("branch out of finally container => leave finally container", branch);
-							branch.ReplaceWith(new Leave(finallyContainer).WithILRange(branch));
+							Leave replacement = new Leave(finallyContainer).WithILRange(branch);
+							if (context.CalculateILSpans)
+								branch.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+							branch.ReplaceWith(replacement);
 						}
 					}
 				}

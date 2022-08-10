@@ -20,6 +20,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.FlowAnalysis;
 using ICSharpCode.Decompiler.IL.Transforms;
 using ICSharpCode.Decompiler.Util;
@@ -437,7 +439,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			ifInst.TrueInst = ifInst.FalseInst;
 			ifInst.FalseInst = new Nop().WithILRange(oldTrue);
 			if (context.CalculateILSpans)
-				ifInst.FalseInst.ILSpans.AddRange(oldTrue.ILSpans);
+				oldTrue.AddSelfAndChildrenRecursiveILSpans(ifInst.FalseInst.ILSpans);
 			ifInst.Condition = Comp.LogicNot(ifInst.Condition);
 		}
 

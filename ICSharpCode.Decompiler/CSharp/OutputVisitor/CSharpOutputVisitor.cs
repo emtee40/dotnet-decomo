@@ -601,7 +601,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 						writer.Unindent();
 					start = writer.GetLocation();
 					braceHelper.RightBrace();
-					SaveDeclarationOffset();
+					if (saveDeclOffset)
+						SaveDeclarationOffset();
 					end = writer.GetLocation();
 					isAtStartOfLine = false;
 					break;
@@ -609,7 +610,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				case BraceStyle.NextLineShifted:
 					start = writer.GetLocation();
 					braceHelper.RightBrace();
-					SaveDeclarationOffset();
+					if (saveDeclOffset)
+						SaveDeclarationOffset();
 					end = writer.GetLocation();
 					isAtStartOfLine = false;
 					if (unindent)
@@ -620,7 +622,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 						writer.Unindent();
 					start = writer.GetLocation();
 					braceHelper.RightBrace();
-					SaveDeclarationOffset();
+					if (saveDeclOffset)
+						SaveDeclarationOffset();
 					end = writer.GetLocation();
 					isAtStartOfLine = false;
 					if (unindent)
@@ -1209,6 +1212,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitDeclarationExpression(DeclarationExpression declarationExpression)
 		{
+			DebugExpression(declarationExpression);
 			StartNode(declarationExpression);
 
 			declarationExpression.Type.AcceptVisitor(this);
@@ -1220,6 +1224,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitOutVarDeclarationExpression(OutVarDeclarationExpression outVarDeclarationExpression)
 		{
+			DebugExpression(outVarDeclarationExpression);
 			StartNode(outVarDeclarationExpression);
 
 			WriteKeyword(OutVarDeclarationExpression.OutKeywordRole);
@@ -1446,13 +1451,20 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitInterpolatedStringExpression(InterpolatedStringExpression interpolatedStringExpression)
 		{
+			DebugExpression(interpolatedStringExpression);
 			StartNode(interpolatedStringExpression);
 
-			writer.WriteToken(InterpolatedStringExpression.OpenQuote, "$\"", BoxedTextColor.String);
+			WriteToken("$", InterpolatedStringExpression.OpenQuote, BoxedTextColor.String);
+			int leftStart = writer.GetLocation() ?? 0;
+			WriteToken("\"", InterpolatedStringExpression.OpenQuote, BoxedTextColor.String);
+			int leftEnd = writer.GetLocation() ?? 0;
 			foreach (var element in interpolatedStringExpression.Content) {
 				element.AcceptVisitor(this);
 			}
-			writer.WriteToken(InterpolatedStringExpression.CloseQuote, "\"", BoxedTextColor.String);
+			int rightStart = writer.GetLocation() ?? 0;
+			WriteToken(InterpolatedStringExpression.CloseQuote,  BoxedTextColor.String);
+			int rightEnd = writer.GetLocation() ?? 0;
+			writer.AddBracePair(leftStart, leftEnd, rightStart, rightEnd, CodeBracesRangeFlags.SingleQuotes);
 			isAfterSpace = false;
 
 			EndNode(interpolatedStringExpression);
@@ -1462,13 +1474,13 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 		{
 			StartNode(interpolation);
 
-			writer.WriteTokenPunctuation(Interpolation.LBrace, "{");
+			var leftBrace = BraceHelper.LeftBrace(this, CodeBracesRangeFlags.CurlyBraces);
 			interpolation.Expression.AcceptVisitor(this);
 			if (interpolation.Suffix != null) {
 				WriteToken(Roles.Colon, BoxedTextColor.Operator);
 				writer.WriteInterpolatedText(interpolation.Suffix);
 			}
-			writer.WriteTokenPunctuation(Interpolation.RBrace, "}");
+			leftBrace.RightBrace();
 
 			EndNode(interpolation);
 		}
@@ -1516,6 +1528,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitThrowExpression(ThrowExpression throwExpression)
 		{
+			DebugExpression(throwExpression);
 			StartNode(throwExpression);
 			WriteKeyword(ThrowExpression.ThrowKeywordRole);
 			Space();
@@ -1526,6 +1539,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 		public virtual void VisitTupleExpression(TupleExpression tupleExpression)
 		{
 			Debug.Assert(tupleExpression.Elements.Count >= 2);
+			DebugExpression(tupleExpression);
 			StartNode(tupleExpression);
 			var braceHelper = BraceHelper.LeftParen(this, CodeBracesRangeFlags.Parentheses);
 			WriteCommaSeparatedList(tupleExpression.Elements);
@@ -1599,9 +1613,10 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitWithInitializerExpression(WithInitializerExpression withInitializerExpression)
 		{
+			DebugExpression(withInitializerExpression);
 			StartNode(withInitializerExpression);
 			withInitializerExpression.Expression.AcceptVisitor(this);
-			WriteKeyword("with", WithInitializerExpression.WithKeywordRole);
+			WriteKeyword(WithInitializerExpression.WithKeywordRole);
 			withInitializerExpression.Initializer.AcceptVisitor(this);
 			EndNode(withInitializerExpression);
 		}
@@ -1929,6 +1944,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			}
 
 			if (typeDeclaration.ClassType == ClassType.RecordClass && typeDeclaration.Members.Count == 0) {
+				SaveDeclarationOffset();
 				Semicolon();
 			} else {
 				var braceHelper = OpenBrace(braceStyle, GetTypeBlockKind(typeDeclaration));
@@ -2054,8 +2070,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				flags = CodeBracesRangeFlags.DestructorBraces;
 			} else if (blockStatement.Parent is OperatorDeclaration) {
 				flags = CodeBracesRangeFlags.OperatorBraces;
-			} else if (blockStatement.Parent is MethodDeclaration) {
-				flags = CodeBracesRangeFlags.MethodBraces;
+			} else if (blockStatement.Parent is MethodDeclaration methodDeclaration) {
+				flags = methodDeclaration.Parent is LocalFunctionDeclarationStatement ? CodeBracesRangeFlags.LocalFunctionBraces : CodeBracesRangeFlags.MethodBraces;
 			} else if (blockStatement.Parent is Accessor) {
 				flags = CodeBracesRangeFlags.AccessorBraces;
 			} else if (blockStatement.Parent is ForeachStatement || blockStatement.Parent is ForStatement ||
@@ -2079,6 +2095,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				flags = CodeBracesRangeFlags.UsingBraces;
 			} else if (blockStatement.Parent is FixedStatement) {
 				flags = CodeBracesRangeFlags.FixedBraces;
+			} else if (blockStatement.Parent is SwitchSection) {
+				flags = CodeBracesRangeFlags.CaseBraces;
 			} else {
 				flags = CodeBracesRangeFlags.OtherBlockBraces;
 			}
@@ -2416,7 +2434,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			Space(policy.SpacesWithinSwitchParentheses);
 			braceHelper.RightParen();
 			DebugEnd(switchStatement);
-			braceHelper = OpenBrace(policy.StatementBraceStyle, CodeBracesRangeFlags.BraceKind_CurlyBraces);
+			braceHelper = OpenBrace(policy.StatementBraceStyle, policy.IndentSwitchBody ? CodeBracesRangeFlags.SwitchBraces : CodeBracesRangeFlags.BraceKind_CurlyBraces);
 			if (!policy.IndentSwitchBody) {
 				writer.Unindent();
 			}
@@ -2506,17 +2524,18 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 		public virtual void VisitSwitchExpression(SwitchExpression switchExpression)
 		{
+			DebugExpression(switchExpression);
 			StartNode(switchExpression);
 			switchExpression.Expression.AcceptVisitor(this);
 			Space();
 			WriteKeyword(SwitchExpression.SwitchKeywordRole);
-			var helper = OpenBrace(BraceStyle.EndOfLine, CodeBracesRangeFlags.SwitchBraces);
+			var helper = OpenBrace(policy.ArrayInitializerBraceStyle, CodeBracesRangeFlags.SwitchBraces);
 			foreach (AstNode node in switchExpression.SwitchSections) {
 				node.AcceptVisitor(this);
 				Comma(node);
 				NewLine();
 			}
-			CloseBrace(BraceStyle.EndOfLine, helper, false);
+			CloseBrace(policy.ArrayInitializerBraceStyle, helper, false);
 			EndNode(switchExpression);
 		}
 
@@ -3028,7 +3047,23 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				Space();
 				WriteToken(Roles.Arrow, BoxedTextColor.Operator);
 				Space();
+
+				StartNode(indexerDeclaration.ExpressionBody);
+				DebugStart(indexerDeclaration.ExpressionBody);
+
+				var builder = indexerDeclaration.ExpressionBody.Annotation<MethodDebugInfoBuilder>();
+				if (builder is not null)
+					builder.StartPosition = writer.GetLocation();
+
 				indexerDeclaration.ExpressionBody.AcceptVisitor(this);
+
+				if (builder is not null && builder.EndPosition is null)
+					builder.EndPosition = writer.GetLocation();
+
+				DebugEnd(indexerDeclaration.ExpressionBody);
+				EndNode(indexerDeclaration.ExpressionBody);
+
+				SaveDeclarationOffset();
 				Semicolon();
 			}
 			EndNode(indexerDeclaration);
@@ -3203,7 +3238,23 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				Space();
 				WriteToken(Roles.Arrow, BoxedTextColor.Operator);
 				Space();
+
+				StartNode(propertyDeclaration.ExpressionBody);
+				DebugStart(propertyDeclaration.ExpressionBody);
+
+				var builder = propertyDeclaration.ExpressionBody.Annotation<MethodDebugInfoBuilder>();
+				if (builder is not null)
+					builder.StartPosition = writer.GetLocation();
+
 				propertyDeclaration.ExpressionBody.AcceptVisitor(this);
+
+				if (builder is not null && builder.EndPosition is null)
+					builder.EndPosition = writer.GetLocation();
+
+				DebugEnd(propertyDeclaration.ExpressionBody);
+				EndNode(propertyDeclaration.ExpressionBody);
+
+				SaveDeclarationOffset();
 				Semicolon();
 			}
 

@@ -363,9 +363,9 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }
@@ -456,11 +456,12 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.left.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.right.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }
@@ -608,11 +609,12 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.target.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }
@@ -989,11 +991,12 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			variable.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.init.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.body.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -2504,9 +2507,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			variable.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -2606,9 +2609,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3075,9 +3078,9 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write(" ", BoxedTextColor.Text);
 				method.WriteTo(output);
 			}
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3137,9 +3140,9 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write(" ", BoxedTextColor.Text);
 				method.WriteTo(output);
 			}
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3309,9 +3312,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3442,17 +3445,19 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (IsVolatile)
-				output.Write("volatile.", BoxedTextColor.Text);
+				output.Write("volatile.", BoxedTextColor.OpCode);
 			if (UnalignedPrefix > 0)
 				output.Write("unaligned(" + UnalignedPrefix + ").", BoxedTextColor.Text);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.destAddress.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.sourceAddress.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.size.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3590,17 +3595,19 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (IsVolatile)
-				output.Write("volatile.", BoxedTextColor.Text);
+				output.Write("volatile.", BoxedTextColor.OpCode);
 			if (UnalignedPrefix > 0)
 				output.Write("unaligned(" + UnalignedPrefix + ").", BoxedTextColor.Text);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.address.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.value.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.size.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3703,13 +3710,13 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (DelayExceptions)
-				output.Write("delayex.", BoxedTextColor.Text);
+				output.Write("delayex.", BoxedTextColor.OpCode);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			field.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.target.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3800,9 +3807,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3845,9 +3852,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -3949,15 +3956,15 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (IsVolatile)
-				output.Write("volatile.", BoxedTextColor.Text);
+				output.Write("volatile.", BoxedTextColor.OpCode);
 			if (UnalignedPrefix > 0)
 				output.Write("unaligned(" + UnalignedPrefix + ").", BoxedTextColor.Text);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.target.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4083,17 +4090,18 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (IsVolatile)
-				output.Write("volatile.", BoxedTextColor.Text);
+				output.Write("volatile.", BoxedTextColor.OpCode);
 			if (UnalignedPrefix > 0)
 				output.Write("unaligned(" + UnalignedPrefix + ").", BoxedTextColor.Text);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.target.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4152,9 +4160,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4206,9 +4214,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4260,9 +4268,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4374,13 +4382,19 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			bool first = true;
 			foreach (var indices in Indices) {
-				if (!first) output.Write(", ", BoxedTextColor.Text); else first = false;
+				if (!first)
+				{
+					output.Write(",", BoxedTextColor.Punctuation);
+					output.Write(" ", BoxedTextColor.Text);
+				}
+				else
+					first = false;
 				indices.WriteTo(output, options);
 			}
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4732,21 +4746,22 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			if (WithSystemIndex)
-				output.Write("withsystemindex.", BoxedTextColor.Text);
+				output.Write("withsystemindex.", BoxedTextColor.OpCode);
 			if (DelayExceptions)
-				output.Write("delayex.", BoxedTextColor.Text);
+				output.Write("delayex.", BoxedTextColor.OpCode);
 			if (IsReadOnly)
-				output.Write("readonly.", BoxedTextColor.Text);
+				output.Write("readonly.", BoxedTextColor.OpCode);
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.array.WriteTo(output, options);
 			foreach (var indices in Indices) {
-				output.Write(", ", BoxedTextColor.Text);
+				output.Write(",", BoxedTextColor.Punctuation);
+				output.Write(" ", BoxedTextColor.Text);
 				indices.WriteTo(output, options);
 			}
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -4849,9 +4864,9 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write(" ", BoxedTextColor.Text);
 				method.WriteTo(output);
 			}
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -5090,11 +5105,12 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write(" ", BoxedTextColor.Text);
 				method.WriteTo(output);
 			}
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.left.WriteTo(output, options);
-			output.Write(", ", BoxedTextColor.Text);
+			output.Write(",", BoxedTextColor.Punctuation);
+			output.Write(" ", BoxedTextColor.Text);
 			this.right.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -6245,9 +6261,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -6327,9 +6343,9 @@ namespace ICSharpCode.Decompiler.IL
 			output.Write(OpCode);
 			output.Write(" ", BoxedTextColor.Text);
 			type.WriteTo(output);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			Argument.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -6420,9 +6436,9 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -6513,9 +6529,9 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
 			this.value.WriteTo(output, options);
-			output.Write(")", BoxedTextColor.Punctuation);
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 		public override void AcceptVisitor(ILVisitor visitor)
 		{
@@ -6630,8 +6646,8 @@ namespace ICSharpCode.Decompiler.IL.Patterns
 		{
 			WriteILRange(output, options);
 			output.Write(OpCode);
-			output.Write("(", BoxedTextColor.Punctuation);
-			output.Write(")", BoxedTextColor.Punctuation);
+			var braceInfo = OpenBrace(output, "(");
+			CloseBrace(output, braceInfo, ")", CodeBracesRangeFlags.Parentheses);
 		}
 	}
 }

@@ -522,6 +522,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				return Equals(obj);
 			}
 
+			public override string ToString()
+			{
+				return $"{backing.handle.MDToken.Raw:X8} {DeclaringType?.ReflectionName}.{Name}";
+			}
+
 			public IModule ParentModule => backing.ParentModule;
 
 			public IEnumerable<IAttribute> GetAttributes()
