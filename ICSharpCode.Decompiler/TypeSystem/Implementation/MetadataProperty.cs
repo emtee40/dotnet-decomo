@@ -29,7 +29,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		const Accessibility InvalidAccessibility = (Accessibility)0xff;
 
 		readonly MetadataModule module;
-		readonly PropertyDef propertyHandle;
+		readonly PropertyDef handle;
 		readonly string name;
 		readonly SymbolKind symbolKind;
 
@@ -45,7 +45,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			Debug.Assert(module != null);
 			Debug.Assert(handle != null);
 			this.module = module;
-			this.propertyHandle = handle;
+			this.handle = handle;
 
 			name = handle.Name;
 			// Maybe we should defer the calculation of symbolKind?
@@ -69,14 +69,14 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public override string ToString()
 		{
-			return $"{propertyHandle.MDToken.Raw:X8} {DeclaringType?.ReflectionName}.{Name}";
+			return $"{handle.MDToken.Raw:X8} {DeclaringType?.ReflectionName}.{Name}";
 		}
 
-		IMDTokenProvider IEntity.MetadataToken => propertyHandle;
+		IMDTokenProvider IEntity.MetadataToken => handle;
 
-		public IMDTokenProvider OriginalMember => propertyHandle;
+		public IMDTokenProvider OriginalMember => handle;
 
-		public PropertyDef MetadataToken => propertyHandle;
+		public PropertyDef MetadataToken => handle;
 		public string Name => name;
 
 
@@ -88,7 +88,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				var get = LazyInit.VolatileRead(ref this.getter);
 				if (get != null)
 					return get;
-				get = module.GetDefinition(propertyHandle.GetMethod);
+				get = module.GetDefinition(handle.GetMethod);
 				return LazyInit.GetOrSet(ref this.getter, get);
 			}
 		}
@@ -98,7 +98,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				var set = LazyInit.VolatileRead(ref this.setter);
 				if (set != null)
 					return set;
-				set = module.GetDefinition(propertyHandle.SetMethod);
+				set = module.GetDefinition(handle.SetMethod);
 				return LazyInit.GetOrSet(ref this.setter, set);
 			}
 		}
@@ -120,11 +120,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				var declTypeDef = this.DeclaringTypeDefinition;
 				Nullability nullableContext;
 
-				if (propertyHandle.GetMethod != null) {
-					nullableContext = propertyHandle.GetMethod.CustomAttributes.GetNullableContext()
+				if (handle.GetMethod != null) {
+					nullableContext = handle.GetMethod.CustomAttributes.GetNullableContext()
 									  ?? declTypeDef?.NullableContext ?? Nullability.Oblivious;
-				} else if (propertyHandle.SetMethod != null) {
-					nullableContext = propertyHandle.SetMethod.CustomAttributes.GetNullableContext()
+				} else if (handle.SetMethod != null) {
+					nullableContext = handle.SetMethod.CustomAttributes.GetNullableContext()
 									  ?? declTypeDef?.NullableContext ?? Nullability.Oblivious;
 				} else {
 					nullableContext = declTypeDef?.NullableContext ?? Nullability.Oblivious;
@@ -138,7 +138,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				// call in PEPropertySymbol).
 				var typeOptions = module.OptionsForEntity(declTypeDef);
 
-				foreach (Parameter par in propertyHandle.GetParameters()) {
+				foreach (Parameter par in handle.GetParameters()) {
 					if (par.IsNormalMethodParameter) {
 						var parameterType = module.ResolveType(par.Type, gCtx, typeOptions, par.ParamDef, nullableContext);
 						param.Add(new MetadataParameter(module, this, parameterType, par));
@@ -153,14 +153,15 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				var returnType = LazyInit.VolatileRead(ref this.returnType);
 				if (returnType != null)
 					return returnType;
+
 				var declTypeDef = this.DeclaringTypeDefinition;
 				Nullability nullableContext;
 
-				if (propertyHandle.GetMethod != null) {
-					nullableContext = propertyHandle.GetMethod.CustomAttributes.GetNullableContext()
+				if (handle.GetMethod != null) {
+					nullableContext = handle.GetMethod.CustomAttributes.GetNullableContext()
 									  ?? declTypeDef?.NullableContext ?? Nullability.Oblivious;
-				} else if (propertyHandle.SetMethod != null) {
-					nullableContext = propertyHandle.SetMethod.CustomAttributes.GetNullableContext()
+				} else if (handle.SetMethod != null) {
+					nullableContext = handle.SetMethod.CustomAttributes.GetNullableContext()
 									  ?? declTypeDef?.NullableContext ?? Nullability.Oblivious;
 				} else {
 					nullableContext = declTypeDef?.NullableContext ?? Nullability.Oblivious;
@@ -173,15 +174,15 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				// call in PEPropertySymbol).
 				var typeOptions = module.OptionsForEntity(declTypeDef);
 
-				var ret = module.ResolveType(propertyHandle.PropertySig.RetType, new GenericContext(DeclaringType.TypeParameters),
-					typeOptions, propertyHandle, nullableContext);
+				var ret = module.ResolveType(handle.PropertySig.RetType, new GenericContext(DeclaringType.TypeParameters),
+					typeOptions, handle, nullableContext);
 				return LazyInit.GetOrSet(ref this.returnType, ret);
 			}
 		}
 
 		public bool ReturnTypeIsRefReadOnly {
 			get {
-				return propertyHandle.CustomAttributes.HasKnownAttribute(KnownAttribute.IsReadOnly);
+				return handle.CustomAttributes.HasKnownAttribute(KnownAttribute.IsReadOnly);
 			}
 		}
 
@@ -206,18 +207,39 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public IEnumerable<IAttribute> GetAttributes()
 		{
 			var b = new AttributeListBuilder(module);
-			if (IsIndexer && Name != "Item" && !IsExplicitInterfaceImplementation) {
+			if (IsIndexer && Name != "Item" && !IsExplicitInterfaceImplementation)
+			{
 				b.Add(KnownAttribute.IndexerName, KnownTypeCode.String, Name);
 			}
 
 			// SpecialName
-			if ((propertyHandle.Attributes & (PropertyAttributes.SpecialName | PropertyAttributes.RTSpecialName)) == PropertyAttributes.SpecialName)
+			if ((handle.Attributes & (PropertyAttributes.SpecialName | PropertyAttributes.RTSpecialName)) == PropertyAttributes.SpecialName)
 			{
 				b.Add(KnownAttribute.SpecialName);
 			}
 
-			b.Add(propertyHandle.CustomAttributes, symbolKind);
+			b.Add(handle.CustomAttributes, symbolKind);
 			return b.Build();
+		}
+
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.HasAttribute(handle.CustomAttributes, attribute, symbolKind);
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.GetAttribute(handle.CustomAttributes, attribute, symbolKind);
 		}
 		#endregion
 
@@ -234,10 +256,27 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		Accessibility ComputeAccessibility()
 		{
-			if (IsOverride && (Getter == null || Setter == null)) {
-				foreach (var baseMember in InheritanceHelper.GetBaseMembers(this, includeImplementedInterfaces: false)) {
+			if (IsOverride && (getter == null || setter == null))
+			{
+				// Overrides may override only one of the accessors, hence calculating the accessibility from
+				// the declared accessors is not sufficient. We need to "copy" accessibility from the baseMember.
+				foreach (var baseMember in InheritanceHelper.GetBaseMembers(this, includeImplementedInterfaces: false))
+				{
 					if (!baseMember.IsOverride)
-						return baseMember.Accessibility;
+					{
+						// See https://github.com/icsharpcode/ILSpy/issues/2653
+						// "protected internal" (ProtectedOrInternal) accessibility is "reduced"
+						// to "protected" accessibility across assembly boundaries.
+						if (baseMember.Accessibility == Accessibility.ProtectedOrInternal
+							&& this.ParentModule?.PEFile != baseMember.ParentModule?.PEFile)
+						{
+							return Accessibility.Protected;
+						}
+						else
+						{
+							return baseMember.Accessibility;
+						}
+					}
 				}
 			}
 			return AccessibilityExtensions.Union(
@@ -263,14 +302,14 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public override bool Equals(object obj)
 		{
 			if (obj is MetadataProperty p) {
-				return propertyHandle == p.propertyHandle && module.PEFile == p.module.PEFile;
+				return handle == p.handle && module.PEFile == p.module.PEFile;
 			}
 			return false;
 		}
 
 		public override int GetHashCode()
 		{
-			return 0x32b6a76c ^ module.PEFile.GetHashCode() ^ propertyHandle.GetHashCode();
+			return 0x32b6a76c ^ module.PEFile.GetHashCode() ^ handle.GetHashCode();
 		}
 
 		bool IMember.Equals(IMember obj, TypeVisitor typeNormalization)

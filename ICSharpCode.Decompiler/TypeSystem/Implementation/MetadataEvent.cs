@@ -113,6 +113,26 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			b.Add(handle.CustomAttributes, SymbolKind.Event);
 			return b.Build();
 		}
+
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.HasAttribute(handle.CustomAttributes, attribute, SymbolKind.Event);
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.GetAttribute(handle.CustomAttributes, attribute, SymbolKind.Event);
+		}
 		#endregion
 
 		public Accessibility Accessibility => AnyAccessor?.Accessibility ?? Accessibility.None;

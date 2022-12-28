@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+// Copyright (c) 2014 Daniel Grunwald
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -23,6 +23,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 
+using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.CSharp.Resolver;
 using ICSharpCode.Decompiler.CSharp.Syntax;
@@ -90,6 +91,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				new InlineReturnTransform(), // must run before DetectPinnedRegions
 				new RemoveInfeasiblePathTransform(),
 				new DetectPinnedRegions(), // must run after inlining but before non-critical control flow transforms
+				new ParameterNullCheckTransform(), // must run after inlining but before yield/async
 				new YieldReturnDecompiler(), // must run after inlining but before loop detection
 				new AsyncAwaitDecompiler(),  // must run after inlining but before loop detection
 				new DetectCatchWhenConditionBlocks(), // must run after inlining but before loop detection
@@ -133,7 +135,7 @@ namespace ICSharpCode.Decompiler.CSharp
 							// run interleaved (statement by statement).
 							// Pretty much all transforms that open up new expression inlining
 							// opportunities belong in this category.
-							new ILInlining(),
+							new ILInlining() { options = InliningOptions.AllowInliningOfLdloca },
 							// Inlining must be first, because it doesn't trigger re-runs.
 							// Any other transform that opens up new inlining opportunities should call RequestRerun().
 							new ExpressionTransforms(),
@@ -148,7 +150,8 @@ namespace ICSharpCode.Decompiler.CSharp
 							new IndexRangeTransform(),
 							new DeconstructionTransform(),
 							new NamedArgumentTransform(),
-							new UserDefinedLogicTransform()
+							new UserDefinedLogicTransform(),
+							new InterpolatedStringTransform()
 						),
 					}
 				},
@@ -265,6 +268,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (method != null) {
 				if (method.IsGetter || method.IsSetter || method.IsAddOn || method.IsRemoveOn)
 					return true;
+				if (method.Name == ".ctor" && method.RVA == 0 && method.DeclaringType.IsImport)
+					return true;
 				if (settings.LocalFunctions && LocalFunctionDecompiler.IsLocalFunctionMethod(null, method))
 					return true;
 				if (settings.AnonymousMethods && method.HasGeneratedName() && method.IsCompilerGenerated())
@@ -328,8 +333,16 @@ namespace ICSharpCode.Decompiler.CSharp
 						return true;
 				}
 				// event-fields are not [CompilerGenerated]
-				if (settings.AutomaticEvents && field.DeclaringType.Events.Any(ev => ev.Name == field.Name))
-					return true;
+				if (settings.AutomaticEvents)
+				{
+					foreach (var ev in field.DeclaringType.Events)
+					{
+						var eventName = ev.Name;
+						var fieldName = field.Name;
+						if (IsEventBackingFieldName(fieldName, eventName, out _))
+							return true;
+					}
+				}
 				if (settings.ArrayInitializers && field.DeclaringType.Name.StartsWith("<PrivateImplementationDetails>", StringComparison.Ordinal)) {
 					// hide fields starting with '__StaticArrayInit'
 					if (field.Name.StartsWith("__StaticArrayInit", StringComparison.Ordinal))
@@ -371,6 +384,20 @@ namespace ICSharpCode.Decompiler.CSharp
 			return false;
 		}
 
+		internal static bool IsEventBackingFieldName(string fieldName, string eventName, out int suffixLength)
+		{
+			suffixLength = 0;
+			if (fieldName == eventName)
+				return true;
+			var vbSuffixLength = "Event".Length;
+			if (fieldName.Length == eventName.Length + vbSuffixLength && fieldName.StartsWith(eventName, StringComparison.Ordinal) && fieldName.EndsWith("Event", StringComparison.Ordinal))
+			{
+				suffixLength = vbSuffixLength;
+				return true;
+			}
+			return false;
+		}
+
 		static bool IsAnonymousMethodCacheField(dnlib.DotNet.IField field)
 		{
 			return field.Name.StartsWith("CS$<>", StringComparison.Ordinal) || field.Name.StartsWith("<>f__am", StringComparison.Ordinal) || field.Name.StartsWith("<>f__mg", StringComparison.Ordinal);
@@ -392,6 +419,47 @@ namespace ICSharpCode.Decompiler.CSharp
 		}
 		#endregion
 
+		#region NativeOrdering
+
+		/// <summary>
+		/// Determines whether a given type requires that its methods be ordered precisely as they were originally defined.
+		/// </summary>
+		/// <param name="typeDef">The type whose members may need native ordering.</param>
+		internal bool RequiresNativeOrdering(ITypeDefinition typeDef)
+		{
+			// The main scenario for requiring the native method ordering is COM interop, where the V-table is fixed by the ABI
+			return ComHelper.IsComImport(typeDef);
+		}
+
+		/// <summary>
+		/// Compare handles with the method definition ordering intact by using the underlying method's MetadataToken,
+		/// which is defined as the index into a given metadata table. This should equate to the original order that
+		/// methods and properties were defined by the author.
+		/// </summary>
+		/// <param name="typeDef">The type whose members to order using their method's MetadataToken</param>
+		/// <returns>A sequence of all members ordered by MetadataToken</returns>
+		internal IEnumerable<IMember> GetMembersWithNativeOrdering(ITypeDefinition typeDef)
+		{
+			IMDTokenProvider GetOrderingHandle(IMember member)
+			{
+				// Note! Technically COM interfaces could define property getters and setters out of order or interleaved with other
+				// methods, but C# doesn't support this so we can't define it that way.
+
+				if (member is ICSharpCode.Decompiler.TypeSystem.IMethod)
+					return member.MetadataToken;
+				else if (member is IProperty property)
+					return property.Getter?.MetadataToken ?? (IMDTokenProvider)property.Setter?.MetadataToken ?? property.MetadataToken;
+				else if (member is IEvent @event)
+					return @event.AddAccessor?.MetadataToken ?? @event.RemoveAccessor?.MetadataToken ?? (IMDTokenProvider)@event.InvokeAccessor?.MetadataToken ?? @event.MetadataToken;
+				else
+					return member.MetadataToken;
+			}
+
+			return typeDef.Fields.Concat<IMember>(typeDef.Properties).Concat(typeDef.Methods).Concat(typeDef.Events).OrderBy((member) => GetOrderingHandle(member).MDToken.Raw);
+		}
+
+		#endregion
+
 		static TypeSystemAstBuilder CreateAstBuilder(DecompilerSettings settings)
 		{
 			var typeSystemAstBuilder = new TypeSystemAstBuilder();
@@ -401,6 +469,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			typeSystemAstBuilder.UseNullableSpecifierForValueTypes = settings.LiftNullables;
 			typeSystemAstBuilder.SupportInitAccessors = settings.InitAccessors;
 			typeSystemAstBuilder.SupportRecordClasses = settings.RecordClasses;
+			typeSystemAstBuilder.SupportRecordStructs = settings.RecordStructs;
+			typeSystemAstBuilder.AlwaysUseGlobal = settings.AlwaysUseGlobal;
 			return typeSystemAstBuilder;
 		}
 
@@ -408,6 +478,14 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			//TODO: replace this with proper code
 			return new DummyDocumentationProvider();
+		}
+
+		DecompileRun CreateDecompileRun()
+		{
+			return new DecompileRun(settings) {
+				DocumentationProvider = DocumentationProvider ?? CreateDefaultDocumentationProvider(),
+				CancellationToken = CancellationToken
+			};
 		}
 
 		void RunTransforms(AstNode rootNode, DecompileRun decompileRun, ITypeResolveContext decompilationContext)
@@ -431,10 +509,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		public SyntaxTree DecompileModule()
 		{
 			var decompilationContext = new SimpleTypeResolveContext(typeSystem.MainModule);
-			var decompileRun = new DecompileRun(settings) {
-				DocumentationProvider = DocumentationProvider ?? CreateDefaultDocumentationProvider(),
-				CancellationToken = CancellationToken
-			};
+			DecompileRun decompileRun = CreateDecompileRun();
 			syntaxTree = new SyntaxTree();
 			RequiredNamespaceCollector.CollectAttributeNamespacesOnlyModule(module, decompileRun.Namespaces);
 			DoDecompileModuleAttributes(module.metadata, decompileRun, decompilationContext, syntaxTree);
@@ -521,7 +596,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		/// </summary>
 		public ILTransformContext CreateILTransformContext(ILFunction function)
 		{
-			var decompileRun = new DecompileRun(settings) { CancellationToken = CancellationToken };
+			var decompileRun = CreateDecompileRun();
 			RequiredNamespaceCollector.CollectNamespaces(function.Method, module, decompileRun.Namespaces);
 			return new ILTransformContext(function, typeSystem, settings) {
 				CancellationToken = CancellationToken,
@@ -693,10 +768,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (types == null)
 				throw new ArgumentNullException(nameof(types));
 			var decompilationContext = new SimpleTypeResolveContext(typeSystem.MainModule);
-			var decompileRun = new DecompileRun(settings) {
-				DocumentationProvider = DocumentationProvider ?? CreateDefaultDocumentationProvider(),
-				CancellationToken = CancellationToken
-			};
+			var decompileRun = CreateDecompileRun();
 			syntaxTree = new SyntaxTree();
 
 			foreach (var type in types) {
@@ -726,8 +798,9 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (definitions == null)
 				throw new ArgumentNullException(nameof(definitions));
 			syntaxTree = new SyntaxTree();
-			var decompileRun = new DecompileRun(settings) { CancellationToken = CancellationToken };
-			foreach (var entity in definitions) {
+			var decompileRun = CreateDecompileRun();
+			foreach (var entity in definitions)
+			{
 				if (entity is null)
 					throw new ArgumentException("definitions contains null element");
 				RequiredNamespaceCollector.CollectNamespaces(entity, module, decompileRun.Namespaces);
@@ -796,7 +869,23 @@ namespace ICSharpCode.Decompiler.CSharp
 			return declaringTypes.FirstOrDefault(set.Contains);
 		}
 
-		IEnumerable<EntityDeclaration> AddInterfaceImplHelpers(EntityDeclaration memberDecl, ICSharpCode.Decompiler.TypeSystem.IMethod method, TypeSystemAstBuilder astBuilder)
+		readonly Dictionary<TypeDef, PartialTypeInfo> partialTypes = new();
+
+		public void AddPartialTypeDefinition(PartialTypeInfo info)
+		{
+			if (!partialTypes.TryGetValue(info.DeclaringTypeDefinitionHandle, out var existingInfo))
+			{
+				partialTypes.Add(info.DeclaringTypeDefinitionHandle, info);
+			}
+			else
+			{
+				existingInfo.AddDeclaredMembers(info);
+			}
+		}
+
+		IEnumerable<EntityDeclaration> AddInterfaceImplHelpers(EntityDeclaration memberDecl,
+				ICSharpCode.Decompiler.TypeSystem.IMethod method,
+				TypeSystemAstBuilder astBuilder)
 		{
 			if (!memberDecl.GetChildByRole(EntityDeclaration.PrivateImplementationTypeRole).IsNull)
 			{
@@ -805,6 +894,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (method.IsStatic)
 			{
 				yield break; // cannot create forwarder for static interface impl
+			}
+			if (memberDecl.HasModifier(Modifiers.Extern))
+			{
+				yield break; // cannot create forwarder for extern method
 			}
 			var genericContext = new Decompiler.TypeSystem.GenericContext(method);
 			var methodHandle = (MethodDef)method.MetadataToken;
@@ -939,15 +1032,23 @@ namespace ICSharpCode.Decompiler.CSharp
 		EntityDeclaration DoDecompile(ITypeDefinition typeDef, DecompileRun decompileRun, ITypeResolveContext decompilationContext)
 		{
 			Debug.Assert(decompilationContext.CurrentTypeDefinition == typeDef);
-			try {
-				var typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
+			var entityMap = new MultiDictionary<IEntity, EntityDeclaration>();
+			var workList = new Queue<IEntity>();
+			TypeSystemAstBuilder typeSystemAstBuilder;
+			try
+			{
+				typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
 				var entityDecl = typeSystemAstBuilder.ConvertEntity(typeDef);
 				var typeDecl = entityDecl as TypeDeclaration;
 				if (typeDecl == null) {
 					// e.g. DelegateDeclaration
 					return entityDecl;
 				}
-				bool isRecord = settings.RecordClasses && typeDef.IsRecord;
+				bool isRecord = typeDef.Kind switch {
+					TypeKind.Class => settings.RecordClasses && typeDef.IsRecord,
+					TypeKind.Struct => settings.RecordStructs && typeDef.IsRecord,
+					_ => false,
+				};
 				RecordDecompiler recordDecompiler = isRecord ? new RecordDecompiler(typeSystem, typeDef, settings, CancellationToken) : null;
 				if (recordDecompiler != null)
 					decompileRun.RecordDecompilers.Add(typeDef, recordDecompiler);
@@ -982,16 +1083,6 @@ namespace ICSharpCode.Decompiler.CSharp
 					}
 				}
 
-				foreach (var type in typeDef.NestedTypes)
-				{
-					if (!(type.MetadataToken is null) && !MemberIsHidden(type.MetadataToken, settings))
-					{
-						var nestedType = DoDecompile(type, decompileRun, decompilationContext.WithCurrentTypeDefinition(type));
-						SetNewModifier(nestedType);
-						typeDecl.Members.Add(nestedType);
-					}
-				}
-
 				decompileRun.EnumValueDisplayMode = typeDef.Kind == TypeKind.Enum
 					? DetectBestEnumValueDisplayMode(typeDef)
 					: null;
@@ -999,61 +1090,71 @@ namespace ICSharpCode.Decompiler.CSharp
 				// With C# 9 records, the relative order of fields and properties matters:
 				IEnumerable<IMember> fieldsAndProperties = recordDecompiler?.FieldsAndProperties
 					?? typeDef.Fields.Concat<IMember>(typeDef.Properties);
-				foreach (var fieldOrProperty in fieldsAndProperties)
+
+				// For COM interop scenarios, the relative order of virtual functions/properties matters:
+				IEnumerable<IMember> allOrderedMembers = RequiresNativeOrdering(typeDef) ? GetMembersWithNativeOrdering(typeDef) :
+					fieldsAndProperties.Concat(typeDef.Events).Concat(typeDef.Methods);
+
+				var allOrderedEntities = typeDef.NestedTypes.Concat<IEntity>(allOrderedMembers).ToArray();
+
+				if (!partialTypes.TryGetValue((TypeDef)typeDef.MetadataToken, out var partialTypeInfo))
 				{
-					if (fieldOrProperty.MetadataToken is null || MemberIsHidden(fieldOrProperty.MetadataToken, settings))
+					partialTypeInfo = null;
+				}
+
+				// Decompile members that are not compiler-generated.
+				foreach (var entity in allOrderedEntities)
+				{
+					if (entity.MetadataToken is null || MemberIsHidden(entity.MetadataToken, settings))
 					{
 						continue;
 					}
-					if (fieldOrProperty is ICSharpCode.Decompiler.TypeSystem.IField field)
-					{
-						if (typeDef.Kind == TypeKind.Enum && !field.IsConst)
-							continue;
-						var memberDecl = DoDecompile(field, decompileRun, decompilationContext.WithCurrentMember(field));
-						typeDecl.Members.Add(memberDecl);
-					}
-					else if (fieldOrProperty is IProperty property)
-					{
-						if (recordDecompiler?.PropertyIsGenerated(property) == true)
-						{
-							continue;
-						}
-						var propDecl = DoDecompile(property, decompileRun, decompilationContext.WithCurrentMember(property));
-						typeDecl.Members.Add(propDecl);
-					}
+					DoDecompileMember(entity, recordDecompiler, partialTypeInfo);
 				}
-				foreach (var @event in typeDef.Events) {
-					if (@event.MetadataToken != null && !MemberIsHidden(@event.MetadataToken, settings)) {
-						var eventDecl = DoDecompile(@event, decompileRun, decompilationContext.WithCurrentMember(@event));
-						typeDecl.Members.Add(eventDecl);
-					}
-				}
-				foreach (var method in typeDef.Methods)
+
+				// Decompile compiler-generated members that are still needed.
+				while (workList.Count > 0)
 				{
-					if (recordDecompiler?.MethodIsGenerated(method) == true)
+					var entity = workList.Dequeue();
+					if (entityMap.Contains(entity) || entity.MetadataToken is null)
 					{
+						// Member is already decompiled.
 						continue;
 					}
-					if (!(method.MetadataToken is null) && !MemberIsHidden(method.MetadataToken, settings))
-					{
-						var memberDecl = DoDecompile(method, decompileRun, decompilationContext.WithCurrentMember(method));
-						typeDecl.Members.Add(memberDecl);
-						typeDecl.Members.AddRange(AddInterfaceImplHelpers(memberDecl, method, typeSystemAstBuilder));
-					}
+					DoDecompileMember(entity, recordDecompiler, partialTypeInfo);
 				}
-				if (typeDecl.Members.OfType<IndexerDeclaration>().Any(idx => idx.PrivateImplementationType.IsNull)) {
+
+				// Add all decompiled members to syntax tree in the correct order.
+				foreach (var member in allOrderedEntities)
+				{
+					typeDecl.Members.AddRange(entityMap[member]);
+				}
+
+				if (typeDecl.Members.OfType<IndexerDeclaration>().Any(idx => idx.PrivateImplementationType.IsNull))
+				{
 					// Remove the [DefaultMember] attribute if the class contains indexers
 					RemoveAttribute(typeDecl, KnownAttribute.DefaultMember);
 				}
-				if (settings.IntroduceRefModifiersOnStructs) {
-					if (FindAttribute(typeDecl, KnownAttribute.Obsolete, out var attr)) {
-						if (obsoleteAttributePattern.IsMatch(attr)) {
+				if (partialTypeInfo != null)
+				{
+					typeDecl.Modifiers |= Modifiers.Partial;
+				}
+				if (settings.IntroduceRefModifiersOnStructs)
+				{
+					if (FindAttribute(typeDecl, KnownAttribute.Obsolete, out var attr))
+					{
+						if (obsoleteAttributePattern.IsMatch(attr))
+						{
 							if (attr.Parent is AttributeSection section && section.Attributes.Count == 1)
 								section.Remove();
 							else
 								attr.Remove();
 						}
 					}
+				}
+				if (settings.RequiredMembers)
+				{
+					RemoveAttribute(typeDecl, KnownAttribute.RequiredAttribute);
 				}
 				if (typeDecl.ClassType == ClassType.Enum)
 				{
@@ -1085,11 +1186,79 @@ namespace ICSharpCode.Decompiler.CSharp
 			} catch (Exception innerException) when (!(innerException is OperationCanceledException || innerException is DecompilerException)) {
 				throw new DecompilerException(typeDef.MetadataToken, innerException);
 			}
+
+			void DoDecompileMember(IEntity entity, RecordDecompiler recordDecompiler, PartialTypeInfo partialType)
+			{
+				if (partialType != null && partialType.IsDeclaredMember(entity.MetadataToken))
+				{
+					return;
+				}
+
+				EntityDeclaration entityDecl;
+				switch (entity)
+				{
+					case ICSharpCode.Decompiler.TypeSystem.IField field:
+						if (typeDef.Kind == TypeKind.Enum && !field.IsConst)
+						{
+							return;
+						}
+						entityDecl = DoDecompile(field, decompileRun, decompilationContext.WithCurrentMember(field));
+						entityMap.Add(field, entityDecl);
+						break;
+					case IProperty property:
+						if (recordDecompiler?.PropertyIsGenerated(property) == true)
+						{
+							return;
+						}
+						entityDecl = DoDecompile(property, decompileRun, decompilationContext.WithCurrentMember(property));
+						entityMap.Add(property, entityDecl);
+						break;
+					case ICSharpCode.Decompiler.TypeSystem.IMethod method:
+						if (recordDecompiler?.MethodIsGenerated(method) == true)
+						{
+							return;
+						}
+						entityDecl = DoDecompile(method, decompileRun, decompilationContext.WithCurrentMember(method));
+						entityMap.Add(method, entityDecl);
+						foreach (var helper in AddInterfaceImplHelpers(entityDecl, method, typeSystemAstBuilder))
+						{
+							entityMap.Add(method, helper);
+						}
+						break;
+					case IEvent @event:
+						entityDecl = DoDecompile(@event, decompileRun, decompilationContext.WithCurrentMember(@event));
+						entityMap.Add(@event, entityDecl);
+						break;
+					case ITypeDefinition type:
+						entityDecl = DoDecompile(type, decompileRun, decompilationContext.WithCurrentTypeDefinition(type));
+						SetNewModifier(entityDecl);
+						entityMap.Add(type, entityDecl);
+						break;
+					default:
+						throw new ArgumentOutOfRangeException("Unexpected member type");
+				}
+
+				foreach (var node in entityDecl.Descendants)
+				{
+					var rr = node.GetResolveResult();
+					if (rr is MemberResolveResult mrr
+						&& mrr.Member.DeclaringTypeDefinition == typeDef
+						&& !(mrr.Member is ICSharpCode.Decompiler.TypeSystem.IMethod { IsLocalFunction: true }))
+					{
+						workList.Enqueue(mrr.Member);
+					}
+					else if (rr is TypeResolveResult trr
+						&& trr.Type.GetDefinition()?.DeclaringTypeDefinition == typeDef)
+					{
+						workList.Enqueue(trr.Type.GetDefinition());
+					}
+				}
+			}
 		}
 
 		EnumValueDisplayMode DetectBestEnumValueDisplayMode(ITypeDefinition typeDef)
 		{
-			if (typeDef.HasAttribute(KnownAttribute.Flags, inherit: false))
+			if (typeDef.HasAttribute(KnownAttribute.Flags))
 				return EnumValueDisplayMode.AllHex;
 			bool first = true;
 			long firstValue = 0, previousValue = 0;
@@ -1112,6 +1281,11 @@ namespace ICSharpCode.Decompiler.CSharp
 					firstValue = currentValue;
 					first = false;
 				}
+				else if (currentValue <= previousValue)
+				{
+					// If the values are out of order, we fallback to displaying all values.
+					return EnumValueDisplayMode.All;
+				}
 				else if (!allConsecutive && !allPowersOfTwo)
 				{
 					// We already know that the values are neither consecutive nor all powers of 2,
@@ -1120,10 +1294,18 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 				previousValue = currentValue;
 			}
-			if (allPowersOfTwo && previousValue > 2)
+			if (allPowersOfTwo)
 			{
-				// If all values are powers of 2, display all enum values, but use hex.
-				return EnumValueDisplayMode.AllHex;
+				if (previousValue > 8)
+				{
+					// If all values are powers of 2 and greater 8, display all enum values, but use hex.
+					return EnumValueDisplayMode.AllHex;
+				}
+				else if (!allConsecutive)
+				{
+					// If all values are powers of 2, display all enum values.
+					return EnumValueDisplayMode.All;
+				}
 			}
 			if (settings.AlwaysShowEnumMemberValues)
 			{
@@ -1146,37 +1328,74 @@ namespace ICSharpCode.Decompiler.CSharp
 		EntityDeclaration DoDecompile(Decompiler.TypeSystem.IMethod method, DecompileRun decompileRun, ITypeResolveContext decompilationContext)
 		{
 			Debug.Assert(decompilationContext.CurrentMember == method);
-			var typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
-			var methodDecl = typeSystemAstBuilder.ConvertEntity(method);
-			int lastDot = method.Name.LastIndexOf('.');
-			if (method.IsExplicitInterfaceImplementation && lastDot >= 0) {
-				methodDecl.NameToken.Name = method.Name.Substring(lastDot + 1);
-			}
-			FixParameterNames(methodDecl);
-			var methodDefinition = (MethodDef)method.MetadataToken;
-			if (!settings.LocalFunctions && LocalFunctionDecompiler.LocalFunctionNeedsAccessibilityChange(null, methodDefinition)) {
-				// if local functions are not active and we're dealing with a local function,
-				// reduce the visibility of the method to private,
-				// otherwise this leads to compile errors because the display classes have lesser accessibility.
-				// Note: removing and then adding the static modifier again is necessary to set the private modifier before all other modifiers.
-				methodDecl.Modifiers &= ~(Modifiers.Internal | Modifiers.Static);
-				methodDecl.Modifiers |= Modifiers.Private | (method.IsStatic ? Modifiers.Static : 0);
-			}
-			if (methodDefinition.HasBody) {
-				DecompileBody(method, methodDecl, decompileRun, decompilationContext);
-			} else if (!method.IsAbstract && method.DeclaringType.Kind != TypeKind.Interface) {
-				methodDecl.Modifiers |= Modifiers.Extern;
-			}
-			if (method.SymbolKind == SymbolKind.Method && !method.IsExplicitInterfaceImplementation && methodDefinition.IsVirtual == methodDefinition.IsNewSlot) {
-				SetNewModifier(methodDecl);
-			}
-			if (IsCovariantReturnOverride(method))
+			try
 			{
-				RemoveAttribute(methodDecl, KnownAttribute.PreserveBaseOverrides);
-				methodDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
-				methodDecl.Modifiers |= Modifiers.Override;
+				var typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
+				var methodDecl = typeSystemAstBuilder.ConvertEntity(method);
+				int lastDot = method.Name.LastIndexOf('.');
+				if (method.IsExplicitInterfaceImplementation && lastDot >= 0)
+				{
+					methodDecl.NameToken.Name = method.Name.Substring(lastDot + 1);
+				}
+				FixParameterNames(methodDecl);
+				var methodDefinition = (MethodDef)method.MetadataToken;
+				if (!settings.LocalFunctions && LocalFunctionDecompiler.LocalFunctionNeedsAccessibilityChange(null, methodDefinition))
+				{
+					// if local functions are not active and we're dealing with a local function,
+					// reduce the visibility of the method to private,
+					// otherwise this leads to compile errors because the display classes have lesser accessibility.
+					// Note: removing and then adding the static modifier again is necessary to set the private modifier before all other modifiers.
+					methodDecl.Modifiers &= ~(Modifiers.Internal | Modifiers.Static);
+					methodDecl.Modifiers |= Modifiers.Private | (method.IsStatic ? Modifiers.Static : 0);
+				}
+				if (methodDefinition.HasBody)
+				{
+					DecompileBody(method, methodDecl, decompileRun, decompilationContext);
+				}
+				else if (!method.IsAbstract && method.DeclaringType.Kind != TypeKind.Interface)
+				{
+					methodDecl.Modifiers |= Modifiers.Extern;
+				}
+				if (method.SymbolKind == SymbolKind.Method && !method.IsExplicitInterfaceImplementation
+					&& methodDefinition.IsVirtual == methodDefinition.IsNewSlot)
+				{
+					SetNewModifier(methodDecl);
+				}
+				else if (!method.IsStatic && !method.IsExplicitInterfaceImplementation
+					&& !method.IsVirtual && method.IsOverride
+					&& InheritanceHelper.GetBaseMember(method) == null && IsTypeHierarchyKnown(method.DeclaringType))
+				{
+					methodDecl.Modifiers &= ~Modifiers.Override;
+					if (!method.DeclaringTypeDefinition.IsSealed)
+					{
+						methodDecl.Modifiers |= Modifiers.Virtual;
+					}
+				}
+				if (IsCovariantReturnOverride(method))
+				{
+					RemoveAttribute(methodDecl, KnownAttribute.PreserveBaseOverrides);
+					methodDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
+					methodDecl.Modifiers |= Modifiers.Override;
+				}
+				return methodDecl;
+
+				bool IsTypeHierarchyKnown(ICSharpCode.Decompiler.TypeSystem.IType type)
+				{
+					var definition = type.GetDefinition();
+					if (definition == null)
+					{
+						return false;
+					}
+
+					if (decompileRun.TypeHierarchyIsKnown.TryGetValue(definition, out var value))
+						return value;
+					value = method.DeclaringType.GetNonInterfaceBaseTypes().All(t => t.Kind != TypeKind.Unknown);
+					decompileRun.TypeHierarchyIsKnown.Add(definition, value);
+					return value;
+				}
+			} catch (Exception innerException) when (!(innerException is OperationCanceledException || innerException is DecompilerException)) {
+				throw new DecompilerException(method.MetadataToken, innerException);
 			}
-			return methodDecl;
 		}
 
 		private bool IsCovariantReturnOverride(IEntity entity)
@@ -1299,6 +1518,14 @@ namespace ICSharpCode.Decompiler.CSharp
 				RemoveAttribute(entityDecl, KnownAttribute.AsyncStateMachine);
 				RemoveAttribute(entityDecl, KnownAttribute.DebuggerStepThrough);
 			}
+			foreach (var parameter in entityDecl.GetChildrenByRole(Roles.Parameter))
+			{
+				var variable = parameter.Annotation<ILVariableResolveResult>()?.Variable;
+				if (variable != null && variable.HasNullCheck)
+				{
+					parameter.HasNullCheck = true;
+				}
+			}
 		}
 
 		private static void AssignSourceLocals(ILFunction function)
@@ -1399,7 +1626,12 @@ namespace ICSharpCode.Decompiler.CSharp
 				typeSystemAstBuilder.UseSpecialConstants = !(field.DeclaringType.Equals(field.ReturnType) || isMathPIOrE);
 				var fieldDecl = typeSystemAstBuilder.ConvertEntity(field);
 				SetNewModifier(fieldDecl);
-				if (settings.FixedBuffers && IsFixedField(field, out var elementType, out var elementCount)) {
+				if (settings.RequiredMembers && RemoveAttribute(fieldDecl, KnownAttribute.RequiredAttribute))
+				{
+					fieldDecl.Modifiers |= Modifiers.Required;
+				}
+				if (settings.FixedBuffers && IsFixedField(field, out var elementType, out var elementCount))
+				{
 					var fixedFieldDecl = new FixedFieldDeclaration();
 					fieldDecl.Attributes.MoveTo(fixedFieldDecl.Attributes);
 					fixedFieldDecl.Modifiers = fieldDecl.Modifiers;
@@ -1431,9 +1663,11 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			type = null;
 			elementCount = 0;
-			IAttribute attr = field.GetAttribute(KnownAttribute.FixedBuffer, inherit: false);
-			if (attr != null && attr.FixedArguments.Length == 2) {
-				if (attr.FixedArguments[0].Value is ICSharpCode.Decompiler.TypeSystem.IType trr && attr.FixedArguments[1].Value is int length) {
+			IAttribute attr = field.GetAttribute(KnownAttribute.FixedBuffer);
+			if (attr != null && attr.FixedArguments.Length == 2)
+			{
+				if (attr.FixedArguments[0].Value is ICSharpCode.Decompiler.TypeSystem.IType trr && attr.FixedArguments[1].Value is int length)
+				{
 					type = trr;
 					elementCount = length;
 					return true;
@@ -1483,6 +1717,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					RemoveAttribute(getter, KnownAttribute.PreserveBaseOverrides);
 					propertyDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
 					propertyDecl.Modifiers |= Modifiers.Override;
+				}
+				if (settings.RequiredMembers && RemoveAttribute(propertyDecl, KnownAttribute.RequiredAttribute))
+				{
+					propertyDecl.Modifiers |= Modifiers.Required;
 				}
 				return propertyDecl;
 			} catch (Exception innerException) when (!(innerException is OperationCanceledException || innerException is DecompilerException)) {

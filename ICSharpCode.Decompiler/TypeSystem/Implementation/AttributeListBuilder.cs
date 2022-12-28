@@ -140,14 +140,15 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		#region Custom Attributes (ReadAttribute)
 		public void Add(IEnumerable<CustomAttribute> attributes, SymbolKind target)
 		{
-			foreach (var handle in attributes) {
-				// Attribute types shouldn't be generic (and certainly not open), so we don't need a generic context.
-				var ctor = module.ResolveMethod(handle.Constructor, new GenericContext());
+			foreach (var attribute in attributes)
+			{
+				// Attribute types shouldn't be open generic, so we don't need a generic context.
+				var ctor = module.ResolveMethod(attribute.Constructor, new GenericContext());
 				var type = ctor.DeclaringType;
 				if (IgnoreAttribute(type, target)) {
 					continue;
 				}
-				Add(new MetadataCustomAttribute(module, ctor, handle));
+				Add(new MetadataCustomAttribute(module, ctor, attribute));
 			}
 		}
 
@@ -155,7 +156,13 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		{
 			if (attributeType.DeclaringType != null || attributeType.TypeParameterCount != 0)
 				return false;
-			switch (attributeType.Namespace) {
+			return IgnoreAttribute(new TopLevelTypeName(attributeType.Namespace, attributeType.Name), target);
+		}
+
+		internal bool IgnoreAttribute(TopLevelTypeName attributeType, SymbolKind target)
+		{
+			switch (attributeType.Namespace)
+			{
 				case "System.Runtime.CompilerServices":
 					var options = module.TypeSystemOptions;
 					switch (attributeType.Name) {
@@ -194,6 +201,9 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 						case "NullableContextAttribute":
 							return (options & TypeSystemOptions.NullabilityAnnotations) != 0
 								&& (target == SymbolKind.TypeDefinition || IsMethodLike(target));
+						case "LifetimeAnnotationAttribute":
+							return (options & TypeSystemOptions.LifetimeAnnotations) != 0
+								&& (target == SymbolKind.Parameter);
 						default:
 							return false;
 					}
@@ -202,6 +212,37 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				default:
 					return false;
 			}
+		}
+
+		internal bool HasAttribute(CustomAttributeCollection customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
+		{
+			Debug.Assert(attribute.IsCustomAttribute());
+			foreach (var attr in customAttributes)
+			{
+				if (attr.IsKnownAttribute(attribute))
+				{
+					return !IgnoreAttribute(attribute.GetTypeName(), symbolKind);
+				}
+			}
+
+			return false;
+		}
+
+		internal IAttribute GetAttribute(CustomAttributeCollection customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
+		{
+			Debug.Assert(attribute.IsCustomAttribute());
+			foreach (var attr in customAttributes)
+			{
+				if (attr.IsKnownAttribute(attribute)
+				    && !IgnoreAttribute(attribute.GetTypeName(), symbolKind))
+				{
+					// Attribute types shouldn't be open generic, so we don't need a generic context.
+					var ctor = module.ResolveMethod(attr.Constructor, new GenericContext());
+					return new MetadataCustomAttribute(module, ctor, attr);
+				}
+			}
+
+			return null;
 		}
 
 		static bool IsMethodLike(SymbolKind kind)

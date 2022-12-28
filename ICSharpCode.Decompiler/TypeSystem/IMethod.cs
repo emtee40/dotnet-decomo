@@ -20,6 +20,7 @@
 
 using System.Collections.Generic;
 using dnlib.DotNet;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ICSharpCode.Decompiler.TypeSystem
 {
@@ -81,6 +82,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		/// <summary>
 		/// Gets whether the method is a property/event accessor.
 		/// </summary>
+		[MemberNotNullWhen(true, nameof(AccessorOwner))]
 		bool IsAccessor { get; }
 
 		/// <summary>

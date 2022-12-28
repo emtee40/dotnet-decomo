@@ -22,8 +22,8 @@ namespace ICSharpCode.Decompiler
 
 		public Dictionary<ITypeDefinition, bool> TypeHierarchyIsKnown { get; } = new();
 
-		private Lazy<UsingScope> usingScope =>
-			new Lazy<UsingScope>(() => CreateUsingScope(Namespaces));
+		Lazy<CSharp.TypeSystem.UsingScope> usingScope =>
+			new Lazy<CSharp.TypeSystem.UsingScope>(() => CreateUsingScope(Namespaces));
 
 		public UsingScope UsingScope => usingScope.Value;
 

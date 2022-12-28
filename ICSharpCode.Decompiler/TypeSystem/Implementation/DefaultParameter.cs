@@ -102,6 +102,8 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			get { return IsOptional; }
 		}
 
+		public LifetimeAnnotation Lifetime => default;
+
 		public object GetConstantValue(bool throwOnInvalidMetadata)
 		{
 			return defaultValue;

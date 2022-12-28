@@ -119,6 +119,20 @@ namespace ICSharpCode.Decompiler.CSharp
 			return fieldName.Length == VB_PATTERN.Length + eventName.Length && fieldName.StartsWith(eventName, StringComparison.Ordinal) && fieldName.EndsWith(VB_PATTERN, StringComparison.Ordinal);
 		}
 
+		internal static bool IsEventBackingFieldName(string fieldName, string eventName, out int suffixLength)
+		{
+			suffixLength = 0;
+			if (fieldName == eventName)
+				return true;
+			var vbSuffixLength = "Event".Length;
+			if (fieldName.Length == eventName.Length + vbSuffixLength && fieldName.StartsWith(eventName, StringComparison.Ordinal) && fieldName.EndsWith("Event", StringComparison.Ordinal))
+			{
+				suffixLength = vbSuffixLength;
+				return true;
+			}
+			return false;
+		}
+
 		static bool IsSwitchOnStringCache(FieldDef field)
 		{
 			return field.Name.StartsWith("<>f__switch", StringComparison.Ordinal);

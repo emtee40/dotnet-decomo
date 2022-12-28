@@ -226,6 +226,16 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		/// Controls whether C# 9 "record" class types are supported.
 		/// </summary>
 		public bool SupportRecordClasses { get; set; }
+
+		/// <summary>
+		/// Controls whether C# 10 "record" struct types are supported.
+		/// </summary>
+		public bool SupportRecordStructs { get; set; }
+
+		/// <summary>
+		/// Controls whether all fully qualified type names should be prefixed with "global::".
+		/// </summary>
+		public bool AlwaysUseGlobal { get; set; }
 		#endregion
 
 		#region Convert Type
@@ -521,7 +531,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				else
 				{
 					result.Target = ConvertNamespace(genericType.Namespace,
-						out _, genericType.Namespace == genericType.Name, genericType.OriginalMember?.DefinitionAssembly);
+						out _, AlwaysUseGlobal || genericType.Namespace == genericType.Name, genericType.OriginalMember?.DefinitionAssembly);
 				}
 			}
 			result.MemberNameToken = Identifier.Create(genericType.Name).WithAnnotation(genericType.OriginalMember);
@@ -1144,7 +1154,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			return true;
 		}
 
-		Dictionary<object, (KnownTypeCode Type, string Member)> specialConstants = new Dictionary<object, (KnownTypeCode Type, string Member)>() {
+		static readonly Dictionary<object, (KnownTypeCode Type, string Member)> specialConstants = new Dictionary<object, (KnownTypeCode Type, string Member)>() {
 			// byte:
 			{ byte.MaxValue, (KnownTypeCode.Byte, "MaxValue") },
 			// sbyte:
@@ -1186,7 +1196,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 		bool IsFlagsEnum(ITypeDefinition type)
 		{
-			return type.HasAttribute(KnownAttribute.Flags, inherit: false);
+			return type.HasAttribute(KnownAttribute.Flags);
 		}
 
 		Expression ConvertEnumValue(IType type, long val)
@@ -1648,6 +1658,8 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			{
 				decl.ParameterModifier = ParameterModifier.Params;
 			}
+			decl.IsRefScoped = parameter.Lifetime.RefScoped;
+			decl.IsValueScoped = parameter.Lifetime.ValueScoped;
 			if (ShowAttributes)
 			{
 				decl.Attributes.AddRange(ConvertAttributes(parameter.GetAttributes()));
@@ -1778,6 +1790,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 						{
 							modifiers |= Modifiers.Ref;
 						}
+					}
+					if (SupportRecordStructs && typeDefinition.IsRecord)
+					{
+						classType = ClassType.RecordStruct;
 					}
 					break;
 				case TypeKind.Enum:

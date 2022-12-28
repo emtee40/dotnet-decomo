@@ -7,17 +7,29 @@
   <PropertyGroup>
     <AssemblyTitle>ICSharpCode.Decompiler</AssemblyTitle>
 
-    <Description>IL decompiler engine</Description>
+    <PackageId>ICSharpCode.Decompiler</PackageId>
+    <PackageVersion>8.0.0.0-noversion</PackageVersion>
+    <Title>ILSpy Decompiler Engine</Title>
+    <Authors>ILSpy Contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/icsharpcode/ILSpy/</PackageProjectUrl>
+    <Description>ICSharpCode.Decompiler is the decompiler engine used in ILSpy.</Description>
     <Company>ic#code</Company>
     <Product>ILSpy</Product>
-    <Copyright>Copyright 2011-2022 AlphaSierraPapa for the SharpDevelop Team</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/icsharpcode/ILSpy.git</RepositoryUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright 2011-$([System.DateTime]::Now.Year) AlphaSierraPapa</Copyright>
+    <PackageTags>C# Decompiler ILSpy</PackageTags>
+
     <NeutralLanguage>en-US</NeutralLanguage>
-    <Version>7.2.0.0</Version>
+    <Version>8.0.0.0</Version>
 
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>ICSharpCode.Decompiler.snk</AssemblyOriginatorKeyFile>
     <NoWarn>1701;1702;1591;1573</NoWarn>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
 
     <CodeAnalysisRuleSet>ICSharpCode.Decompiler.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
@@ -39,9 +51,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="..\doc\Pattern Matching.html">
+    <None Include="..\doc\Pattern Matching.html">
       <Link>CSharp\Syntax\PatternMatching\Pattern Matching.html</Link>
-    </Content>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

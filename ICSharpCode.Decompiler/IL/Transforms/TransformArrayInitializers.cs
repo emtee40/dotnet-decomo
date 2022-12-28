@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2015 Siegfried Pammer
+// Copyright (c) 2015 Siegfried Pammer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -464,7 +464,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				for (int k = nextMinimumIndex.Length - 1; k >= 0; k--)
 				{
 					nextMinimumIndex[k]++;
-					if (nextMinimumIndex[k] < arrayLength[k])
+					if (nextMinimumIndex[k] < arrayLength[k] || k == 0)
 						break;
 					nextMinimumIndex[k] = 0;
 				}
@@ -646,7 +646,6 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			int step = arrayLength.Length + 1;
 
 			var indices = new List<ILInstruction>();
-
 			for (int i = 0; i < values.Length / step; i++)
 			{
 				// values array is filled backwards

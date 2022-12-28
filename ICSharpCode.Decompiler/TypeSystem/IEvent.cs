@@ -20,12 +20,17 @@
 
 using dnlib.DotNet;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace ICSharpCode.Decompiler.TypeSystem
 {
 	public interface IEvent : IMember
 	{
+		[MemberNotNullWhen(true, nameof(AddAccessor))]
 		bool CanAdd { get; }
+		[MemberNotNullWhen(true, nameof(RemoveAccessor))]
 		bool CanRemove { get; }
+		[MemberNotNullWhen(true, nameof(InvokeAccessor))]
 		bool CanInvoke { get; }
 
 		IMethod? AddAccessor { get; }

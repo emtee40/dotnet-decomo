@@ -43,6 +43,15 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		IModule IEntity.ParentModule => DeclaringType?.GetDefinition()?.ParentModule;
 
 		IEnumerable<IAttribute> IEntity.GetAttributes() => EmptyList<IAttribute>.Instance;
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			return false;
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			return null;
+		}
 
 		public Accessibility Accessibility { get; set; } = Accessibility.Public;
 

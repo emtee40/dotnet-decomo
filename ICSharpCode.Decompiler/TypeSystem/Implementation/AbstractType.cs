@@ -95,6 +95,11 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return null;
 		}
 
+		public virtual ITypeDefinitionOrUnknown GetDefinitionOrUnknown()
+		{
+			return null;
+		}
+
 		public virtual IEnumerable<IType> DirectBaseTypes {
 			get { return EmptyList<IType>.Instance; }
 		}

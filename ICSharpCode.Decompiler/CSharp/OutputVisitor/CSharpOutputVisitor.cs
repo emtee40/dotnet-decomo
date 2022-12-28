@@ -513,12 +513,20 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			return callChainLength;
 		}
 
-		protected virtual bool InsertNewLineWhenInMethodCallChain(MemberReferenceExpression expr)
+		int ShouldInsertNewLineWhenInMethodCallChain(MemberReferenceExpression expr)
 		{
 			int callChainLength = GetCallChainLengthLimited(expr);
 			if (callChainLength < 3)
-				return false;
+				return 0;
 			if (expr.GetParent(n => n is Statement || n is LambdaExpression || n is InterpolatedStringContent) is InterpolatedStringContent)
+				return 0;
+			return callChainLength;
+		}
+
+		protected virtual bool InsertNewLineWhenInMethodCallChain(MemberReferenceExpression expr)
+		{
+			int callChainLength = ShouldInsertNewLineWhenInMethodCallChain(expr);
+			if (callChainLength == 0)
 				return false;
 			if (callChainLength == 3)
 				writer.Indent();
@@ -997,7 +1005,11 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					case ThisReferenceExpression _:
 					case PrimitiveExpression _:
 					case IdentifierExpression _:
-					case MemberReferenceExpression { Target: ThisReferenceExpression or IdentifierExpression or BaseReferenceExpression }:
+					case MemberReferenceExpression {
+						Target: ThisReferenceExpression
+							or IdentifierExpression
+							or BaseReferenceExpression
+					} _:
 						return true;
 					case MemberReferenceExpression memberRef when memberRef.Target is TypeReferenceExpression:
 						return memberRef.MemberName == "MinValue" || memberRef.MemberName == "MaxValue" ||
@@ -1266,7 +1278,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			{
 				if (invocationExpression.Target is MemberReferenceExpression mre)
 				{
-					if (GetCallChainLengthLimited(mre) >= 3)
+					if (ShouldInsertNewLineWhenInMethodCallChain(mre) >= 3)
 						writer.Unindent();
 				}
 			}
@@ -1288,6 +1300,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 		{
 			DebugExpression(lambdaExpression);
 			StartNode(lambdaExpression);
+			WriteAttributes(lambdaExpression.Attributes);
 			var oldRef = currentMethodRefs;
 			currentMethodRefs = MethodRefs.Create();
 			var builder = lambdaExpression.Annotation<MethodDebugInfoBuilder>();
@@ -1476,8 +1489,14 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 
 			var leftBrace = BraceHelper.LeftBrace(this, CodeBracesRangeFlags.CurlyBraces);
 			interpolation.Expression.AcceptVisitor(this);
-			if (interpolation.Suffix != null) {
-				WriteToken(Roles.Colon, BoxedTextColor.Operator);
+			if (interpolation.Alignment != 0)
+			{
+				WriteToken(Roles.Comma, BoxedTextColor.Punctuation);
+				writer.WritePrimitiveValue(interpolation.Alignment);
+			}
+			if (interpolation.Suffix != null)
+			{
+				WriteToken(Roles.Colon, BoxedTextColor.Punctuation);
 				writer.WriteInterpolatedText(interpolation.Suffix);
 			}
 			leftBrace.RightBrace();
@@ -1823,6 +1842,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					break;
 				case TypeParameterDeclaration _:
 				case ComposedType _:
+				case LambdaExpression _:
 					Space();
 					break;
 				default:
@@ -1917,6 +1937,11 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					WriteKeyword(Roles.RecordKeyword);
 					braceStyle = policy.ClassBraceStyle;
 					break;
+				case ClassType.RecordStruct:
+					WriteKeyword(Roles.RecordStructKeyword);
+					WriteKeyword(Roles.StructKeyword);
+					braceStyle = policy.StructBraceStyle;
+					break;
 				default:
 					WriteKeyword(Roles.ClassKeyword);
 					braceStyle = policy.ClassBraceStyle;
@@ -1943,7 +1968,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				constraint.AcceptVisitor(this);
 			}
 
-			if (typeDeclaration.ClassType == ClassType.RecordClass && typeDeclaration.Members.Count == 0) {
+			if (typeDeclaration.ClassType is (ClassType.RecordClass or ClassType.RecordStruct) && typeDeclaration.Members.Count == 0)
+			{
 				SaveDeclarationOffset();
 				Semicolon();
 			} else {
@@ -3149,6 +3175,11 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				WriteKeyword(ParameterDeclaration.ThisModifierRole);
 				Space();
 			}
+			if (parameterDeclaration.IsRefScoped)
+			{
+				WriteKeyword(ParameterDeclaration.RefScopedRole);
+				Space();
+			}
 			switch (parameterDeclaration.ParameterModifier)
 			{
 				case ParameterModifier.Ref:
@@ -3168,6 +3199,11 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					Space();
 					break;
 			}
+			if (parameterDeclaration.IsValueScoped)
+			{
+				WriteKeyword(ParameterDeclaration.ValueScopedRole);
+				Space();
+			}
 			parameterDeclaration.Type.AcceptVisitor(this);
 			if (!parameterDeclaration.Type.IsNull && !string.IsNullOrEmpty(parameterDeclaration.Name))
 			{
@@ -3176,6 +3212,10 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			if (!string.IsNullOrEmpty(parameterDeclaration.Name))
 			{
 				WriteIdentifier(parameterDeclaration.NameToken);
+			}
+			if (parameterDeclaration.HasNullCheck)
+			{
+				WriteToken(Roles.DoubleExclamation, BoxedTextColor.Punctuation);
 			}
 			if (!parameterDeclaration.DefaultExpression.IsNull)
 			{
@@ -3470,6 +3510,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 		{
 			StartNode(primitiveType);
 			writer.WritePrimitiveType(primitiveType.Keyword);
+			isAfterSpace = false;
 			EndNode(primitiveType);
 		}
 
