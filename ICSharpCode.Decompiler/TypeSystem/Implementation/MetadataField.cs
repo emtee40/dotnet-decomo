@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using dnlib.DotNet;
 using ICSharpCode.Decompiler.Util;
@@ -147,6 +148,26 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return b.Build();
 		}
 
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.HasAttribute(handle.CustomAttributes, attribute, SymbolKind.Field);
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.GetAttribute(handle.CustomAttributes, attribute, SymbolKind.Field);
+		}
+
 		public string FullName => $"{DeclaringType?.FullName}.{Name}";
 		public string ReflectionName => $"{DeclaringType?.ReflectionName}.{Name}";
 		public string Namespace => DeclaringType?.Namespace ?? string.Empty;
@@ -176,7 +197,6 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			var ty = handle.FieldType.DecodeSignature(module, new GenericContext(DeclaringType?.TypeParameters));
 			if (ty is ModifiedType mod && mod.Modifier.Name == "IsVolatile" && mod.Modifier.Namespace == "System.Runtime.CompilerServices") {
 				Volatile.Write(ref this.isVolatile, true);
-				ty = mod.ElementType;
 			}
 			ty = ApplyAttributeTypeVisitor.ApplyAttributesToType(ty, Compilation,
 				handle, metadata, module.OptionsForEntity(this),

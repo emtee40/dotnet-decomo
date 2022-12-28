@@ -21,13 +21,21 @@ namespace ICSharpCode.Decompiler.Metadata
 			@"|(NuGetFallbackFolder[/\\](?<type>[^/\\]+)\\(?<version>[^/\\]+)([/\\].*)?[/\\]ref[/\\])" +
 			@"|(packs[/\\](?<type>[^/\\]+)\\(?<version>[^/\\]+)\\ref([/\\].*)?[/\\])";
 
-		public static string DetectTargetFrameworkId(this ModuleDefMD module, string assemblyPath = null)
+		public static string DetectTargetFrameworkId(this ModuleDef module, string assemblyPath = null)
 		{
 			if (module.Assembly != null) {
 				if (module.Assembly.TryGetOriginalTargetFrameworkAttribute(out var fw, out var version2, out var profile)) {
 					if (profile is null)
 						return fw + ",Version=v" + version2;
 					return fw + ",Version=v" + version2 + ",Profile=" + profile;
+				}
+
+				switch (module.Assembly.Name)
+				{
+					case "mscorlib":
+						return $".NETFramework,Version=v{module.Assembly.Version.ToString(2)}";
+					case "netstandard":
+						return $".NETStandard,Version=v{module.Assembly.Version.ToString(2)}";
 				}
 			}
 
@@ -41,7 +49,7 @@ namespace ICSharpCode.Decompiler.Metadata
 					switch (r.Name)
 					{
 						case "netstandard":
-							version = r.Version.ToString(3);
+							version = r.Version.ToString(2);
 							return $".NETStandard,Version=v{version}";
 						case "System.Runtime":
 							// System.Runtime.dll uses the following scheme:
@@ -110,7 +118,11 @@ namespace ICSharpCode.Decompiler.Metadata
 				}
 				else
 				{
-					return $".NETFramework,Version={module.RuntimeVersion.Substring(0, 4)}";
+					var version = module.RuntimeVersion;
+					if (string.IsNullOrEmpty(version))
+						version = "4.0";
+					version = version.TrimStart('v');
+					return $".NETFramework,Version=v{version.Substring(0, Math.Min(3, version.Length))}";
 				}
 			}
 

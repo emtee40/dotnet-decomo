@@ -178,7 +178,9 @@ namespace ICSharpCode.Decompiler.Metadata
 				default:
 					throw new NotSupportedException();
 			}
-			return Path.Combine(dotnetBasePath, "packs", identifier + ".Ref", version.ToString(), "ref", identifierExt);
+			string basePath = Path.Combine(dotnetBasePath, "packs", identifier + ".Ref");
+			string versionFolder = GetClosestVersionFolder(basePath, version);
+			return Path.Combine(basePath, versionFolder, "ref", identifierExt);
 		}
 
 		static IEnumerable<DotNetCorePackageInfo> LoadPackageInfos(string depsJsonFileName, string targetFramework)

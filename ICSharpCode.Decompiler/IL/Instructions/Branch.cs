@@ -123,7 +123,7 @@ namespace ICSharpCode.Decompiler.IL
 			WriteILRange(output, options);
 			output.Write(OpCode);
 			output.Write(' ');
-			output.WriteReference(TargetLabel, (object)targetBlock ?? TargetILOffset, isLocal: true);
+			output.WriteReference(TargetLabel, (object?)targetBlock ?? TargetILOffset, isLocal: true);
 		}
 	}
 

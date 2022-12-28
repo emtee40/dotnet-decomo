@@ -29,6 +29,15 @@ using dnlib.DotNet;
 
 namespace ICSharpCode.Decompiler.Metadata
 {
+	public enum TargetRuntime
+	{
+		Unknown,
+		Net_1_0,
+		Net_1_1,
+		Net_2_0,
+		Net_4_0
+	}
+
 	public enum TargetFrameworkIdentifier
 	{
 		NETFramework,
@@ -123,6 +132,8 @@ namespace ICSharpCode.Decompiler.Metadata
 
 		internal static (TargetFrameworkIdentifier, Version) ParseTargetFramework(string targetFramework)
 		{
+			if (string.IsNullOrEmpty(targetFramework))
+				return (TargetFrameworkIdentifier.NETFramework, ZeroVersion);
 			string[] tokens = targetFramework.Split(',');
 			TargetFrameworkIdentifier identifier;
 
@@ -322,7 +333,7 @@ namespace ICSharpCode.Decompiler.Metadata
 			if (assembly != null)
 				return assembly;
 
-			var framework_dir = Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName);
+			var framework_dir = Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName)!;
 			var framework_dirs = decompilerRuntime == DecompilerRuntime.Mono
 				? new[] { framework_dir, Path.Combine(framework_dir, "Facades") }
 				: new[] { framework_dir };
@@ -355,7 +366,10 @@ namespace ICSharpCode.Decompiler.Metadata
 		#region .NET / mono GAC handling
 		string SearchDirectory(IAssembly name, IEnumerable<string> directories)
 		{
-			foreach (var directory in directories) {
+			foreach (var directory in directories)
+			{
+				if (directory == null)
+					continue;
 				string file = SearchDirectory(name, directory);
 				if (file != null)
 					return file;
@@ -474,7 +488,7 @@ namespace ICSharpCode.Decompiler.Metadata
 
 		string GetMonoMscorlibBasePath(Version version)
 		{
-			var path = Directory.GetParent(typeof(object).Module.FullyQualifiedName).Parent.FullName;
+			var path = Directory.GetParent(typeof(object).Module.FullyQualifiedName)!.Parent!.FullName;
 			if (version.Major == 1)
 				path = Path.Combine(path, "1.0");
 			else if (version.Major == 2) {
@@ -535,7 +549,7 @@ namespace ICSharpCode.Decompiler.Metadata
 		{
 			return Path.Combine(
 				Directory.GetParent(
-					Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName)).FullName,
+					Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName)!)!.FullName,
 				"gac");
 		}
 
@@ -571,7 +585,7 @@ namespace ICSharpCode.Decompiler.Metadata
 				for (int j = 0; j < gacs.Length; j++) {
 					var gac = Path.Combine(gac_paths[i], gacs[j]);
 					var file = GetAssemblyFile(reference, prefixes[i], gac);
-					if (Directory.Exists(gac) && File.Exists(file))
+					if (File.Exists(file))
 						return file;
 				}
 			}

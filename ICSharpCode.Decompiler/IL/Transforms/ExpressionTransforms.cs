@@ -811,7 +811,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				case BinaryNumericOperator.ShiftLeft:
 				case BinaryNumericOperator.ShiftRight:
 					if (inst.Right.MatchBinaryNumericInstruction(BinaryNumericOperator.BitAnd, out var lhs, out var rhs)
-						&& rhs.MatchLdcI4(inst.ResultType == StackType.I8 ? 63 : 31)) {
+					    && MatchExpectedShiftSize(rhs))
+					{
 						// a << (b & 31) => a << b
 						context.Step("Combine bit.and into shift", inst);
 						inst.Right = lhs;
@@ -827,6 +828,25 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						}
 					}
 					break;
+			}
+
+			bool MatchExpectedShiftSize(ILInstruction rhs)
+			{
+				switch (inst.ResultType)
+				{
+					case StackType.I4:
+						return rhs.MatchLdcI4(31);
+					case StackType.I8:
+						return rhs.MatchLdcI4(63);
+					case StackType.I:
+						// sizeof(IntPtr) * 8 - 1
+						return rhs.MatchBinaryNumericInstruction(BinaryNumericOperator.Sub, out var mult, out var one)
+							&& mult.MatchBinaryNumericInstruction(BinaryNumericOperator.Mul, out var size, out var eight)
+							&& size.MatchSizeOf(out var sizeofType) && sizeofType.GetStackType() == StackType.I
+							&& eight.MatchLdcI4(8) && one.MatchLdcI4(1);
+					default:
+						return false;
+				}
 			}
 		}
 

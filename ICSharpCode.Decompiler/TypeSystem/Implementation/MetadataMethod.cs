@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -157,6 +157,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public bool IsDestructor => symbolKind == SymbolKind.Destructor;
 		public bool IsOperator => symbolKind == SymbolKind.Operator;
 		public bool IsAccessor => symbolKind == SymbolKind.Accessor;
+
 		public bool HasBody => handle.HasBody;
 
 		public IMember AccessorOwner {
@@ -218,7 +219,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				};
 
 				var retType = ApplyAttributeTypeVisitor.ApplyAttributesToType(sig,
-					module.Compilation, handle.Parameters.ReturnParameter.ParamDef, module.metadata, module.OptionsForEntity(this), NullableContext, isSignatureReturnType: true);
+					module.Compilation, handle.Parameters.ReturnParameter.ParamDef, module.metadata, module.OptionsForEntity(this), NullableContext);
 
 				return LazyInit.GetOrSet(ref this.returnType, retType);
 			}
@@ -290,6 +291,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			var b = new AttributeListBuilder(module);
 
 			MethodImplAttributes implAttributes = handle.ImplAttributes & ~MethodImplAttributes.CodeTypeMask;
+			int methodCodeType = (int)(handle.ImplAttributes & MethodImplAttributes.CodeTypeMask);
 
 			#region DllImportAttribute
 
@@ -376,18 +378,23 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			#endregion
 
 			#region PreserveSigAttribute
-			if (implAttributes == MethodImplAttributes.PreserveSig) {
+			if (implAttributes == MethodImplAttributes.PreserveSig && methodCodeType == 0)
+			{
 				b.Add(KnownAttribute.PreserveSig);
 				implAttributes = 0;
 			}
 			#endregion
 
 			#region MethodImplAttribute
-			if (implAttributes != 0) {
-				b.Add(KnownAttribute.MethodImpl,
-					new TopLevelTypeName("System.Runtime.CompilerServices", nameof(MethodImplOptions)),
-					(int)implAttributes
-				);
+			if (implAttributes != 0)
+			{
+				var methodImpl = new AttributeBuilder(module, KnownAttribute.MethodImpl);
+				methodImpl.AddFixedArg(new TopLevelTypeName("System.Runtime.CompilerServices", nameof(MethodImplOptions)), (int)implAttributes);
+				if (methodCodeType != 0)
+				{
+					methodImpl.AddNamedArg("MethodCodeType", new TopLevelTypeName("System.Runtime.CompilerServices", nameof(MethodCodeType)), methodCodeType);
+				}
+				b.Add(methodImpl.Build());
 			}
 			#endregion
 
@@ -402,6 +409,26 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			b.AddSecurityAttributes(handle.DeclSecurities);
 
 			return b.Build();
+		}
+
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.HasAttribute(handle.CustomAttributes, attribute, symbolKind);
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.GetAttribute(handle.CustomAttributes, attribute, symbolKind);
 		}
 		#endregion
 

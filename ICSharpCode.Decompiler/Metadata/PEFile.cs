@@ -117,12 +117,12 @@ namespace ICSharpCode.Decompiler.Metadata
 			return Module.Find(typeName.ReflectionName, true);
 		}
 
-		Dictionary<FullTypeName, ExportedType> typeForwarderLookup;
+		Dictionary<FullTypeName, ExportedType>? typeForwarderLookup;
 
 		/// <summary>
 		/// Finds the type forwarder with the specified name.
 		/// </summary>
-		public ExportedType GetTypeForwarder(FullTypeName typeName)
+		public ExportedType? GetTypeForwarder(FullTypeName typeName)
 		{
 			var lookup = LazyInit.VolatileRead(ref typeForwarderLookup);
 			if (lookup == null) {

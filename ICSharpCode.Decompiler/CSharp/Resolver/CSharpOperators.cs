@@ -124,7 +124,7 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				return null;
 			}
 
-			public dnlib.DotNet.IMemberDef MetadataToken => null;
+			public dnlib.DotNet.IMemberDef? MetadataToken => null;
 
 			ITypeDefinition? IEntity.DeclaringTypeDefinition {
 				get { return null; }
@@ -156,10 +156,9 @@ namespace ICSharpCode.Decompiler.CSharp.Resolver
 				get { return SymbolKind.Operator; }
 			}
 
-			IEnumerable<IAttribute> IEntity.GetAttributes()
-			{
-				return EmptyList<IAttribute>.Instance;
-			}
+			IEnumerable<IAttribute> IEntity.GetAttributes() => EmptyList<IAttribute>.Instance;
+			bool IEntity.HasAttribute(KnownAttribute attribute) => false;
+			IAttribute? IEntity.GetAttribute(KnownAttribute attribute) => null;
 
 			Accessibility IEntity.Accessibility {
 				get { return Accessibility.Public; }

@@ -54,6 +54,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		IEvent[] events;
 		IMethod[] methods;
 		List<IType> directBaseTypes;
+		bool defaultMemberNameInitialized;
 		string defaultMemberName;
 
 		internal MetadataTypeDefinition(MetadataModule module, TypeDef handle)
@@ -64,6 +65,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			this.handle = handle;
 			this.attributes = handle.Attributes;
 			this.fullTypeName = handle.GetFullTypeName();
+			this.MetadataName = handle.Name;
 			// Find DeclaringType + KnownTypeCode:
 			if (fullTypeName.IsNested) {
 				this.DeclaringTypeDefinition = module.GetDefinition(handle.DeclaringType);
@@ -269,14 +271,18 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				var interfaceImplCollection = handle.Interfaces;
 				baseTypes = new List<IType>(1 + interfaceImplCollection.Count);
 				ITypeDefOrRef baseType = handle.BaseType;
-				if (baseType != null) {
-					baseTypes.Add(module.ResolveType(baseType, context));
-				} else if (Kind == TypeKind.Interface) {
+				if (baseType != null)
+				{
+					baseTypes.Add(module.ResolveType(baseType, context, this.handle, Nullability.Oblivious));
+				}
+				else if (Kind == TypeKind.Interface)
+				{
 					// td.BaseType.IsNil is always true for interfaces,
 					// but the type system expects every interface to derive from System.Object as well.
 					baseTypes.Add(Compilation.FindType(KnownTypeCode.Object));
 				}
-				foreach (var iface in interfaceImplCollection) {
+				foreach (var iface in interfaceImplCollection)
+				{
 					baseTypes.Add(module.ResolveType(iface.Interface, context, iface, Nullability.Oblivious));
 				}
 				return LazyInit.GetOrSet(ref this.directBaseTypes, baseTypes);
@@ -284,7 +290,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		}
 
 		public IMemberDef MetadataToken => handle;
-
+		public string MetadataName { get; }
 		public FullTypeName FullTypeName => fullTypeName;
 		public string Name => fullTypeName.Name;
 
@@ -359,10 +365,30 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return b.Build();
 		}
 
+		public bool HasAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.HasAttribute(handle.CustomAttributes, attribute, SymbolKind.TypeDefinition);
+		}
+
+		public IAttribute GetAttribute(KnownAttribute attribute)
+		{
+			if (!attribute.IsCustomAttribute())
+			{
+				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
+			}
+			var b = new AttributeListBuilder(module);
+			return b.GetAttribute(handle.CustomAttributes, attribute, SymbolKind.TypeDefinition);
+		}
+
 		public string DefaultMemberName {
 			get {
 				string defaultMemberName = LazyInit.VolatileRead(ref this.defaultMemberName);
-				if (defaultMemberName != null)
+				if (defaultMemberName != null || defaultMemberNameInitialized)
 					return defaultMemberName;
 				foreach (var a in handle.CustomAttributes) {
 					if (!a.IsKnownAttribute(KnownAttribute.DefaultMember))
@@ -372,7 +398,9 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 						break;
 					}
 				}
-				return LazyInit.GetOrSet(ref this.defaultMemberName, defaultMemberName ?? "Item");
+				defaultMemberName = LazyInit.GetOrSet(ref this.defaultMemberName, defaultMemberName);
+				defaultMemberNameInitialized = true;
+				return defaultMemberName;
 			}
 		}
 		#endregion
@@ -422,6 +450,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public string Namespace => fullTypeName.TopLevelTypeName.Namespace;
 
 		ITypeDefinition IType.GetDefinition() => this;
+		ITypeDefinitionOrUnknown IType.GetDefinitionOrUnknown() => this;
 		TypeParameterSubstitution IType.GetSubstitution() => TypeParameterSubstitution.Identity;
 
 		public IType AcceptVisitor(TypeVisitor visitor)
@@ -616,24 +645,39 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			}
 		}
 
-		private static readonly UTF8String opEqualityStr = new UTF8String("op_Equality");
-		private static readonly UTF8String opInequalityStr = new UTF8String("op_Inequality");
-		private static readonly UTF8String cloneStr = new UTF8String("<Clone>$");
 
 		private bool ComputeIsRecord()
 		{
-			if (Kind != TypeKind.Class)
+			if (Kind != TypeKind.Class && Kind != TypeKind.Struct)
 				return false;
+			bool isStruct = Kind == TypeKind.Struct;
+
+			bool getEqualityContract = isStruct;
+			bool toString = false;
+			bool printMembers = false;
+			bool getHashCode = false;
+			bool equals = false;
 			bool opEquality = false;
 			bool opInequality = false;
-			bool clone = false;
+			bool clone = isStruct;
 			foreach (var method in handle.Methods)
 			{
-				opEquality |= method.Name == opEqualityStr;
-				opInequality |= method.Name == opInequalityStr;
-				clone |= method.Name == cloneStr;
+				if ((method.Name == "Clone"))
+				{
+					// error CS8859: Members named 'Clone' are disallowed in records.
+					return false;
+				}
+
+				getEqualityContract |= (method.Name == "get_EqualityContract");
+				toString |= (method.Name == "ToString");
+				printMembers |= (method.Name == "PrintMembers");
+				getHashCode |= (method.Name == "GetHashCode");
+				equals |= (method.Name == "Equals");
+				opEquality |= (method.Name == "op_Equality");
+				opInequality |= (method.Name == "op_Inequality");
+				clone |= (method.Name == "<Clone>$");
 			}
-			return opEquality & opInequality & clone;
+			return getEqualityContract & toString & printMembers & getHashCode & equals & opEquality & opInequality & clone;
 		}
 		#endregion
 	}

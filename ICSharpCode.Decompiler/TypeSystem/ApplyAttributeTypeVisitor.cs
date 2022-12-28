@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018 Daniel Grunwald
+// Copyright (c) 2018 Daniel Grunwald
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -39,8 +39,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			ModuleDef metadata,
 			TypeSystemOptions options,
 			Nullability nullableContext,
-			bool typeChildrenOnly = false,
-			bool isSignatureReturnType = false)
+			bool typeChildrenOnly = false)
 		{
 			bool hasDynamicAttribute = false;
 			bool[] dynamicAttributeData = null;
@@ -105,14 +104,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 					options, tupleElementNames,
 					nullability, nullableAttributeData
 				);
-				if (isSignatureReturnType && hasDynamicAttribute
-					&& inputType.SkipModifiers().Kind == TypeKind.ByReference
-					&& attributes.CustomAttributes.HasKnownAttribute(KnownAttribute.IsReadOnly))
-				{
-					// crazy special case: `ref readonly` return takes one dynamic index more than
-					// a non-readonly `ref` return.
-					visitor.dynamicTypeIndex++;
-				}
 				if (typeChildrenOnly)
 				{
 					return inputType.VisitChildren(visitor);
@@ -161,6 +152,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 		public override IType VisitModOpt(ModifiedType type)
 		{
+			dynamicTypeIndex++;
 			if ((options & TypeSystemOptions.KeepModifiers) != 0)
 				return base.VisitModOpt(type);
 			else
@@ -169,6 +161,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 		public override IType VisitModReq(ModifiedType type)
 		{
+			dynamicTypeIndex++;
 			if ((options & TypeSystemOptions.KeepModifiers) != 0)
 				return base.VisitModReq(type);
 			else
