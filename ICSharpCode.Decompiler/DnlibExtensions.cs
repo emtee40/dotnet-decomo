@@ -131,7 +131,7 @@ namespace ICSharpCode.Decompiler
 
 		public static bool IsUnconditionalBranch(this OpCode opcode)
 		{
-			if (opcode.OpCodeType == OpCodeType.Prefix)
+			if (opcode.OpCodeType == OpCodeType.Prefix || opcode.OpCodeType == OpCodeType.Nternal)
 				return false;
 			switch (opcode.FlowControl) {
 				case FlowControl.Branch:
@@ -212,6 +212,16 @@ namespace ICSharpCode.Decompiler
 			if (parameters[0].IsHiddenThisParameter)
 				return 1;
 			return 0;
+		}
+
+		public static IEnumerable<Parameter> SkipNonNormal(this IList<Parameter> parameters) {
+			if (parameters == null)
+				yield break;
+			for (int i = 0; i < parameters.Count; i++) {
+				var p = parameters[i];
+				if (p.IsNormalMethodParameter)
+					yield return p;
+			}
 		}
 
 		public static int GetNumberOfNormalParameters(this IList<Parameter> parameters)
@@ -363,7 +373,7 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		public static IEnumerable<InterfaceImpl> GetInterfaceImpls(this TypeDef type, bool sortMembers)
+		public static IList<InterfaceImpl> GetInterfaceImpls(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers)
 				return type.Interfaces;
@@ -372,7 +382,7 @@ namespace ICSharpCode.Decompiler
 			return ary;
 		}
 
-		public static IEnumerable<TypeDef> GetNestedTypes(this TypeDef type, bool sortMembers)
+		public static IList<TypeDef> GetNestedTypes(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers)
 				return type.NestedTypes;
@@ -381,7 +391,7 @@ namespace ICSharpCode.Decompiler
 			return ary;
 		}
 
-		public static IEnumerable<FieldDef> GetFields(this TypeDef type, bool sortMembers)
+		public static IList<FieldDef> GetFields(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers || !type.CanSortFields())
 				return type.Fields;
@@ -390,7 +400,7 @@ namespace ICSharpCode.Decompiler
 			return ary;
 		}
 
-		public static IEnumerable<EventDef> GetEvents(this TypeDef type, bool sortMembers)
+		public static IList<EventDef> GetEvents(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers || !type.CanSortMethods())
 				return type.Events;
@@ -399,7 +409,7 @@ namespace ICSharpCode.Decompiler
 			return ary;
 		}
 
-		public static IEnumerable<PropertyDef> GetProperties(this TypeDef type, bool sortMembers)
+		public static IList<PropertyDef> GetProperties(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers || !type.CanSortMethods())
 				return type.Properties;
@@ -408,7 +418,7 @@ namespace ICSharpCode.Decompiler
 			return ary;
 		}
 
-		public static IEnumerable<MethodDef> GetMethods(this TypeDef type, bool sortMembers)
+		public static IList<MethodDef> GetMethods(this TypeDef type, bool sortMembers)
 		{
 			if (!sortMembers || !type.CanSortMethods())
 				return type.Methods;
