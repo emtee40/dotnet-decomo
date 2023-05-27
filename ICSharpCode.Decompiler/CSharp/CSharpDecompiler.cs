@@ -745,7 +745,7 @@ namespace ICSharpCode.Decompiler.CSharp
 										} else {
 											// Delegate body is declared in the same type
 											foreach (var methodDef in closureType.Methods) {
-												if (methodDef.Name == memberRef.Name)
+												if (methodDef.Name == memberRef.Name && methodDef.IsCompilerGeneratedOrIsInCompilerGeneratedClass())
 													connectedMethods.Enqueue(methodDef);
 											}
 										}
@@ -1142,6 +1142,11 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				typeSystemAstBuilder = CreateAstBuilder(decompileRun.Settings);
 				var entityDecl = typeSystemAstBuilder.ConvertEntity(typeDef);
+				if (entityDecl is DelegateDeclaration delegateDeclaration)
+				{
+					// Fix empty parameter names in delegate declarations
+					FixParameterNames(delegateDeclaration);
+				}
 				var typeDecl = entityDecl as TypeDeclaration;
 				if (typeDecl == null) {
 					// e.g. DelegateDeclaration
@@ -1620,6 +1625,14 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 				if (function.StateMachineCompiledWithMono) {
 					RemoveAttribute(entityDecl, KnownAttribute.DebuggerHidden);
+				}
+				if (function.StateMachineCompiledWithLegacyVisualBasic)
+				{
+					RemoveAttribute(entityDecl, KnownAttribute.DebuggerStepThrough);
+					if (function.Method?.IsAccessor == true && entityDecl.Parent is EntityDeclaration parentDecl)
+					{
+						RemoveAttribute(parentDecl, KnownAttribute.DebuggerStepThrough);
+					}
 				}
 			}
 			if (function.IsAsync) {

@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using dnlib.DotNet;
@@ -127,26 +128,37 @@ namespace ICSharpCode.Decompiler.Documentation
 			return runtime.Substring(0, min);
 		}
 
-		static string LookupLocalizedXmlDoc(string fileName)
+		/// <summary>
+		/// Given the assembly file name, looks up the XML documentation file name.
+		/// Returns null if no XML documentation file is found.
+		/// </summary>
+		internal static string LookupLocalizedXmlDoc(string fileName)
 		{
 			if (string.IsNullOrEmpty(fileName))
 				return null;
 
 			string xmlFileName = Path.ChangeExtension(fileName, ".xml");
-			string currentCulture = System.Threading.Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName;
-			string localizedXmlDocFile = GetLocalizedName(xmlFileName, currentCulture);
+
+			CultureInfo currentCulture = System.Threading.Thread.CurrentThread.CurrentUICulture;
+			string localizedXmlDocFile = GetLocalizedName(xmlFileName, currentCulture.Name);
+			string localizedXmlDocFallbackFile = GetLocalizedName(xmlFileName, currentCulture.TwoLetterISOLanguageName);
 
 			Debug.WriteLine("Try find XMLDoc @" + localizedXmlDocFile);
 			if (File.Exists(localizedXmlDocFile))
 			{
 				return localizedXmlDocFile;
 			}
+			Debug.WriteLine("Try find XMLDoc @" + localizedXmlDocFallbackFile);
+			if (File.Exists(localizedXmlDocFallbackFile))
+			{
+				return localizedXmlDocFallbackFile;
+			}
 			Debug.WriteLine("Try find XMLDoc @" + xmlFileName);
 			if (File.Exists(xmlFileName))
 			{
 				return xmlFileName;
 			}
-			if (currentCulture != "en")
+			if (currentCulture.TwoLetterISOLanguageName != "en")
 			{
 				string englishXmlDocFile = GetLocalizedName(xmlFileName, "en");
 				Debug.WriteLine("Try find XMLDoc @" + englishXmlDocFile);
@@ -158,12 +170,9 @@ namespace ICSharpCode.Decompiler.Documentation
 			return null;
 		}
 
-		static string GetLocalizedName(string fileName, string language)
+		private static string GetLocalizedName(string fileName, string language)
 		{
-			string localizedXmlDocFile = Path.GetDirectoryName(fileName);
-			localizedXmlDocFile = Path.Combine(localizedXmlDocFile, language);
-			localizedXmlDocFile = Path.Combine(localizedXmlDocFile, Path.GetFileName(fileName));
-			return localizedXmlDocFile;
+			return Path.Combine(Path.GetDirectoryName(fileName), language, Path.GetFileName(fileName));
 		}
 	}
 }

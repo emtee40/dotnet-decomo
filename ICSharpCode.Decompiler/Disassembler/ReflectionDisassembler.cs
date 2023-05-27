@@ -871,15 +871,16 @@ namespace ICSharpCode.Decompiler.Disassembler
 			}
 			if (type.HasInterfaces) {
 				output.Indent();
-				for (int index = 0; index < type.Interfaces.Count; index++) {
-					if (index > 0)
+				bool first = true;
+				foreach (var iface in type.Interfaces)
+				{
+					if (!first)
 						output.WriteLine(",");
-					if (index == 0)
+					if (first)
 						output.Write("implements ");
 					else
 						output.Write("           ");
-					var iface = type.Interfaces[index];
-					WriteAttributes(iface.CustomAttributes);
+					first = false;
 					iface.Interface.WriteTo(output, ILNameSyntax.TypeName);
 				}
 				output.WriteLine();
@@ -897,7 +898,19 @@ namespace ICSharpCode.Decompiler.Disassembler
 				output.WriteLine(".size {0}", type.ClassSize);
 				output.WriteLine();
 			}
-			if (type.HasNestedTypes) {
+			foreach (var iface in type.Interfaces)
+			{
+				if (iface.HasCustomAttributes)
+				{
+					output.Write(".interfaceimpl type ");
+					iface.Interface.WriteTo(output, ILNameSyntax.TypeName);
+					output.WriteLine();
+					WriteAttributes(iface.CustomAttributes);
+					output.WriteLine();
+				}
+			}
+			if (type.HasNestedTypes)
+			{
 				output.WriteLine("// Nested Types");
 				foreach (var nestedType in type.NestedTypes) {
 					cancellationToken.ThrowIfCancellationRequested();

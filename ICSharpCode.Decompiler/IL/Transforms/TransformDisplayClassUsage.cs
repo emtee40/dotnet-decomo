@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019 Siegfried Pammer
+// Copyright (c) 2019 Siegfried Pammer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -288,7 +288,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						return null;
 					if (!(v.StoreInstructions.SingleOrDefault() is StLoc stloc))
 						return null;
-					if (stloc.Value is NewObj newObj && ValidateConstructor(newObj.Method))
+					if (stloc.Value is NewObj newObj && ValidateConstructor(context, newObj.Method))
 					{
 						result = new DisplayClass(v, definition) {
 							CaptureScope = v.CaptureScope,
@@ -392,7 +392,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			var definition = newObj.Method.DeclaringType.GetDefinition();
 			if (!ValidateDisplayClassDefinition(definition))
 				return null;
-			if (!ValidateConstructor(newObj.Method))
+			if (!ValidateConstructor(context, newObj.Method))
 				return null;
 			if (!initializerBlock.Parent.MatchStLoc(out var referenceVariable))
 				return null;
@@ -430,7 +430,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			return true;
 		}
 
-		private bool ValidateConstructor(IMethod method)
+		internal static bool ValidateConstructor(ILTransformContext context, IMethod method)
 		{
 			try
 			{
@@ -480,7 +480,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			}
 		}
 
-		dnlib.DotNet.Emit.Instruction DecodeOpCodeSkipNop(IList<dnlib.DotNet.Emit.Instruction> instrs, ref int i)
+		static dnlib.DotNet.Emit.Instruction DecodeOpCodeSkipNop(IList<dnlib.DotNet.Emit.Instruction> instrs, ref int i)
 		{
 			dnlib.DotNet.Emit.Instruction code;
 			do
