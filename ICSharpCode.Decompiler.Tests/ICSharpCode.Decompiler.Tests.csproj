@@ -72,6 +72,7 @@
     <None Include="TestCases\Correctness\StackTests.il" />
     <None Include="TestCases\Correctness\StackTypes.il" />
     <None Include="TestCases\Correctness\Uninit.vb" />
+    <None Include="TestCases\Disassembler\Pretty\InterfaceImplAttributes.il" />
     <None Include="TestCases\Disassembler\Pretty\SortMembers.expected.il" />
     <None Include="TestCases\Disassembler\Pretty\SortMembers.il" />
     <None Include="TestCases\ILPretty\GuessAccessors.cs" />
@@ -113,6 +114,8 @@
     <Compile Include="TestCases\VBPretty\VBAutomaticEvents.cs" />
     <Compile Include="TestCases\VBPretty\VBNonGenericForEach.cs" />
     <None Include="TestCases\VBPretty\VBNonGenericForEach.vb" />
+    <Compile Include="TestCases\VBPretty\YieldReturn.cs" />
+    <None Include="TestCases\VBPretty\YieldReturn.vb" />
     <Compile Include="TypeSystem\ReflectionHelperTests.cs" />
     <None Include="TestCases\Pretty\MetadataAttributes.cs" />
     <None Include="TestCases\Correctness\ComInterop.cs" />

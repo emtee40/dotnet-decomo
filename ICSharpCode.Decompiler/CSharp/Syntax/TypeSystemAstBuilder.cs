@@ -1679,7 +1679,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			{
 				decl.NameToken = Identifier.Create(parameter.Name).WithAnnotation(parameter.MDParameter);
 			}
-			if (parameter.IsOptional && parameter.HasConstantValueInSignature && this.ShowConstantValues)
+			if (parameter.IsOptional && decl.ParameterModifier is ParameterModifier.None or ParameterModifier.In && parameter.HasConstantValueInSignature && this.ShowConstantValues)
 			{
 				try
 				{

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Daniel Grunwald
+// Copyright (c) 2014 Daniel Grunwald
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -184,7 +184,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 
 		void SimplifyBranchChains(ILFunction function, ILTransformContext context)
 		{
-			List<(BlockContainer, Block)> blocksToAdd = new List<(BlockContainer, Block)>();
+			List<(Block Block, BlockContainer TargetContainer)> blocksToMove = new List<(Block, BlockContainer)>();
 			HashSet<Block> visitedBlocks = new HashSet<Block>();
 			foreach (var branch in function.Descendants.OfType<Branch>())
 			{
@@ -222,7 +222,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						}
 						branch.ReplaceWith(clonedReturn);
 					}
-					else if (branch.TargetContainer != branch.Ancestors.OfType<BlockContainer>().First())
+					else if (branch.TargetContainer != branch.Ancestors.OfType<BlockContainer>().First() && targetBlock.IncomingEdgeCount == 1)
 					{
 						// We don't want to always inline the return directly, because this
 						// might force us to place the return within a loop, when it's better
@@ -230,11 +230,9 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 						// But we do want to move the return block into the correct try-finally scope,
 						// so that loop detection at least has the option to put it inside
 						// the loop body.
-						context.Step("Copy return block into try block", branch);
-						Block blockCopy = (Block)branch.TargetBlock.Clone();
+						context.Step("Move return block into try block", branch);
 						BlockContainer localContainer = branch.Ancestors.OfType<BlockContainer>().First();
-						blocksToAdd.Add((localContainer, blockCopy));
-						branch.TargetBlock = blockCopy;
+						blocksToMove.Add((targetBlock, localContainer));
 					}
 				}
 				else if (targetBlock.Instructions.Count == 1 && targetBlock.Instructions[0] is Leave leave && leave.Value.MatchNop())
@@ -261,9 +259,10 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					targetBlock.Instructions.Clear(); // mark the block for deletion
 				}
 			}
-			foreach (var (container, block) in blocksToAdd)
+			foreach ((Block block, BlockContainer targetContainer) in blocksToMove)
 			{
-				container.Blocks.Add(block);
+				block.Remove();
+				targetContainer.Blocks.Add(block);
 			}
 		}
 

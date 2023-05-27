@@ -212,13 +212,23 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 					return methods;
 				var methodsCollection = handle.Methods;
 				var methodsList = new List<IMethod>(methodsCollection.Count);
-				foreach (MethodDef md in methodsCollection) {
-					if (md.SemanticsAttributes == MethodSemanticsAttributes.None && module.IsVisible(md.Attributes)) {
-						methodsList.Add(module.GetDefinition(md));
+
+				bool hasDefaultCtor = false;
+				foreach (MethodDef md in methodsCollection)
+				{
+					if (md.SemanticsAttributes == MethodSemanticsAttributes.None && module.IsVisible(md.Attributes))
+					{
+						IMethod method = module.GetDefinition(md);
+						if (method.SymbolKind == SymbolKind.Constructor && !method.IsStatic && method.Parameters.Count == 0)
+						{
+							hasDefaultCtor = true;
+						}
+						methodsList.Add(method);
 					}
 				}
-				if (this.Kind == TypeKind.Struct || this.Kind == TypeKind.Enum) {
-					methodsList.Add(FakeMethod.CreateDummyConstructor(Compilation, this, IsAbstract ? Accessibility.Protected : Accessibility.Public));
+				if (!hasDefaultCtor && (this.Kind == TypeKind.Struct || this.Kind == TypeKind.Enum))
+				{
+					methodsList.Add(FakeMethod.CreateDummyConstructor(Compilation, this, Accessibility.Public));
 				}
 				return LazyInit.GetOrSet(ref this.methods, methodsList.ToArray());
 			}
