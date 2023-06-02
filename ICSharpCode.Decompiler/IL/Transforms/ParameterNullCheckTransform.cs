@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2017 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -25,7 +25,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 namespace ICSharpCode.Decompiler.IL.Transforms
 {
 	/// <summary>
-	/// Implements transforming &lt;PrivateImplementationDetails&gt;.ThrowIfNull(name, "name"); 
+	/// Implements transforming &lt;PrivateImplementationDetails&gt;.ThrowIfNull(name, "name");
 	/// </summary>
 	class ParameterNullCheckTransform : IILTransform
 	{
@@ -64,6 +64,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					}
 				}
 				// remove the call to ThrowIfNull
+				if (context.CalculateILSpans)
+					entryPoint.Instructions[index].AddSelfAndChildrenRecursiveILSpans(entryPoint.ILSpans);
 				entryPoint.Instructions.RemoveAt(index);
 				// remember to generate !! when producing the final output.
 				parameterVariable.HasNullCheck = true;

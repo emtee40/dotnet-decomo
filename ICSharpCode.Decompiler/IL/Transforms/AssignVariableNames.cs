@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2017 Siegfried Pammer
+// Copyright (c) 2017 Siegfried Pammer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -166,7 +166,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 
 		static IEnumerable<string> CollectAllLowerCaseTypeNames(ITypeDefinition type)
 		{
-			var ns = type.ParentModule.Compilation.GetNamespaceByFullName(type.Namespace);
+			var ns = type.ParentModule.GetNamespaceByFullName(type.Namespace);
 			foreach (var item in ns.Types)
 			{
 				if (IsLowerCase(item.Name))
@@ -654,7 +654,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		static string CleanUpVariableName(string name)
 		{
 			// remove the backtick (generics)
-			int pos = name.IndexOf('`');
+			int pos = name.LastIndexOf('`');
 			if (pos >= 0)
 				name = name.Substring(0, pos);
 

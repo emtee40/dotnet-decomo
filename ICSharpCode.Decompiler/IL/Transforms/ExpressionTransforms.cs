@@ -151,7 +151,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// This is a special case where the C# compiler doesn't generate conv.i4 after ldlen.
 					context.Step("comp(ldlen.i4 array == ldc.i4 0)", inst);
 					inst.InputType = StackType.I4;
-					inst.Left.ReplaceWith(new LdLen(StackType.I4, array).WithILRange(inst.Left));
+					LdLen replacement = new LdLen(StackType.I4, array).WithILRange(inst.Left);
+					if (context.CalculateILSpans)
+					{
+						replacement.ILSpans.AddRange(inst.Left.ILSpans);
+						foreach (ILInstruction rightDescendant in inst.Right.Descendants.Reverse())
+						{
+							if (rightDescendant == rightWithoutConv)
+								break;
+							rightWithoutConv.ILSpans.AddRange(rightDescendant.ILSpans);
+						}
+					}
+					inst.Left.ReplaceWith(replacement);
 					inst.Right = rightWithoutConv;
 				}
 				else if (inst.Left is Conv conv && conv.TargetType == PrimitiveType.I && conv.Argument.ResultType == StackType.O)
@@ -161,7 +172,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					// -> comp(ldloc obj == ldnull)
 					inst.InputType = StackType.O;
 					inst.Left = conv.Argument;
-					inst.Right = new LdNull().WithILRange(inst.Right);
+					LdNull replacement = new LdNull().WithILRange(inst.Right);
+					if (context.CalculateILSpans)
+					{
+						inst.Left.ILSpans.AddRange(conv.ILSpans);
+						inst.Right.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					}
+					inst.Right = replacement;
 					inst.Right.AddILRange(rightWithoutConv);
 				}
 			}
@@ -329,6 +346,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (TransformSpanTCtorContainingStackAlloc(inst, out ILInstruction locallocSpan))
 			{
 				context.Step("new Span<T>(stackalloc) -> stackalloc Span<T>", inst);
+				if (context.CalculateILSpans)
+					locallocSpan.ILSpans.AddRange(inst.ILSpans);
 				inst.ReplaceWith(locallocSpan);
 				block = null;
 				ILInstruction stmt = locallocSpan;
@@ -423,10 +442,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			{
 				locallocSpan = new LocAllocSpan(newObj.Arguments[1], type);
 				if (context.CalculateILSpans)
-				{
-					locallocSpan.ILSpans.AddRange(newObj.ILSpans);
 					newObj.Arguments[0].AddSelfAndChildrenRecursiveILSpans(locallocSpan.ILSpans);
-				}
 				return true;
 			}
 			if (newObj.Arguments[0] is Block initializer && initializer.Kind == BlockKind.StackAllocInitializer)
@@ -440,6 +456,8 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					ILInstruction newInst = new LdLoc(newVariable);
 					newInst.AddILRange(load);
+					if (context.CalculateILSpans)
+						newInst.ILSpans.AddRange(load.ILSpans);
 					if (load.Parent != initializer)
 						newInst = new Conv(newInst, PrimitiveType.I, false, Sign.None);
 					load.ReplaceWith(newInst);
@@ -448,7 +466,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					store.Variable = newVariable;
 				}
-				value.ReplaceWith(new LocAllocSpan(newObj.Arguments[1], type));
+				LocAllocSpan replacement = new LocAllocSpan(newObj.Arguments[1], type);
+				if (context.CalculateILSpans)
+					value.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				value.ReplaceWith(replacement);
 				locallocSpan = initializer;
 				return true;
 			}
@@ -925,7 +946,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						if (context.CalculateILSpans)
 						{
 							lhs.ILSpans.AddRange(inst.Right.ILSpans);
-							lhs.ILSpans.AddRange(rhs.ILSpans);
+							rhs.AddSelfAndChildrenRecursiveILSpans(lhs.ILSpans);
 						}
 						inst.Right = lhs;
 					}

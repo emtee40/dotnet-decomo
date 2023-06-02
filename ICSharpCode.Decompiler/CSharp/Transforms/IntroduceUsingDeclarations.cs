@@ -48,6 +48,12 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			var requiredImports = new FindRequiredImports(context);
 			rootNode.AcceptVisitor(requiredImports);
 
+			if (context.CalculateILSpans)
+			{
+				foreach (var nsRef in requiredImports.ImportedNamespaces)
+					context.DecompileRun.Context.UsingNamespaces.Add(nsRef.Namespace);
+			}
+
 			var usingScope = new UsingScope();
 			rootNode.AddAnnotation(usingScope);
 
@@ -355,7 +361,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			}
 		}
 
-		struct NamespaceRef : IEquatable<NamespaceRef> {
+		private readonly struct NamespaceRef : IEquatable<NamespaceRef> {
 			public IAssembly Assembly { get; }
 			public string Namespace { get; }
 			public NamespaceRef(IAssembly asm, string ns) {

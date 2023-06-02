@@ -1,9 +1,8 @@
-﻿A 'small' TODO list for features/improvements/issues that need to be resolved for this port.
+A 'small' TODO list for features/improvements/issues that need to be resolved for this port.
 
 - Try to reduce 'string' object allocations by using a 'StringBuilder' instead, especially in the TypeSystem
 - Implement all the MethodBodyDebugInfoBuilder and other dnSpy debug info specific classes and annotations.
 - Add all the relevant dnSpy specific options into the decompiler, for example: always showing compiler generated members.
-- If decompilation of a method body fails, we should just write the exception as a multi line comment inside the body instead of crashing the entire decompiler.
 - Difficult by worth a try: We could try to reuse some of the instances of classes for multiple decompilation runs instead of reallocating.
 - Proper implementation of 'IDocumentationProvider'.
 - Add MemberRef annotations to the generated C# AST. (Some missing places marked with 'TODO').

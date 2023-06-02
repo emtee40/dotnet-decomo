@@ -20,6 +20,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using dnlib.DotNet;
+
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.TypeSystem.Implementation
@@ -207,10 +210,6 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public IEnumerable<IAttribute> GetAttributes()
 		{
 			var b = new AttributeListBuilder(module);
-			if (IsIndexer && Name != "Item" && !IsExplicitInterfaceImplementation)
-			{
-				b.Add(KnownAttribute.IndexerName, KnownTypeCode.String, Name);
-			}
 
 			// SpecialName
 			if ((handle.Attributes & (PropertyAttributes.SpecialName | PropertyAttributes.RTSpecialName)) == PropertyAttributes.SpecialName)
@@ -218,7 +217,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				b.Add(KnownAttribute.SpecialName);
 			}
 
-			b.Add(handle.CustomAttributes, symbolKind);
+			b.Add(handle.GetCustomAttributes(), symbolKind);
 			return b.Build();
 		}
 

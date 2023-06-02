@@ -76,12 +76,12 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				if (!valueDecoded) {
 					List<CustomAttributeTypedArgument<IType>> ctor = new List<CustomAttributeTypedArgument<IType>>();
 					foreach (CAArgument caArgument in handle.ConstructorArguments) {
-						ctor.Add(Convert(caArgument));
+						ctor.Add(Convert(caArgument, new GenericContext()));
 					}
 
 					List<CustomAttributeNamedArgument<IType>> named = new List<CustomAttributeNamedArgument<IType>>();
 					foreach (CANamedArgument namedArgument in handle.NamedArguments) {
-						var converted = Convert(namedArgument.Argument);
+						var converted = Convert(namedArgument.Argument, new GenericContext());
 						named.Add(new CustomAttributeNamedArgument<IType>(namedArgument.Name.String,
 							namedArgument.IsField
 								? CustomAttributeNamedArgumentKind.Field
@@ -94,25 +94,25 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			}
 		}
 
-		CustomAttributeTypedArgument<IType> Convert(CAArgument argument)
+		CustomAttributeTypedArgument<IType> Convert(CAArgument argument, GenericContext genericContext)
 		{
-			var convertedType = argument.Type.DecodeSignature(module, new GenericContext());
+			var convertedType = argument.Type.DecodeSignature(module, genericContext);
 			if (argument.Value is TypeSig ts) {
 				return new CustomAttributeTypedArgument<IType>(convertedType,
-					ts.DecodeSignature(module, new GenericContext()));
+					ts.DecodeSignature(module, genericContext));
 			}
 			if (argument.Value is IList<CAArgument> list) {
 				List<CustomAttributeTypedArgument<IType>> converted = new List<CustomAttributeTypedArgument<IType>>();
 				foreach (CAArgument caArgument in list) {
-					converted.Add(Convert(caArgument));
+					converted.Add(Convert(caArgument, genericContext));
 				}
 				return new CustomAttributeTypedArgument<IType>(convertedType, converted.ToImmutableArray());
 			}
 			if (argument.Value is UTF8String utf8String) {
 				return new CustomAttributeTypedArgument<IType>(convertedType, utf8String.String);
 			}
-			if (argument.Value is CAArgument) {
-				throw new NotSupportedException();
+			if (argument.Value is CAArgument caArgument2) {
+				return Convert(caArgument2, genericContext);
 			}
 			return new CustomAttributeTypedArgument<IType>(convertedType, argument.Value);
 		}

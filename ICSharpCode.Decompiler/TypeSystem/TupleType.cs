@@ -153,7 +153,9 @@ namespace ICSharpCode.Decompiler.TypeSystem
 					compilation,
 					elementTypes,
 					valueTupleAssembly: type.GetDefinition()?.ParentModule
-				);
+				) {
+					MetadataToken = type.MetadataToken
+				};
 			}
 			else
 			{

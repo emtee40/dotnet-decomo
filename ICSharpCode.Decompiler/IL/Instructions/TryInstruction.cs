@@ -215,7 +215,7 @@ namespace ICSharpCode.Decompiler.IL
 				output.Write(" ", BoxedTextColor.Text);
 				output.Write(":", BoxedTextColor.Punctuation);
 				output.Write(" ", BoxedTextColor.Text);
-				Disassembler.DisassemblerHelpers.WriteOperand(output, variable.Type);
+				Disassembler.DisassemblerHelpers.WriteOperand(output, variable.Type.MetadataToken);
 			}
 			output.Write(" ", BoxedTextColor.Text);
 			output.Write("when", BoxedTextColor.Keyword);
@@ -248,6 +248,9 @@ namespace ICSharpCode.Decompiler.IL
 		{
 			this.FinallyBlock = finallyBlock;
 		}
+
+		// Used for inlined finally blocks in yield return state machines
+		public dnlib.DotNet.MethodDef? InlinedFinallyMethod;
 
 		ILInstruction finallyBlock = null!;
 		public ILInstruction FinallyBlock {

@@ -20,6 +20,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using dnlib.DotNet;
+
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.TypeSystem.Implementation
@@ -110,7 +113,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				b.Add(KnownAttribute.SpecialName);
 			}
 
-			b.Add(handle.CustomAttributes, SymbolKind.Event);
+			b.Add(handle.GetCustomAttributes(), SymbolKind.Event);
 			return b.Build();
 		}
 
@@ -121,7 +124,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				return GetAttributes().Any(attr => attr.AttributeType.IsKnownType(attribute));
 			}
 			var b = new AttributeListBuilder(module);
-			return b.HasAttribute(handle.CustomAttributes, attribute, SymbolKind.Event);
+			return b.HasAttribute(handle.GetCustomAttributes(), attribute, SymbolKind.Event);
 		}
 
 		public IAttribute GetAttribute(KnownAttribute attribute)
@@ -131,7 +134,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				return GetAttributes().FirstOrDefault(attr => attr.AttributeType.IsKnownType(attribute));
 			}
 			var b = new AttributeListBuilder(module);
-			return b.GetAttribute(handle.CustomAttributes, attribute, SymbolKind.Event);
+			return b.GetAttribute(handle.GetCustomAttributes(), attribute, SymbolKind.Event);
 		}
 		#endregion
 

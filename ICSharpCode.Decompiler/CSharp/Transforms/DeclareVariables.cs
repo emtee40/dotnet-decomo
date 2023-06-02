@@ -675,8 +675,12 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 					Debug.Assert(v.InsertionPoint.nextNode.Role == BlockStatement.StatementRole);
 					if (v.DefaultInitialization == VariableInitKind.NeedsSkipInit)
 					{
-						AstType unsafeType = context.TypeSystemAstBuilder.ConvertType(
-							context.TypeSystem.FindType(KnownTypeCode.Unsafe));
+						var unsafeTsType = context.TypeSystem.FindType(KnownTypeCode.Unsafe);
+						AstType unsafeType = context.TypeSystemAstBuilder.ConvertType(unsafeTsType);
+						const string skipInitName = "SkipInit";
+						var candidates = unsafeTsType.GetMethods(x => x.Name == skipInitName && x.Parameters.Count == 1).ToArray();
+						var singleCandidate = candidates.Length == 1 ? candidates[0] : null;
+
 						if (context.Settings.OutVariables)
 						{
 							var outVarDecl = new OutVarDeclarationExpression(type.Clone(), v.Name, v.ILVariable != null && v.ILVariable.Kind == VariableKind.Parameter ? BoxedTextColor.Parameter : BoxedTextColor.Local);
@@ -687,8 +691,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 									Expression = new InvocationExpression {
 										Target = new MemberReferenceExpression {
 											Target = new TypeReferenceExpression(unsafeType),
-											MemberName = "SkipInit"
-										},
+											MemberNameToken = Identifier.Create(skipInitName).WithAnnotation(singleCandidate?.MetadataToken)
+										}.WithAnnotation(singleCandidate?.MetadataToken),
 										Arguments = {
 											outVarDecl
 										}
@@ -708,8 +712,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 									Expression = new InvocationExpression {
 										Target = new MemberReferenceExpression {
 											Target = new TypeReferenceExpression(unsafeType),
-											MemberName = "SkipInit"
-										},
+											MemberNameToken = Identifier.Create(skipInitName).WithAnnotation(singleCandidate?.MetadataToken)
+										}.WithAnnotation(singleCandidate?.MetadataToken),
 										Arguments = {
 											new DirectionExpression(
 												FieldDirection.Out,

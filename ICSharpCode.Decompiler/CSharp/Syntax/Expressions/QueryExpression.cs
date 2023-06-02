@@ -236,6 +236,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 		public Identifier IdentifierToken {
 			get { return GetChildByRole(Roles.Identifier); }
+			set { SetChildByRole(Roles.Identifier, value); }
 		}
 
 		public CSharpTokenNode AssignToken {

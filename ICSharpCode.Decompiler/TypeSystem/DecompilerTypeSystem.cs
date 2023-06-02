@@ -19,6 +19,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+
 using dnlib.DotNet;
 
 using ICSharpCode.Decompiler.Metadata;
@@ -220,7 +222,9 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				tsMod = new PEFile(module).WithOptions(options).Resolve(resolveContext);
 				modules.Add(tsMod);
 				referencedModules.Add(tsMod);
-				return dnlibModules[module] = tsMod;
+				dnlibModules[module] = tsMod;
+				Interlocked.Exchange(ref this.rootNamespace, null);
+				return tsMod;
 			}
 		}
 

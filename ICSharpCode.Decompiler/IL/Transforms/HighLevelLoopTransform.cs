@@ -429,10 +429,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					if (forCondition == null)
 					{
 						forCondition = new IfInstruction(condition, whileCondition.TrueInst, whileCondition.FalseInst);
+						if (context.CalculateILSpans)
+							forCondition.ILSpans.AddRange(whileCondition.ILSpans);
 					}
 					else
 					{
+						var oldParent = condition.Parent;
 						forCondition.Condition = IfInstruction.LogicAnd(forCondition.Condition, condition);
+						if (context.CalculateILSpans && oldParent is not null)
+							forCondition.Condition.ILSpans.AddRange(oldParent.ILSpans);
 					}
 					numberOfConditions++;
 				}
@@ -441,13 +446,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				context.Step("Transform to for loop: " + loop.EntryPoint.Label, loop);
 				// split condition block:
 				whileCondition.ReplaceWith(forCondition);
-				if (context.CalculateILSpans)
-					forCondition.ILSpans.AddRange(whileCondition.ILSpans);
 				ExpressionTransforms.RunOnSingleStatement(forCondition, context);
 				for (int i = conditions.Count - 1; i >= numberOfConditions; i--)
 				{
-					IfInstruction inst;
-					whileLoopBody.Instructions.Insert(0, inst = new IfInstruction(Comp.LogicNot(conditions[i]), new Leave(loop)));
+					ILInstruction condition = conditions[i];
+					ILInstruction conditionParent = condition.Parent;
+
+					IfInstruction inst = new IfInstruction(Comp.LogicNot(condition), new Leave(loop));
+					if (context.CalculateILSpans && conditionParent is not null)
+						inst.ILSpans.AddRange(conditionParent.ILSpans);
+
+					whileLoopBody.Instructions.Insert(0, inst);
+
 					ExpressionTransforms.RunOnSingleStatement(inst, context);
 				}
 				// create a new increment block and add it at the end:

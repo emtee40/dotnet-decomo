@@ -114,8 +114,8 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 		public override AstNode VisitPropertyDeclaration(PropertyDeclaration propertyDeclaration)
 		{
-			if (context.Settings.AutomaticProperties
-				&& (!propertyDeclaration.Setter.IsNull || context.Settings.GetterOnlyAutomaticProperties))
+			if (context.Settings.AutomaticProperties && !context.Settings.ForceShowAllMembers
+													 && (!propertyDeclaration.Setter.IsNull || context.Settings.GetterOnlyAutomaticProperties))
 			{
 				AstNode result = TransformAutomaticProperty(propertyDeclaration);
 				if (result != null)
@@ -128,7 +128,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		{
 			// first apply transforms to the accessor bodies
 			base.VisitCustomEventDeclaration(eventDeclaration);
-			if (context.Settings.AutomaticEvents)
+			if (context.Settings.AutomaticEvents && !context.Settings.ForceShowAllMembers)
 			{
 				AstNode result = TransformAutomaticEvents(eventDeclaration);
 				if (result != null)
@@ -227,6 +227,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			forStatement.Iterators.Add(iteratorStatement.Detach());
 			forStatement.EmbeddedStatement = newBody;
 			loop.ReplaceWith(forStatement);
+			var oldBody = loop.EmbeddedStatement as BlockStatement;
+			if (oldBody != null) {
+				newBody.HiddenStart = oldBody.HiddenStart;
+				newBody.HiddenEnd = oldBody.HiddenEnd;
+			}
 			return forStatement;
 		}
 
@@ -413,13 +418,33 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 
 			var forBlock = (BlockStatement)forStatement.EmbeddedStatement;
 
-			body.HiddenStart = forBlock.HiddenStart;
-			body.HiddenEnd = forBlock.HiddenEnd;
+			if (context.CalculateILSpans)
+			{
+				var incStmt = m.Get<ExpressionStatement>("increment").Single();
+				foreachStmt.InExpression.RemoveAllILSpansRecursive();
 
-			foreachStmt.HiddenMoveNextNode = m.Get<ExpressionStatement>("increment").Single();
-			foreachStmt.HiddenGetCurrentNode = m.Get<ExpressionStatement>("variable").Single();
-			foreachStmt.HiddenGetEnumeratorNode = m.Get<ExpressionStatement>("initializer").Single();;
-			foreachStmt.HiddenInitializer = null; //TODO:
+				body.HiddenStart = forBlock.HiddenStart;
+				body.HiddenEnd = forBlock.HiddenEnd;
+
+				// |foreach| (var c in args)
+				// Temp local (if source is a field or a cast, otherwise the statement doesn't exist)
+				// array = (int[])args;
+				foreachStmt.HiddenInitializer = null; //TODO:
+				// foreach (var c in |args|)
+				// Compiler generated index
+				// i = 0;
+				foreachStmt.HiddenGetEnumeratorNode = m.Get<ExpressionStatement>("initializer").Single();
+				// foreach (var c |in| args)
+				// Condition and increment get to share the same location, there's not enough space left
+				// i < array.Length
+				// i = i + 1;
+				foreachStmt.HiddenMoveNextNode = incStmt;
+				forStatement.Condition.AddAllRecursiveILSpansTo(incStmt);
+				// foreach (|var c| in args)
+				// Store value in local
+				// c = array[i];
+				foreachStmt.HiddenGetCurrentNode = m.Get<ExpressionStatement>("variable").Single();
+			}
 
 			foreachStmt.CopyAnnotationsFrom(forStatement);
 			itemVariable.Kind = IL.VariableKind.ForeachLocal;
@@ -1132,9 +1157,9 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		static readonly BlockStatement destructorBodyPattern = new BlockStatement {
 			new TryCatchStatement {
 				TryBlock = new AnyNode("body"),
-				FinallyBlock = new BlockStatement {
+				FinallyBlock = new NamedNode("finally", new BlockStatement {
 					new InvocationExpression(new MemberReferenceExpression(new BaseReferenceExpression(), "Finalize"))
-				}
+				})
 			}
 		};
 
@@ -1184,10 +1209,17 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			if (m.Success)
 			{
 				BlockStatement dtorDefBody = m.Get<BlockStatement>("body").Single().Detach();
-				var tc = (TryCatchStatement)dtorDef.Body.FirstChild;
+				BlockStatement finallyBlock = m.Get<BlockStatement>("finally").Single().Detach();
+				foreach (var child in dtorDef.Body.Children.Reverse().ToArray()) {
+					var cmt = child as Comment;
+					if (cmt != null) {
+						cmt.Detach();
+						dtorDefBody.InsertChildAfter(null, cmt, Roles.Comment);
+					}
+				}
 				if (context.CalculateILSpans) {
 					dtorDefBody.HiddenStart = ILSpanAnnotationExtensions.CreateHidden(dtorDefBody.HiddenStart, dtorDef.Body.HiddenStart);
-					dtorDefBody.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(dtorDefBody.HiddenEnd, dtorDef.Body.HiddenEnd, tc!.FinallyBlock);
+					dtorDefBody.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(dtorDefBody.HiddenEnd, dtorDef.Body.HiddenEnd, finallyBlock);
 				}
 				dtorDef.Body = dtorDefBody;
 				return dtorDef;
@@ -1319,7 +1351,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						Expression target = m.Get<Expression>("target").Single();
 						if (target.GetResolveResult().Type.IsReferenceType == false)
 						{
-							v.Initializer = target.Detach();
+							Expression detachedTarget = target.Detach();
+							if (context.CalculateILSpans)
+								v.Initializer.AddAllRecursiveILSpansTo(detachedTarget);
+							v.Initializer = detachedTarget;
 						}
 					}
 				}

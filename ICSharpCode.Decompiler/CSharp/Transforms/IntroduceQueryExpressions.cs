@@ -47,7 +47,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				if (IsDegenerateQuery(query))
 				{
 					// introduce select for degenerate query
-					query.Clauses.Add(new QuerySelectClause { Expression = new IdentifierExpression(fromClause.Identifier).CopyAnnotationsFrom(fromClause) });
+					query.Clauses.Add(new QuerySelectClause { Expression = IdentifierExpression.Create(fromClause.Identifier, fromClause.IdentifierToken.Annotation<object>()).CopyAnnotationsFrom(fromClause) });
 				}
 				// See if the data source of this query is a degenerate query,
 				// and combine the queries if possible.

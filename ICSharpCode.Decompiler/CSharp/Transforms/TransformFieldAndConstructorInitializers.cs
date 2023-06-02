@@ -384,6 +384,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						{
 							fieldOrPropertyDecl.Modifiers |= Modifiers.Unsafe;
 						}
+						var ilSpans = assignment.GetAllILSpans();
+						assignment.Right.GetAllILSpans(ilSpans);
+						assignment.RemoveAnnotations<IList<ILSpan>>();
+						assignment.Right.RemoveAnnotations<IList<ILSpan>>();
 						if (fieldOrPropertyDecl is FieldDeclaration fd)
 						{
 							var v = fd.Variables.Single();
@@ -412,8 +416,6 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						{
 							break;
 						}
-						var ilSpans = assignment.GetAllRecursiveILSpans();
-						assignment.RemoveAllILSpansRecursive();
 						var ctorILSpans = new List<Tuple<MethodDebugInfoBuilder, List<ILSpan>>>(1);
 						if (mm != null)
 							ctorILSpans.Add(Tuple.Create(mm, ilSpans));

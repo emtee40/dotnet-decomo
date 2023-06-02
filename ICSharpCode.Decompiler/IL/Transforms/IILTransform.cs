@@ -20,6 +20,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Text;
 using System.Threading;
 
 using ICSharpCode.Decompiler.CSharp.TypeSystem;
@@ -48,15 +49,17 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 		public Stepper Stepper { get; set; }
 		public Metadata.PEFile PEFile => TypeSystem.MainModule.PEFile;
 		public bool CalculateILSpans { get; set; }
+		public StringBuilder StringBuilder { get; set; }
 
 		internal DecompileRun? DecompileRun { get; set; }
 		internal ResolvedUsingScope? UsingScope => DecompileRun?.UsingScope.Resolve(TypeSystem);
 
-		public ILTransformContext(ILFunction function, IDecompilerTypeSystem typeSystem, DecompilerSettings? settings = null)
+		public ILTransformContext(ILFunction function, IDecompilerTypeSystem typeSystem, DecompilerSettings? settings = null, StringBuilder? sb = null)
 		{
 			this.Function = function ?? throw new ArgumentNullException(nameof(function));
 			this.TypeSystem = typeSystem ?? throw new ArgumentNullException(nameof(typeSystem));
 			this.Settings = settings ?? new DecompilerSettings();
+			this.StringBuilder = sb ?? new StringBuilder();
 			Stepper = new Stepper();
 		}
 
@@ -69,6 +72,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			this.CancellationToken = context.CancellationToken;
 			this.Stepper = context.Stepper;
 			this.CalculateILSpans = context.CalculateILSpans;
+			this.StringBuilder = context.StringBuilder;
 		}
 
 		/// <summary>

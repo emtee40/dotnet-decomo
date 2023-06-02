@@ -283,13 +283,6 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		public ICompilation Compilation => module.Compilation;
 
 		#region Attributes
-		IType FindInteropType(string name)
-		{
-			return module.Compilation.FindType(new TopLevelTypeName(
-				"System.Runtime.InteropServices", name
-			));
-		}
-
 		public IEnumerable<IAttribute> GetAttributes()
 		{
 			var b = new AttributeListBuilder(module);

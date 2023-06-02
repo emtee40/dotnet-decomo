@@ -1534,6 +1534,7 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			WriteKeyword(StackAllocExpression.StackallocKeywordRole);
 			stackAllocExpression.Type.AcceptVisitor(this);
 			WriteCommaSeparatedListInBrackets(new[] { stackAllocExpression.CountExpression }, CodeBracesRangeFlags.SquareBrackets);
+			stackAllocExpression.Initializer.AcceptVisitor(this);
 			EndNode(stackAllocExpression);
 		}
 

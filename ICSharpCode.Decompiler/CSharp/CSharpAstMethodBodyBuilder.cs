@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using System;
 using System.Collections.Generic;
@@ -53,7 +53,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					localSettings.AlwaysQualifyMemberReferences = true;
 				}
 
-				var ilTransformContext = new ILTransformContext(function, typeSystem, localSettings) {
+				var ilTransformContext = new ILTransformContext(function, typeSystem, localSettings, sb) {
 					CancellationToken = context.CancellationToken,
 					DecompileRun = decompileRun,
 					CalculateILSpans = context.CalculateILSpans
@@ -115,10 +115,18 @@ namespace ICSharpCode.Decompiler.CSharp
 			else
 				stateMachineKind = StateMachineKind.None;
 
+			string? compilerName = null;
+			if (function.StateMachineCompiledWithMono)
+				compilerName = PredefinedCompilerNames.MonoCSharp;
+			else if (function.StateMachineCompiledWithLegacyVisualBasic)
+				compilerName = PredefinedCompilerNames.MicrosoftVisualBasic;
+
 			var moveNext = (MethodDef?)function.MoveNextMethod?.MetadataToken;
 			return new MethodDebugInfoBuilder(settingsVersion, stateMachineKind, moveNext ?? dnlibMethod,
 				moveNext is not null ? dnlibMethod : null,
-				CreateSourceLocals(function), CreateSourceParameters(function), function.AsyncMethodDebugInfo);
+				CreateSourceLocals(function), CreateSourceParameters(function), function.AsyncMethodDebugInfo) {
+				CompilerName = compilerName
+			};
 		}
 
 		private static SourceLocal[] CreateSourceLocals(ILFunction function) {
@@ -130,6 +138,22 @@ namespace ICSharpCode.Decompiler.CSharp
 					v.sourceParamOrLocal = existing;
 				else
 					dict[v.OriginalVariable] = v.GetSourceLocal();
+			}
+			return dict.Values.ToArray();
+		}
+
+		public static SourceLocal[] CreateSourceLocalsUsed(ILInstruction instruction) {
+			var dict = new Dictionary<Local, SourceLocal>();
+			foreach (var ilInstruction in instruction.GetSelfAndChildrenRecursive<ILInstruction>(exit: x => x is ILFunction))
+			{
+				if (ilInstruction is not IInstructionWithVariableOperand instrWithVar ||
+					instrWithVar.Variable.Kind == VariableKind.Parameter || instrWithVar.Variable.OriginalVariable is null)
+					continue;
+
+				if (dict.TryGetValue(instrWithVar.Variable.OriginalVariable, out var existing))
+					instrWithVar.Variable.sourceParamOrLocal = existing;
+				else
+					dict[instrWithVar.Variable.OriginalVariable] = instrWithVar.Variable.GetSourceLocal();
 			}
 			return dict.Values.ToArray();
 		}
@@ -164,6 +188,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		#region Empty Body
 
+		//TODO: set async modifiers and add yield break
 		internal static void DecompileEmptyBody(EntityDeclaration methodNode, MethodDef method, Decompiler.TypeSystem.IMethod tsMethod, IDecompilerTypeSystem typeSystem, TypeSystemAstBuilder typeSystemAstBuilder, IEnumerable<ParameterDeclaration>? parameters)
 		{
 			BlockStatement bs = new BlockStatement();

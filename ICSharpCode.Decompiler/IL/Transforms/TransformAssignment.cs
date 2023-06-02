@@ -375,8 +375,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						newInst.ILSpans.AddRange(smallIntConv.ILSpans);
 					newInst.ILSpans.AddRange(binary.ILSpans);
 					if (target != binary.Left)
-					{
 						newInst.ILSpans.AddRange(binary.Left.ILSpans);
+					if (compoundStore is StObj stobj && stobj.Target != target)
+						stobj.Target.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
+					else if (compoundStore is CallInstruction call)
+					{
+						foreach (ILInstruction ilInstruction in call.Arguments.SkipLast(1))
+							ilInstruction.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
 					}
 				}
 			}
@@ -416,9 +421,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					newInst.ILSpans.AddRange(compoundStore.ILSpans);
 					newInst.ILSpans.AddRange(operatorCall.ILSpans);
 					if (target != lhs)
-					{
 						newInst.ILSpans.AddRange(lhs.ILSpans);
-					}
+					if (compoundStore is StObj stobj && stobj.Target != target)
+						stobj.Target.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
 				}
 			}
 			else if (setterValue is DynamicBinaryOperatorInstruction dynamicBinaryOp)
@@ -434,12 +439,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					newInst.ILSpans.AddRange(compoundStore.ILSpans);
 					newInst.ILSpans.AddRange(dynamicBinaryOp.ILSpans);
 					if (target != dynamicBinaryOp.Left)
-					{
 						newInst.ILSpans.AddRange(dynamicBinaryOp.Left.ILSpans);
-					}
 					if (compoundStore is StObj stobj && stobj.Target != target)
+						stobj.Target.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
+					else if (compoundStore is CallInstruction call)
 					{
-						newInst.ILSpans.AddRange(stobj.Target.ILSpans);
+						foreach (ILInstruction ilInstruction in call.Arguments.SkipLast(1))
+							ilInstruction.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
 					}
 				}
 
@@ -488,9 +494,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					newInst.ILSpans.AddRange(compoundStore.ILSpans);
 					newInst.ILSpans.AddRange(concatCall.ILSpans);
 					if (target != lhs)
-					{
 						newInst.ILSpans.AddRange(lhs.ILSpans);
-					}
+					if (compoundStore is StObj stobj && stobj.Target != target)
+						stobj.Target.AddSelfAndChildrenRecursiveILSpans(newInst.ILSpans);
 				}
 			}
 			else
@@ -515,7 +521,10 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				Debug.Assert(inlineAssignBlock.FinalInstruction.MatchLdLoc(storeInSetter.Variable));
 				// Block CallInlineAssign { stloc I_0(compound.op(...)); final: ldloc I_0 }
 				// --> compound.op(...)
+				if (context.CalculateILSpans)
+					storeInSetter.Value.ILSpans.AddRange(inlineAssignBlock.ILSpans);
 				inlineAssignBlock.ReplaceWith(storeInSetter.Value);
+
 			}
 			return true;
 		}
@@ -1061,9 +1070,15 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 						ldObj.Target.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 				}
 
-				if (conv is not null)
-					replacement.ILSpans.AddRange(conv.ILSpans);
 				replacement.ILSpans.AddRange(value.ILSpans);
+				if (UnwrapSmallIntegerConv(value, out var smallConv) is BinaryNumericInstruction binary2)
+				{
+					if (smallConv is not null)
+						replacement.ILSpans.AddRange(binary2.ILSpans);
+					replacement.ILSpans.AddRange(binary2.Left.ILSpans);
+				}
+				else if (value is CallInstruction callInstruction)
+					replacement.ILSpans.AddRange(callInstruction.Arguments[0].ILSpans);
 			}
 			inst.Value = replacement;
 			block.Instructions.RemoveAt(i + 1);

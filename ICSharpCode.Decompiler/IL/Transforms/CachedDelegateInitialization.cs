@@ -362,6 +362,11 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (!DelegateConstruction.MatchDelegateConstruction(delegateConstruction, out _, out _, out _, true))
 				return false;
 			context.Step("CachedDelegateInitializationVBWithReturn", inst);
+			if (context.CalculateILSpans)
+			{
+				inst.AddSelfAndChildrenRecursiveILSpans(delegateConstruction.ILSpans);
+				delegateConstruction.ILSpans.AddRange(leaveAfterIf.Value.ILSpans);
+			}
 			leaveAfterIf.Value = delegateConstruction;
 			return true;
 		}

@@ -138,7 +138,7 @@ namespace ICSharpCode.Decompiler.IL
 			{
 				currentContainer.Blocks.Add(new Block {
 					Instructions = {
-						new InvalidBranch("Empty body found. Decompiled assembly might be a reference assembly.")
+						new InvalidBranch("Empty body found. Decompiled assembly might be a reference assembly or the method bodies might be encrypted.")
 					}
 				});
 				return;

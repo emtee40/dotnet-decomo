@@ -126,7 +126,8 @@ namespace ICSharpCode.Decompiler.IL
 			trueInst.WriteTo(output, options);
 			if (falseInst.OpCode != OpCode.Nop)
 			{
-				output.Write(" ", BoxedTextColor.Text);
+				if (trueInst is not Block or BlockContainer)
+					output.Write(" ", BoxedTextColor.Text);
 				output.Write("else", BoxedTextColor.Keyword);
 				output.Write(" ", BoxedTextColor.Text);
 				falseInst.WriteTo(output, options);

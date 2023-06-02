@@ -25,6 +25,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (method != null) {
 				if (method.IsGetter || method.IsSetter || method.IsAddOn || method.IsRemoveOn)
 					return true;
+				if (method.Name == ".ctor" && method.RVA == 0 && method.DeclaringType.IsImport)
+					return true;
 				if (settings.ForceShowAllMembers)
 					return false;
 				if (settings.LocalFunctions && LocalFunctionDecompiler.IsLocalFunctionMethod(null, method))
@@ -236,7 +238,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		EnumValueDisplayMode DetectBestEnumValueDisplayMode(ITypeDefinition typeDef)
 		{
-			if (typeDef.HasAttribute(KnownAttribute.Flags, inherit: false))
+			if (typeDef.HasAttribute(KnownAttribute.Flags))
 				return EnumValueDisplayMode.AllHex;
 			bool first = true;
 			long firstValue = 0, previousValue = 0;
@@ -259,6 +261,11 @@ namespace ICSharpCode.Decompiler.CSharp
 					firstValue = currentValue;
 					first = false;
 				}
+				else if (currentValue <= previousValue)
+				{
+					// If the values are out of order, we fallback to displaying all values.
+					return EnumValueDisplayMode.All;
+				}
 				else if (!allConsecutive && !allPowersOfTwo)
 				{
 					// We already know that the values are neither consecutive nor all powers of 2,
@@ -267,10 +274,18 @@ namespace ICSharpCode.Decompiler.CSharp
 				}
 				previousValue = currentValue;
 			}
-			if (allPowersOfTwo && previousValue > 2)
+			if (allPowersOfTwo)
 			{
-				// If all values are powers of 2, display all enum values, but use hex.
-				return EnumValueDisplayMode.AllHex;
+				if (previousValue > 8)
+				{
+					// If all values are powers of 2 and greater 8, display all enum values, but use hex.
+					return EnumValueDisplayMode.AllHex;
+				}
+				else if (!allConsecutive)
+				{
+					// If all values are powers of 2, display all enum values.
+					return EnumValueDisplayMode.All;
+				}
 			}
 			if (context.Settings.AlwaysShowEnumMemberValues)
 			{
@@ -424,7 +439,7 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			type = null;
 			elementCount = 0;
-			IAttribute attr = field.GetAttribute(KnownAttribute.FixedBuffer, inherit: false);
+			IAttribute attr = field.GetAttribute(KnownAttribute.FixedBuffer);
 			if (attr != null && attr.FixedArguments.Length == 2) {
 				if (attr.FixedArguments[0].Value is ICSharpCode.Decompiler.TypeSystem.IType trr && attr.FixedArguments[1].Value is int length) {
 					type = trr;
@@ -449,11 +464,27 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (function.StateMachineCompiledWithMono) {
 					RemoveAttribute(entityDecl, KnownAttribute.DebuggerHidden);
 				}
+				if (function.StateMachineCompiledWithLegacyVisualBasic)
+				{
+					RemoveAttribute(entityDecl, KnownAttribute.DebuggerStepThrough);
+					if (function.Method?.IsAccessor == true && entityDecl.Parent is EntityDeclaration parentDecl)
+					{
+						RemoveAttribute(parentDecl, KnownAttribute.DebuggerStepThrough);
+					}
+				}
 			}
 			if (function.IsAsync) {
 				entityDecl.Modifiers |= Modifiers.Async;
 				RemoveAttribute(entityDecl, KnownAttribute.AsyncStateMachine);
 				RemoveAttribute(entityDecl, KnownAttribute.DebuggerStepThrough);
+			}
+			foreach (var parameter in entityDecl.GetChildrenByRole(Roles.Parameter))
+			{
+				var variable = parameter.Annotation<ILVariableResolveResult>()?.Variable;
+				if (variable != null && variable.HasNullCheck)
+				{
+					parameter.HasNullCheck = true;
+				}
 			}
 		}
 

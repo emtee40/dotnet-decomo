@@ -1469,13 +1469,13 @@ namespace ICSharpCode.Decompiler.CSharp
 				{
 					expr = new MemberReferenceExpression {
 						Target = target.Expression,
-						MemberNameToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember)
+						MemberNameToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember ?? (owner.IsStatic ? BoxedTextColor.StaticProperty : BoxedTextColor.InstanceProperty))
 					}.WithAnnotation(owner.OriginalMember).WithAnnotation(method.OriginalMember).WithoutILInstruction().WithRR(rr);
 				}
 				else
 				{
 					expr = new IdentifierExpression {
-						IdentifierToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember)
+						IdentifierToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember ?? (owner.IsStatic ? BoxedTextColor.StaticProperty : BoxedTextColor.InstanceProperty))
 					}.WithAnnotation(owner.OriginalMember).WithAnnotation(method.OriginalMember).WithoutILInstruction().WithRR(rr);
 				}
 
@@ -1505,13 +1505,13 @@ namespace ICSharpCode.Decompiler.CSharp
 				{
 					return new MemberReferenceExpression {
 						Target = target.Expression,
-						MemberNameToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember)
+						MemberNameToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember ?? (owner.IsStatic ? BoxedTextColor.StaticProperty : BoxedTextColor.InstanceProperty))
 					}.WithAnnotation(owner.OriginalMember).WithAnnotation(method.OriginalMember).WithoutILInstruction().WithRR(rr);
 				}
 				else
 				{
 					return new IdentifierExpression {
-						IdentifierToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember)
+						IdentifierToken = Identifier.Create(owner.Name).WithAnnotation(owner.OriginalMember ?? (owner.IsStatic ? BoxedTextColor.StaticProperty : BoxedTextColor.InstanceProperty))
 					}.WithAnnotation(owner.OriginalMember).WithAnnotation(method.OriginalMember).WithoutILInstruction().WithRR(rr);
 				}
 			}

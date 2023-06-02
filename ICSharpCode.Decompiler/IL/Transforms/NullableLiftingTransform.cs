@@ -182,6 +182,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					if (context.CalculateILSpans)
 					{
 						nullPropagated.ILSpans.AddRange(ifInst.ILSpans);
+						condition.AddSelfAndChildrenRecursiveILSpans(nullPropagated.ILSpans);
 						if (negationSpans is not null)
 							nullPropagated.ILSpans.AddRange(negationSpans);
 					}

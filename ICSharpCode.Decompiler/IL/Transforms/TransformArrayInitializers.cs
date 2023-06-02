@@ -253,7 +253,13 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					block.Instructions.Add(new StLoc(tempStore, locallocExpr));
 					block.Instructions.AddRange(values.Where(value => value != null).Select(value => RewrapStore(tempStore, value, elementType)));
 					block.FinalInstruction = new LdLoc(tempStore);
-					body.Instructions[pos] = new StLoc(v, block);
+					var newStloc = new StLoc(v, block);
+					if (context.CalculateILSpans) {
+						body.Instructions[pos].AddSelfAndChildrenRecursiveILSpans(newStloc.ILSpans);
+						for (int i = 0; i < instructionsToRemove; i++)
+							body.Instructions[pos + 1 + i].AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
+					}
+					body.Instructions[pos] = newStloc;
 					body.Instructions.RemoveRange(pos + 1, instructionsToRemove);
 					ILInlining.InlineIfPossible(body, pos, context);
 					ExpressionTransforms.RunOnSingleStatement(body.Instructions[pos], context);

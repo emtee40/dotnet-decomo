@@ -736,5 +736,21 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			}
 			return ns;
 		}
+
+		public static INamespace GetNamespaceByFullName(this IModule module, string name)
+		{
+			if (string.IsNullOrEmpty(name))
+				return module.RootNamespace;
+			var parts = name.Split('.');
+			var ns = module.RootNamespace;
+			foreach (var part in parts)
+			{
+				var child = ns.GetChildNamespace(part);
+				if (child == null)
+					return null;
+				ns = child;
+			}
+			return ns;
+		}
 	}
 }

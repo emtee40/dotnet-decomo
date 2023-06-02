@@ -16,8 +16,8 @@ namespace ICSharpCode.Decompiler.CSharp
 	}
 
 	public sealed class CommentReferencesCreator {
-		readonly List<CommentReference> refs;
-		readonly StringBuilder sb;
+		private readonly List<CommentReference> refs;
+		private readonly StringBuilder sb;
 
 		public CommentReference[] CommentReferences {
 			get { return refs.ToArray(); }
@@ -41,7 +41,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			Add(text, @ref, isLocal);
 		}
 
-		void Add(string s, object @ref, bool isLocal) {
+		private void Add(string s, object @ref, bool isLocal) {
 			refs.Add(new CommentReference(s.Length, @ref, isLocal));
 			sb.Append(s);
 		}

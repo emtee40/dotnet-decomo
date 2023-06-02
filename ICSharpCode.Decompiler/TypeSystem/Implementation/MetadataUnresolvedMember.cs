@@ -166,9 +166,9 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 		bool IMethod.IsOperator => symbolKind == SymbolKind.Operator;
 
 		bool IMethod.HasBody => false;
-		bool IMethod.IsAccessor => false;
-		IMember IMethod.AccessorOwner => null;
-		dnlib.DotNet.MethodSemanticsAttributes IMethod.AccessorKind => 0;
+		bool IMethod.IsAccessor => AccessorOwner is not null;
+		public IMember AccessorOwner { get; set; }
+		public MethodSemanticsAttributes AccessorKind { get; set; }
 
 		IMethod IMethod.ReducedFrom => null;
 

@@ -219,6 +219,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 					tupleTypeIndex += tupleCardinality;
 					ExpectDummyNullabilityForGenericValueType();
 					var elementTypes = ImmutableArray.CreateBuilder<IType>(tupleCardinality);
+					var backupType = type;
 					do
 					{
 						int normalArgCount = Math.Min(type.TypeArguments.Count, TupleType.RestPosition - 1);
@@ -253,7 +254,9 @@ namespace ICSharpCode.Decompiler.TypeSystem
 						elementTypes.MoveToImmutable(),
 						elementNames,
 						valueTupleAssembly
-					);
+					) {
+						MetadataToken = backupType.MetadataToken
+					};
 				}
 				else
 				{

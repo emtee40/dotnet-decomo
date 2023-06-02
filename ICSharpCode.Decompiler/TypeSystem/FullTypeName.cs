@@ -151,7 +151,8 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			get {
 				if (nestedTypes == null)
 					return topLevelType.ReflectionName;
-				StringBuilder b = new StringBuilder(topLevelType.ReflectionName);
+				StringBuilder b = new StringBuilder();
+				topLevelType.AppendReflectionName(b);
 				foreach (NestedTypeName nt in nestedTypes)
 				{
 					b.Append('+');

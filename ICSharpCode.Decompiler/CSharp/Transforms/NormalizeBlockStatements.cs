@@ -227,7 +227,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				var retSpans = propertyDeclaration.Getter.Body.Statements.Single().GetAllILSpans();
 				if (retSpans.Count > 0)
 					propertyDeclaration.ExpressionBody.AddAnnotation(retSpans);
-				propertyDeclaration.ExpressionBody.AddAnnotation(propertyDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+				propertyDeclaration.ExpressionBody.WithAnnotation(propertyDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
 			}
 
 			propertyDeclaration.Getter.Remove();
@@ -247,7 +247,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				var retSpans = indexerDeclaration.Getter.Body.Statements.Single().GetAllILSpans();
 				if (retSpans.Count > 0)
 					indexerDeclaration.ExpressionBody.AddAnnotation(retSpans);
-				indexerDeclaration.ExpressionBody.AddAnnotation(indexerDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+				indexerDeclaration.ExpressionBody.WithAnnotation(indexerDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
 			}
 			indexerDeclaration.Getter.Remove();
 		}

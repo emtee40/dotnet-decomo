@@ -596,7 +596,8 @@ namespace ICSharpCode.Decompiler.IL
 				default:
 					throw new ArgumentOutOfRangeException();
 			}
-			output.Write(this.Name!, GetTextReferenceObject(), DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, BoxedTextColor.Local);
+
+			output.Write(this.Name!, GetTextReferenceObject(), DecompilerReferenceFlags.Definition | DecompilerReferenceFlags.Local, Kind == VariableKind.Parameter ? BoxedTextColor.Parameter : BoxedTextColor.Local);
 			output.Write(" ", BoxedTextColor.Text);
 			output.Write(":", BoxedTextColor.Punctuation);
 			output.Write(" ", BoxedTextColor.Text);

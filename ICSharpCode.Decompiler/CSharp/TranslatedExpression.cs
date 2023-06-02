@@ -22,6 +22,8 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 
+using dnSpy.Contracts.Decompiler;
+
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Transforms;
 using ICSharpCode.Decompiler.IL;
@@ -160,6 +162,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			{
 				foreach (var inst in parent.Annotations.OfType<ILInstruction>())
 					descendant.AddAnnotation(inst);
+				descendant.AddAnnotation(parent.GetAllILSpans());
 				if (parent == Expression)
 					return new TranslatedExpression(descendant.Detach());
 			}
@@ -178,14 +181,14 @@ namespace ICSharpCode.Decompiler.CSharp
 		///
 		/// From the caller's perspective, IntPtr/UIntPtr behave like normal C# integers except that they have native int size.
 		/// All the special cases necessary to make IntPtr/UIntPtr behave sanely are handled internally in ConvertTo().
-		/// 
+		///
 		/// Post-condition:
 		///    The "expected evaluation result" is the value computed by <c>this.Expression</c>,
 		///    converted to targetType via an IL conv instruction.
-		/// 
+		///
 		///    ConvertTo(targetType, allowImplicitConversion=false).Type must be equal to targetType (modulo identity conversions).
 		///      The value computed by the converted expression must match the "expected evaluation result".
-		/// 
+		///
 		///    ConvertTo(targetType, allowImplicitConversion=true) must produce an expression that,
 		///      when evaluated in a context where it will be implicitly converted to targetType,
 		///      evaluates to the "expected evaluation result".

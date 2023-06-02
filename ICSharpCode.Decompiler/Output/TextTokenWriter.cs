@@ -38,23 +38,23 @@ namespace ICSharpCode.Decompiler
 {
 	public class TextTokenWriter : TokenWriter
 	{
-		private readonly MetadataTextColorProvider colorProvider;
 		readonly IDecompilerOutput output;
+		readonly DecompilerContext context;
 		readonly Stack<AstNode> nodeStack = new Stack<AstNode>();
 		int braceLevelWithinType = -1;
 
-		public TextTokenWriter(IDecompilerOutput output, MetadataTextColorProvider colorProvider)
+		public TextTokenWriter(IDecompilerOutput output, DecompilerContext context)
 		{
 			if (output == null)
 				throw new ArgumentNullException(nameof(output));
 			this.output = output;
-			this.colorProvider = colorProvider;
+			this.context = context;
 		}
 
 		public override void WriteIdentifier(Identifier identifier, object data)
 		{
 			if (BoxedTextColor.Text.Equals(data)) {
-				data = colorProvider.GetColor(identifier.AnnotationVT<TextColor>() ?? identifier.Annotation<object>());
+				data = context.MetadataTextColorProvider.GetColor(identifier.AnnotationVT<TextColor>() ?? identifier.Annotation<object>());
 			}
 
 			var escapedName = IdentifierEscaper.Escape(identifier.Name);
@@ -361,13 +361,19 @@ namespace ICSharpCode.Decompiler
 		{
 			int column = 0;
 			//TODO: parameters
-			var numberFormatter = NumberFormatter.GetCSharpInstance(false, upper: true);
-			TextWriterTokenWriter.WritePrimitiveValue(value, data, format, 1000, ref column, numberFormatter, WritePrimitiveValueCore, WriteToken);
+			var numberFormatter = NumberFormatter.GetCSharpInstance(context.Settings.HexadecimalNumbers || format == LiteralFormat.HexadecimalNumber, upper: true);
+			TextWriterTokenWriter.WritePrimitiveValue(value, data, format, context.Settings.MaxStringLength, ref column, numberFormatter, WritePrimitiveValueCore, WriteToken);
 		}
 
 		void WritePrimitiveValueCore(string text, object reference, object color)
 		{
-			if (color == BoxedTextColor.String || color == BoxedTextColor.Char) {
+			if (color == BoxedTextColor.String) {
+				int start = output.NextPosition;
+				output.Write(text, color);
+				int end = output.NextPosition;
+				output.AddBracePair(new TextSpan(start, 1), new TextSpan(end - 1, 1), CodeBracesRangeFlags.DoubleQuotes);
+			}
+			else if (color == BoxedTextColor.Char) {
 				int start = output.NextPosition;
 				output.Write(text, color);
 				int end = output.NextPosition;
@@ -423,10 +429,10 @@ namespace ICSharpCode.Decompiler
 				throw new InvalidOperationException();
 
 			if (node.Annotation<MethodDebugInfoBuilder>() != null) {
-				// if (context.CalculateILSpans) {
-				// 	foreach (var ns in context.UsingNamespaces)
-				// 		currentMethodDebugInfoBuilder.Scope.Imports.Add(ImportInfo.CreateNamespace(ns));
-				// }
+				if (context.CalculateILSpans) {
+					foreach (var ns in context.UsingNamespaces)
+						currentMethodDebugInfoBuilder.Scope.Imports.Add(ImportInfo.CreateNamespace(ns));
+				}
 				if (parentMethodDebugInfoBuilder.Peek() != currentMethodDebugInfoBuilder)
 					output.AddDebugInfo(currentMethodDebugInfoBuilder.Create());
 				currentMethodDebugInfoBuilder = parentMethodDebugInfoBuilder.Pop();

@@ -39,6 +39,7 @@ using ICSharpCode.Decompiler.TypeSystem.Implementation;
 using ICSharpCode.Decompiler.Util;
 
 using ExpressionType = System.Linq.Expressions.ExpressionType;
+using Extensions = dnlib.DotNet.Extensions;
 using PrimitiveType = ICSharpCode.Decompiler.CSharp.Syntax.PrimitiveType;
 
 namespace ICSharpCode.Decompiler.CSharp
@@ -252,13 +253,14 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		object GetParameterColor(ILVariable ilv)
-        {
-			//TODO:
-        	// if (valueParameterIsKeyword && ilv.OriginalParameter?.Name == "value" && methodDef.Parameters.Count > 0 && methodDef.Parameters[methodDef.Parameters.Count - 1] == ilv.OriginalParameter)
-        	// 	return BoxedTextColor.Keyword;
+		internal object GetParameterColor(ILVariable ilv)
+		{
+			if (ilv.OriginalParameter?.Name == "value" && currentFunction.DnlibMethod is not null &&
+				currentFunction.DnlibMethod.IsSetter && currentFunction.DnlibMethod.Parameters.Count > 0 &&
+				currentFunction.DnlibMethod.Parameters[currentFunction.DnlibMethod.Parameters.Count - 1] == ilv.OriginalParameter)
+				return BoxedTextColor.Keyword;
 			return ilv.Kind == VariableKind.Parameter ? BoxedTextColor.Parameter : BoxedTextColor.Local;
-        }
+		}
 
 		internal bool HidesVariableWithName(string name)
 		{
@@ -699,7 +701,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			// TODO: MemberRef annotation
 			var typeofExpr = new TypeOfExpression(ConvertType(inst.Type))
 				.WithRR(new TypeOfResolveResult(compilation.FindType(KnownTypeCode.Type), inst.Type));
-			return new MemberReferenceExpression(typeofExpr, "TypeHandle")
+			return new MemberReferenceExpression {
+					   Target = typeofExpr,
+					   MemberNameToken = Identifier.Create("TypeHandle").WithAnnotation(BoxedTextColor.InstanceProperty)
+				   }
 				.WithILInstruction(inst)
 				.WithRR(new TypeOfResolveResult(compilation.FindType(new TopLevelTypeName("System", "RuntimeTypeHandle")), inst.Type));
 		}
@@ -1446,13 +1451,20 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		internal TranslatedExpression CallUnsafeIntrinsic(string name, Expression[] arguments, IType returnType, ILInstruction inst = null, IEnumerable<IType> typeArguments = null)
+		internal TranslatedExpression CallUnsafeIntrinsic(string name, Expression[] arguments, IType returnType, ILInstruction inst = null, IList<IType> typeArguments = null)
 		{
-			// TODO: MemberRef annotation
+			IType unsafeType = compilation.FindType(KnownTypeCode.Unsafe);
+
+			var candidates = unsafeType.GetMethods(x =>
+				x.Name == name && x.Parameters.Count == arguments.Length && x.ReturnType.Equals(returnType) &&
+				x.TypeArguments.Count == (typeArguments?.Count ?? 0)).ToArray();
+			var singleCandidate = candidates.Length == 1 ? candidates[0] : null;
+
 			var target = new MemberReferenceExpression {
-				Target = new TypeReferenceExpression(astBuilder.ConvertType(compilation.FindType(KnownTypeCode.Unsafe))),
-				MemberName = name
-			};
+				Target = new TypeReferenceExpression(astBuilder.ConvertType(unsafeType)),
+				MemberNameToken = Identifier.Create(name).WithAnnotation(singleCandidate?.MetadataToken)
+			}.WithAnnotation(singleCandidate?.MetadataToken);
+
 			if (typeArguments != null)
 			{
 				target.TypeArguments.AddRange(typeArguments.Select(astBuilder.ConvertType));
@@ -3524,7 +3536,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			return new ArrayInitializerExpression(elements.SelectArray(e => e.Expression));
 		}
 
-		IEnumerable<ILInstruction> GetIndices(IEnumerable<ILInstruction> indices, Dictionary<ILVariable, ILInstruction> indexVariables)
+		IEnumerable<ILInstruction> GetIndices(ILInstruction[] indices, Dictionary<ILVariable, ILInstruction> indexVariables)
 		{
 			foreach (var inst in indices)
 			{
@@ -4148,9 +4160,15 @@ namespace ICSharpCode.Decompiler.CSharp
 		protected internal override TranslatedExpression VisitDynamicGetMemberInstruction(DynamicGetMemberInstruction inst, TranslationContext context)
 		{
 			var target = TranslateDynamicTarget(inst.Target, inst.TargetArgumentInfo);
-			return new MemberReferenceExpression(target, inst.Name)
-				.WithILInstruction(inst)
-				.WithRR(new DynamicMemberResolveResult(target.ResolveResult, inst.Name));
+
+			var lookup = new MemberLookup(resolver.CurrentTypeDefinition, resolver.CurrentTypeDefinition.ParentModule);
+			var result = lookup.Lookup(target.ResolveResult, inst.Name, EmptyList<IType>.Instance, isInvocation: false) as MemberResolveResult;
+			IMember resolvedMember = result?.Member.MemberDefinition;
+
+			return new MemberReferenceExpression {
+				Target = target,
+				MemberNameToken = Identifier.Create(inst.Name).WithAnnotation(resolvedMember?.MetadataToken)
+			}.WithAnnotation(resolvedMember?.MetadataToken).WithILInstruction(inst).WithRR(new DynamicMemberResolveResult(target.ResolveResult, inst.Name));
 		}
 
 		protected internal override TranslatedExpression VisitDynamicInvokeConstructorInstruction(DynamicInvokeConstructorInstruction inst, TranslationContext context)
@@ -4165,25 +4183,53 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		protected internal override TranslatedExpression VisitDynamicInvokeMemberInstruction(DynamicInvokeMemberInstruction inst, TranslationContext context)
 		{
-			Expression targetExpr;
 			var target = TranslateDynamicTarget(inst.Arguments[0], inst.ArgumentInfo[0]);
+			var arguments = TranslateDynamicArguments(inst.Arguments.Skip(1), inst.ArgumentInfo.Skip(1)).ToList();
+
+			var or = new OverloadResolution(resolver.Compilation, arguments.Select(x => x.ResolveResult).ToArray(), null,
+				inst.TypeArguments.ToArray(), resolver.conversions);
+
+			var textColor = inst.ArgumentInfo[0].HasFlag(CSharpArgumentInfoFlags.IsStaticType)
+				? BoxedTextColor.StaticMethod
+				: BoxedTextColor.InstanceMethod;
+
+			Expression targetExpr;
+			IMember resolvedMember = null;
 			if (inst.BinderFlags.HasFlag(CSharpBinderFlags.InvokeSimpleName) && target.Expression is ThisReferenceExpression)
 			{
-				targetExpr = IdentifierExpression.Create(inst.Name, BoxedTextColor.InstanceMethod);
-				((IdentifierExpression)targetExpr).TypeArguments.AddRange(inst.TypeArguments.Select(ConvertType));
+				var result = resolver.ResolveSimpleName(inst.Name, inst.TypeArguments, isInvocationTarget: true) as MethodGroupResolveResult;
+				if (result is not null)
+				{
+					or.AddMethodLists(result.MethodsGroupedByDeclaringType.ToArray());
+					if (or.BestCandidateErrors == OverloadResolutionErrors.None && !or.IsAmbiguous)
+						resolvedMember = or.BestCandidate?.MemberDefinition;
+				}
+
+				targetExpr = IdentifierExpression.Create(inst.Name, resolvedMember?.MetadataToken ?? textColor, resolvedMember?.MetadataToken is not null);
 			}
 			else
 			{
-				MemberReferenceExpression mre;
-				targetExpr = mre = new MemberReferenceExpression(target, inst.Name, inst.TypeArguments.Select(ConvertType));
-				mre.MemberNameToken.AddAnnotation(inst.ArgumentInfo[0].HasFlag(CSharpArgumentInfoFlags.IsStaticType)
-					? BoxedTextColor.StaticMethod
-					: BoxedTextColor.InstanceMethod);
+				var lookup = new MemberLookup(resolver.CurrentTypeDefinition, resolver.CurrentTypeDefinition.ParentModule);
+				var result = lookup.Lookup(target.ResolveResult, inst.Name, inst.TypeArguments, isInvocation: true) as MethodGroupResolveResult;
+				if (result is not null)
+				{
+					or.AddMethodLists(result.MethodsGroupedByDeclaringType.ToArray());
+					if (or.BestCandidateErrors == OverloadResolutionErrors.None && !or.IsAmbiguous)
+						resolvedMember = or.BestCandidate?.MemberDefinition;
+				}
+
+				targetExpr = new MemberReferenceExpression {
+					Target = target,
+					MemberNameToken = Identifier.Create(inst.Name).WithAnnotation(resolvedMember?.MetadataToken ?? textColor),
+				}.WithAnnotation(resolvedMember?.MetadataToken);
 			}
-			var arguments = TranslateDynamicArguments(inst.Arguments.Skip(1), inst.ArgumentInfo.Skip(1)).ToList();
+
+			foreach (IType typeArgument in inst.TypeArguments)
+				targetExpr.AddChild(ConvertType(typeArgument), Roles.TypeArgument);
+
 			return new InvocationExpression(targetExpr, arguments.Select(a => a.Expression))
-				.WithILInstruction(inst)
-				.WithRR(new DynamicInvocationResolveResult(target.ResolveResult, DynamicInvocationType.Invocation, arguments.Select(a => a.ResolveResult).ToArray()));
+				   .WithILInstruction(inst)
+				   .WithRR(new DynamicInvocationResolveResult(target.ResolveResult, DynamicInvocationType.Invocation, arguments.Select(a => a.ResolveResult).ToArray()));
 		}
 
 		protected internal override TranslatedExpression VisitDynamicInvokeInstruction(DynamicInvokeInstruction inst, TranslationContext context)
@@ -4288,9 +4334,15 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			var target = TranslateDynamicTarget(inst.Target, inst.TargetArgumentInfo);
 			var value = TranslateDynamicArgument(inst.Value, inst.ValueArgumentInfo);
-			var member = new MemberReferenceExpression(target, inst.Name)
-				.WithoutILInstruction()
-				.WithRR(new DynamicMemberResolveResult(target.ResolveResult, inst.Name));
+
+			var lookup = new MemberLookup(resolver.CurrentTypeDefinition, resolver.CurrentTypeDefinition.ParentModule);
+			var result = lookup.Lookup(target.ResolveResult, inst.Name, EmptyList<IType>.Instance, isInvocation: false) as MemberResolveResult;
+			IMember resolvedMember = result?.Member.MemberDefinition;
+
+			var member = new MemberReferenceExpression {
+				Target = target,
+				MemberNameToken = Identifier.Create(inst.Name).WithAnnotation(resolvedMember?.MetadataToken)
+			}.WithAnnotation(resolvedMember?.MetadataToken).WithoutILInstruction().WithRR(new DynamicMemberResolveResult(target.ResolveResult, inst.Name));
 			return Assignment(member, value).WithILInstruction(inst);
 		}
 
@@ -4679,30 +4731,36 @@ namespace ICSharpCode.Decompiler.CSharp
 
 		protected internal override TranslatedExpression VisitInvalidBranch(InvalidBranch inst, TranslationContext context)
 		{
-			string message = "Error";
+			stringBuilder.Clear();
+			stringBuilder.Append("Error");
 			if (inst.StartILOffset != 0)
 			{
-				message += $" near IL_{inst.StartILOffset:X4}";
+				stringBuilder.Append(" near IL_");
+				stringBuilder.Append(inst.StartILOffset.ToString("X4"));
 			}
 			if (!string.IsNullOrEmpty(inst.Message))
 			{
-				message += ": " + inst.Message;
+				stringBuilder.Append(": ");
+				stringBuilder.Append(inst.Message);
 			}
-			return ErrorExpression(message);
+			return ErrorExpression(stringBuilder.ToString());
 		}
 
 		protected internal override TranslatedExpression VisitInvalidExpression(InvalidExpression inst, TranslationContext context)
 		{
-			string message = inst.Severity;
+			stringBuilder.Clear();
+			stringBuilder.Append(inst.Severity);
 			if (inst.StartILOffset != 0)
 			{
-				message += $" near IL_{inst.StartILOffset:X4}";
+				stringBuilder.Append(" near IL_");
+				stringBuilder.Append(inst.StartILOffset.ToString("X4"));
 			}
 			if (!string.IsNullOrEmpty(inst.Message))
 			{
-				message += ": " + inst.Message;
+				stringBuilder.Append(": ");
+				stringBuilder.Append(inst.Message);
 			}
-			return ErrorExpression(message);
+			return ErrorExpression(stringBuilder.ToString());
 		}
 
 		protected override TranslatedExpression Default(ILInstruction inst, TranslationContext context)

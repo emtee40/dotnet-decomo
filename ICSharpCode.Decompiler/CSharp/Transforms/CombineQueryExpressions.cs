@@ -132,7 +132,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 						letClauses[identifier.Identifier] = identifier.Annotation<ILVariableResolveResult>();
 						break;
 					case MemberReferenceExpression member:
-						AddQueryLetClause(member.MemberName, member);
+						AddQueryLetClause(member.MemberNameToken, member);
 						break;
 					case NamedExpression namedExpression:
 						if (namedExpression.Expression is IdentifierExpression identifierExpression && namedExpression.Name == identifierExpression.Identifier)
@@ -140,18 +140,18 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 							letClauses[namedExpression.Name] = identifierExpression.Annotation<ILVariableResolveResult>();
 							continue;
 						}
-						AddQueryLetClause(namedExpression.Name, namedExpression.Expression);
+						AddQueryLetClause(namedExpression.NameToken, namedExpression.Expression);
 						break;
 				}
 			}
 			return true;
 
-			void AddQueryLetClause(string name, Expression expression)
+			void AddQueryLetClause(Identifier nameToken, Expression expression)
 			{
-				QueryLetClause letClause = new QueryLetClause { Identifier = name, Expression = expression.Detach() };
+				QueryLetClause letClause = new QueryLetClause { IdentifierToken = (Identifier)nameToken.Clone(), Expression = expression.Detach() };
 				var annotation = new LetIdentifierAnnotation();
 				letClause.AddAnnotation(annotation);
-				letClauses[name] = annotation;
+				letClauses[nameToken.Name] = annotation;
 				query.Clauses.InsertAfter(insertionPos, letClause);
 			}
 		}

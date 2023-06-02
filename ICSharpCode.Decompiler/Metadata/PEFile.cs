@@ -41,7 +41,7 @@ namespace ICSharpCode.Decompiler.Metadata
 	/// system from multiple PEFiles. This allows the caches to be shared across multiple
 	/// decompiled type systems.
 	/// </remarks>
-	public class PEFile : IDisposable, TypeSystem.IModuleReference
+	public sealed class PEFile : IDisposable, TypeSystem.IModuleReference
 	{
 		public ModuleDef Module { get; }
 

@@ -486,7 +486,7 @@ namespace ICSharpCode.Decompiler.CSharp
 					catchClause.AddAnnotation(new ILVariableResolveResult(v, v.Type));
 					if (v.StoreCount > 1 || v.LoadCount > 0 || v.AddressCount > 0)
 					{
-						catchClause.VariableNameToken = Identifier.Create(v.Name).WithAnnotation(GetParameterColor(v));
+						catchClause.VariableNameToken = Identifier.Create(v.Name).WithAnnotation(exprBuilder.GetParameterColor(v));
 						catchClause.Type = exprBuilder.ConvertType(v.Type);
 					}
 					else if (!v.Type.IsKnownType(KnownTypeCode.Object))
@@ -511,6 +511,13 @@ namespace ICSharpCode.Decompiler.CSharp
 		{
 			var tryCatch = MakeTryCatch(inst.TryBlock);
 			tryCatch.FinallyBlock = ConvertAsBlock(inst.FinallyBlock);
+			if (inst.InlinedFinallyMethod is not null) {
+				var finallyBlockDebugInfoBuilder = new MethodDebugInfoBuilder(decompileRun.Context.SettingsVersion,
+					StateMachineKind.None, inst.InlinedFinallyMethod, null,
+					CSharpAstMethodBodyBuilder.CreateSourceLocalsUsed(inst.FinallyBlock), null, null);
+				tryCatch.FinallyBlock.AddAnnotation(finallyBlockDebugInfoBuilder);
+				tryCatch.FinallyBlock.HiddenEnd = null;
+			}
 			return tryCatch.WithILInstruction(inst);
 		}
 
@@ -608,7 +615,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				if (var.LoadCount > 0 || var.AddressCount > 0)
 				{
 					var type = settings.AnonymousTypes && var.Type.ContainsAnonymousType() ? new SimpleType("var").WithAnnotation(BoxedTextColor.Keyword) : exprBuilder.ConvertType(var.Type);
-					var vds = new VariableDeclarationStatement(GetParameterColor(var), type, var.Name, resource);
+					var vds = new VariableDeclarationStatement(exprBuilder.GetParameterColor(var), type, var.Name, resource);
 					vds.Variables.Single().AddAnnotation(new ILVariableResolveResult(var, var.Type));
 					usingInit = vds;
 				}
@@ -798,9 +805,12 @@ namespace ICSharpCode.Decompiler.CSharp
 			Debug.Assert(firstStatement is ExpressionStatement);
 			firstStatement.Remove();
 
-			//TODO: mroe testing
-			foreachBody.HiddenStart = whileLoopBlock.HiddenStart;
-			foreachBody.HiddenEnd = whileLoopBlock.HiddenEnd;
+			if (decompileRun.Context.CalculateILSpans)
+			{
+				//TODO: mroe testing
+				foreachBody.HiddenStart = whileLoopBlock.HiddenStart;
+				foreachBody.HiddenEnd = whileLoopBlock.HiddenEnd;
+			}
 
 			if (settings.AnonymousTypes && type.ContainsAnonymousType())
 				useVar = true;
@@ -816,9 +826,12 @@ namespace ICSharpCode.Decompiler.CSharp
 			foreachStmt.AddAnnotation(new ForeachAnnotation(inst.ResourceExpression, conditionInst, singleGetter));
 			foreachStmt.CopyAnnotationsFrom(whileLoop);
 
-			foreachStmt.HiddenMoveNextNode = whileLoop.Condition;
-			foreachStmt.HiddenGetCurrentNode = firstStatement;
-			foreachStmt.HiddenGetEnumeratorNode = resource;
+			if (decompileRun.Context.CalculateILSpans)
+			{
+				foreachStmt.HiddenMoveNextNode = whileLoop.Condition;
+				foreachStmt.HiddenGetCurrentNode = firstStatement;
+				foreachStmt.HiddenGetEnumeratorNode = resource.WithAnnotation(inst.ILSpans);
+			}
 
 			// If there was an optional return statement, return it as well.
 			// If there were labels or any other statements in the whileLoopBlock, move them after the foreach
@@ -1170,6 +1183,7 @@ namespace ICSharpCode.Decompiler.CSharp
 				{
 					initExpr = exprBuilder.Translate(gpr.Argument);
 				}
+				initExpr.AddAnnotation(gpr.ILSpans);
 			}
 			else
 			{
@@ -1213,17 +1227,11 @@ namespace ICSharpCode.Decompiler.CSharp
 							.WithRR(new ResolveResult(inst.Variable.Type));
 				}
 			}
-			fixedStmt.Variables.Add(new VariableInitializer(GetParameterColor(inst.Variable), inst.Variable.Name, initExpr).WithILVariable(inst.Variable));
+			fixedStmt.Variables.Add(new VariableInitializer(exprBuilder.GetParameterColor(inst.Variable), inst.Variable.Name, initExpr).WithILVariable(inst.Variable));
 			fixedStmt.EmbeddedStatement = Convert(inst.Body);
+			if (decompileRun.Context.CalculateILSpans && fixedStmt.EmbeddedStatement is BlockStatement blockStmt)
+				blockStmt.HiddenEnd = ILSpanAnnotationExtensions.CreateHidden(!decompileRun.Context.CalculateILSpans ? null : ILSpan.OrderAndCompact(inst.EndILSpans), blockStmt.HiddenEnd);
 			return fixedStmt.WithILInstruction(inst);
-		}
-
-		object GetParameterColor(ILVariable ilv)
-		{
-			//TODO:
-			// if (valueParameterIsKeyword && ilv.OriginalParameter?.Name == "value" && methodDef.Parameters.Count > 0 && methodDef.Parameters[methodDef.Parameters.Count - 1] == ilv.OriginalParameter)
-			// 	return BoxedTextColor.Keyword;
-			return ilv.Kind == VariableKind.Parameter ? BoxedTextColor.Parameter : BoxedTextColor.Local;
 		}
 
 		private static bool IsAddressOfMoveableVar(Expression initExpr)

@@ -75,17 +75,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		public string ReflectionName {
 			get {
 				StringBuilder b = new StringBuilder();
-				if (!string.IsNullOrEmpty(namespaceName))
-				{
-					b.Append(namespaceName);
-					b.Append('.');
-				}
-				b.Append(name);
-				if (typeParameterCount > 0)
-				{
-					b.Append('`');
-					b.Append(typeParameterCount);
-				}
+				AppendReflectionName(b);
 				return b.ToString();
 			}
 		}
@@ -93,6 +83,12 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		public string GetReflectionName(StringBuilder b)
 		{
 			b.Clear();
+			AppendReflectionName(b);
+			return b.ToString();
+		}
+
+		public void AppendReflectionName(StringBuilder b)
+		{
 			if (!string.IsNullOrEmpty(namespaceName)) {
 				b.Append(namespaceName);
 				b.Append('.');
@@ -102,7 +98,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				b.Append('`');
 				b.Append(typeParameterCount);
 			}
-			return b.ToString();
 		}
 
 		public override string ToString()

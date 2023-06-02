@@ -114,6 +114,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					foreach (ILInstruction deadArgument in deadArguments) {
 						deadArgument.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
 					}
+
+					if (!callsite.Inverted)
+					{
+						replacement.ILSpans.AddRange(callsite.BranchAfterInit.ILSpans);
+						callsite.BranchAfterInit.ILSpans.Clear();
+					}
 				}
 
 				invokeCall.ReplaceWith(replacement);

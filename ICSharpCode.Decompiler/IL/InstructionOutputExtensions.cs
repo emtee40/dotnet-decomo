@@ -17,6 +17,8 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+using System.Text;
+
 using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
@@ -45,15 +47,19 @@ namespace ICSharpCode.Decompiler.IL
 
 		public static void WriteTo(this IType type, IDecompilerOutput output, ILNameSyntax nameSyntax = ILNameSyntax.ShortTypeName)
 		{
-			output.Write(type.ReflectionName, type.GetDefinition()?.MetadataToken, DecompilerReferenceFlags.None, BoxedTextColor.Text);
+			var ts = type.MetadataToken.GetTypeSig();
+			if (ts is not null)
+				ts.WriteTo(output, new StringBuilder(), nameSyntax);
+			else
+				output.Write(type.ReflectionName, type.MetadataToken, DecompilerReferenceFlags.None, BoxedTextColor.Text);
 		}
 
-		public static void WriteTo(this ISymbol symbol, IDecompilerOutput output)
+		public static void WriteTo(this IEntity symbol, IDecompilerOutput output)
 		{
 			if (symbol is IMethod method && method.IsConstructor)
-				output.Write(method.DeclaringType?.Name + "." + method.Name, symbol.Name, DecompilerReferenceFlags.None, BoxedTextColor.Text);
+				output.Write(method.DeclaringType?.Name + "." + method.Name, symbol.MetadataToken, DecompilerReferenceFlags.None, CSharpMetadataTextColorProvider.Instance.GetColor(symbol.MetadataToken));
 			else
-				output.Write(symbol.Name, symbol.Name, DecompilerReferenceFlags.None, BoxedTextColor.Text);
+				output.Write(symbol.Name, symbol.MetadataToken, DecompilerReferenceFlags.None, CSharpMetadataTextColorProvider.Instance.GetColor(symbol.MetadataToken));
 		}
 
 		public static void WriteTo(this Interval interval, IDecompilerOutput output, ILAstWritingOptions options)

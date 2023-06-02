@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -47,14 +47,14 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		public static readonly object ExplicitUncheckedAnnotation = new CheckedUncheckedAnnotation { IsChecked = false, IsExplicit = true };
 		#endregion
 
-		/* 
+		/*
 			We treat placing checked/unchecked blocks as an optimization problem, with the following goals:
 				1. Use minimum number of checked blocks+expressions
 				2. Prefer checked expressions over checked blocks
 				3. Make the scope of checked expressions as small as possible
 				4. Open checked blocks as late as possible, and close checked blocks as late as possible
 				(where goal 1 has the highest priority)
-				
+
 				Goal 4a (open checked blocks as late as possible) is necessary so that we don't move variable declarations
 				  into checked blocks, as the variable might still be used after the checked block.
 				  (this could cause DeclareVariables to omit the variable declaration, producing incorrect code)
@@ -69,7 +69,7 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		 */
 
 		#region struct Cost
-		struct Cost
+		private readonly struct Cost
 		{
 			// highest possible cost so that the Blocks+Expressions addition doesn't overflow
 			public static readonly Cost Infinite = new Cost(0x3fffffff, 0x3fffffff);
@@ -226,11 +226,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 		}
 		#endregion
 
-		#region class Result
+		#region struct Result
 		/// <summary>
 		/// Holds the result of an insertion operation.
 		/// </summary>
-		class Result
+		private struct Result
 		{
 			public Cost CostInCheckedContext;
 			public InsertedNode NodesToInsertInCheckedContext;

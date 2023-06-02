@@ -495,7 +495,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 			var il = context.CreateILReader()
 							.ReadIL(method, genericContext, ILFunctionKind.TopLevelFunction, context.CancellationToken);
 			il.RunTransforms(CSharpDecompiler.EarlyILTransforms(true),
-				new ILTransformContext(il, context.TypeSystem, context.Settings)
+				new ILTransformContext(il, context.TypeSystem, context.Settings, context.StringBuilder)
 				{
 					CancellationToken = context.CancellationToken,
 					DecompileRun = context.DecompileRun,
@@ -1345,6 +1345,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				stateToContainer.Add(state, tryBlockContainer);
 
 				ILInstruction finallyBlock;
+				dnlib.DotNet.MethodDef mDef = null;
 				if (finallyMethod == null)
 				{
 					finallyBlock = new InvalidBranch($"Could not find finallyMethod for state={state}.\n" +
@@ -1353,6 +1354,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 				else if (decompiledFinallyMethods.TryGetValue(finallyMethod, out var decompiledMethod))
 				{
+					mDef = decompiledMethod.function.DnlibMethod;
 					finallyBlock = decompiledMethod.function.Body;
 					var vars = decompiledMethod.function.Variables.ToArray();
 					decompiledMethod.function.Variables.Clear();
@@ -1364,7 +1366,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				}
 
 				block.Instructions.Clear();
-				block.Instructions.Add(new TryFinally(tryBlockContainer, finallyBlock).WithILRange(tryBlockContainer));
+				block.Instructions.Add(new TryFinally(tryBlockContainer, finallyBlock){InlinedFinallyMethod = mDef}.WithILRange(tryBlockContainer));
 			}
 
 			IMethod FindFinallyMethod(int state)
@@ -1453,6 +1455,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				{
 					context.Step("Inline " + finallyMethod.FullName + " into finally", tryFinally);
 					var finallyFunction = CreateILAst((MethodDef)finallyMethod.MetadataToken, context);
+					tryFinally.InlinedFinallyMethod = (MethodDef)finallyMethod.MetadataToken;
 					tryFinally.FinallyBlock = finallyFunction.Body;
 					var variables = finallyFunction.Variables.ToArray();
 					finallyFunction.Variables.Clear();

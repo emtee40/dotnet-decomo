@@ -91,7 +91,9 @@ namespace ICSharpCode.Decompiler.CSharp
 				AddResolveResultAnnotations = true,
 				UseNullableSpecifierForValueTypes = context.Settings.LiftNullables,
 				SupportInitAccessors = context.Settings.InitAccessors,
-				SupportRecordClasses = context.Settings.RecordClasses
+				SupportRecordClasses = context.Settings.RecordClasses,
+				SupportRecordStructs = context.Settings.RecordStructs,
+				AlwaysUseGlobal = context.Settings.AlwaysUseGlobal,
 			};
 			currentTypeResolveContext =
 				new SimpleTypeResolveContext(typeSystem.MainModule).WithCurrentTypeDefinition(
@@ -176,15 +178,16 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			var tsTypeDef = typeSystem.MainModule.GetDefinition(typeDef);
 
-			RequiredNamespaceCollector.CollectNamespacesOnlyType(tsTypeDef, currentDecompileRun.Namespaces);
-
 			currentTypeResolveContext = currentTypeResolveContext.WithCurrentTypeDefinition(tsTypeDef);
 
 			var entityDecl = typeSystemAstBuilder.ConvertEntity(tsTypeDef);
 			if (entityDecl is not TypeDeclaration typeDecl)
 			{
+				RequiredNamespaceCollector.CollectNamespaces(tsTypeDef, typeSystem.MainModule, currentDecompileRun.Namespaces);
 				if (entityDecl is DelegateDeclaration dd)
 				{
+					// Fix empty parameter names in delegate declarations
+					FixParameterNames(dd);
 					AddComment(dd, (MethodDef)tsTypeDef.GetDelegateInvokeMethod().MetadataToken, "Invoke");
 					AddComment(dd, typeDef);
 				}
@@ -195,7 +198,13 @@ namespace ICSharpCode.Decompiler.CSharp
 				return entityDecl;
 			}
 
-			bool isRecord = Context.Settings.RecordClasses && tsTypeDef.IsRecord;
+			RequiredNamespaceCollector.CollectNamespacesOnlyType(tsTypeDef, currentDecompileRun.Namespaces);
+
+			bool isRecord = tsTypeDef.Kind switch {
+				TypeKind.Class => context.Settings.RecordClasses && tsTypeDef.IsRecord,
+				TypeKind.Struct => context.Settings.RecordStructs && tsTypeDef.IsRecord,
+				_ => false,
+			};
 			RecordDecompiler recordDecompiler = isRecord ? new RecordDecompiler(typeSystem, tsTypeDef, context.Settings, context.CancellationToken) : null;
 			if (recordDecompiler != null)
 				currentDecompileRun.RecordDecompilers.Add(tsTypeDef, recordDecompiler);
@@ -314,6 +323,10 @@ namespace ICSharpCode.Decompiler.CSharp
 					}
 				}
 			}
+			if (context.Settings.RequiredMembers)
+			{
+				RemoveAttribute(typeDecl, KnownAttribute.RequiredAttribute);
+			}
 			if (typeDecl.ClassType == ClassType.Enum)
 			{
 				switch (currentDecompileRun.EnumValueDisplayMode)
@@ -357,7 +370,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			RequiredNamespaceCollector.CollectNamespaces(tsMethod, typeSystem.MainModule, currentDecompileRun.Namespaces);
 
-			var methodDecl = typeSystemAstBuilder.ConvertEntity(tsMethod);
+			var methodDecl = tsMethod.IsAccessor ? typeSystemAstBuilder.ConvertMethod(tsMethod) : typeSystemAstBuilder.ConvertEntity(tsMethod);
 
 			int lastDot = tsMethod.Name.LastIndexOf('.');
 			if (tsMethod.IsExplicitInterfaceImplementation && lastDot >= 0)
@@ -404,6 +417,9 @@ namespace ICSharpCode.Decompiler.CSharp
 				methodDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
 				methodDecl.Modifiers |= Modifiers.Override;
 			}
+
+			if (methodDef.IsConstructor && methodDef.IsStatic && methodDef.DeclaringType.IsBeforeFieldInit)
+				methodDecl.InsertChildAfter(null, new Comment(" Note: this type is marked as 'beforefieldinit'."), Roles.Comment);
 
 			AddComment(methodDecl, methodDef);
 
@@ -571,6 +587,7 @@ namespace ICSharpCode.Decompiler.CSharp
 
 				enumDec.Attributes.AddRange(tsField.GetAttributes().Select(a => new AttributeSection(typeSystemAstBuilder.ConvertAttribute(a))));
 				enumDec.AddAnnotation(new MemberResolveResult(null, tsField));
+				AddComment(enumDec, fieldDef);
 				return enumDec;
 			}
 
@@ -581,6 +598,10 @@ namespace ICSharpCode.Decompiler.CSharp
 			var fieldDecl = typeSystemAstBuilder.ConvertEntity(tsField);
 			SetNewModifier(fieldDecl);
 
+			if (context.Settings.RequiredMembers && RemoveAttribute(fieldDecl, KnownAttribute.RequiredAttribute))
+			{
+				fieldDecl.Modifiers |= Modifiers.Required;
+			}
 			if (context.Settings.FixedBuffers && IsFixedField(tsField, out var elementType, out var elementCount)) {
 				var fixedFieldDecl = new FixedFieldDeclaration();
 				fieldDecl.Attributes.MoveTo(fixedFieldDecl.Attributes);
@@ -594,10 +615,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				fixedFieldDecl.CopyAnnotationsFrom(fieldDecl);
 
 				RemoveAttribute(fixedFieldDecl, KnownAttribute.FixedBuffer);
-				AddComment(fixedFieldDecl, fieldDef);
 
-				typeSystemAstBuilder.UseSpecialConstants = oldUseSpecialConstants;
-				return fixedFieldDecl;
+				fieldDecl = fixedFieldDecl;
 			}
 
 			AddComment(fieldDecl, fieldDef);
@@ -649,6 +668,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				RemoveAttribute(getter, KnownAttribute.PreserveBaseOverrides);
 				propertyDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
 				propertyDecl.Modifiers |= Modifiers.Override;
+			}
+			if (context.Settings.RequiredMembers && RemoveAttribute(propertyDecl, KnownAttribute.RequiredAttribute))
+			{
+				propertyDecl.Modifiers |= Modifiers.Required;
 			}
 
 			if (propertyDef.SetMethod != null)
@@ -741,7 +764,7 @@ namespace ICSharpCode.Decompiler.CSharp
 									throw;
 								}
 								catch (Exception ex) {
-									CreateBadMethod(method, ex, out body, out builder2);
+									CreateBadMethod(method, ex, sb, out body, out builder2);
 								}
 								Return(asyncState);
 								return new AsyncMethodBodyResult(methodNode, method, body, builder2, ilFunction);
@@ -761,7 +784,7 @@ namespace ICSharpCode.Decompiler.CSharp
 						throw;
 					}
 					catch (Exception ex) {
-						CreateBadMethod(method, ex, out bs, out builder3);
+						CreateBadMethod(method, ex, stringBuilder, out bs, out builder3);
 					}
 					methodNode.AddChild(bs, Roles.Body);
 					methodNode.WithAnnotation(builder3);
@@ -779,15 +802,24 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 		}
 
-		private void CreateBadMethod(MethodDef method, Exception ex, out BlockStatement bs, out MethodDebugInfoBuilder builder) {
-			var msg = string.Format("{0}An exception occurred when decompiling this method ({1:X8}){0}{0}{2}{0}",
-				Environment.NewLine, method.MDToken.ToUInt32(), ex);
+		private void CreateBadMethod(MethodDef method, Exception ex, StringBuilder sb, out BlockStatement bs, out MethodDebugInfoBuilder builder)
+		{
+			sb.Clear();
+			sb.Append(Environment.NewLine);
+			sb.Append("An exception occurred when decompiling this method (");
+			// Don't use Append(object) to avoid boxing.
+			sb.Append(method.MDToken.ToString());
+			sb.Append(')');
+			sb.Append(Environment.NewLine);
+			sb.Append(Environment.NewLine);
+			sb.Append(ex);
+			sb.Append(Environment.NewLine);
 
 			bs = new BlockStatement();
 			var emptyStmt = new EmptyStatement();
 			emptyStmt.AddAnnotation(new List<ILSpan>(1) { new ILSpan(0, (uint)method.Body.GetCodeSize()) });
 			bs.Statements.Add(emptyStmt);
-			bs.InsertChildAfter(null, new Comment(msg, CommentType.MultiLine), Roles.Comment);
+			bs.InsertChildAfter(null, new Comment(sb.ToString(), CommentType.MultiLine), Roles.Comment);
 			builder = new MethodDebugInfoBuilder(context.SettingsVersion, StateMachineKind.None, method, null,
 				method.Body.Variables.Select(a => new SourceLocal(a, CreateLocalName(a), a.Type, SourceVariableFlags.None))
 					  .ToArray(), method.Parameters.Select(a => new SourceParameter(a, a.Name, a.Type, SourceVariableFlags.None)).ToArray(), null);
@@ -823,7 +855,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			if (!transformationsHaveRun)
 				RunTransformations();
 
-			var outputFormatter = new TextTokenWriter(output, context.MetadataTextColorProvider);
+			var outputFormatter = new TextTokenWriter(output, context);
 			var formattingPolicy = context.Settings.CSharpFormattingOptions;
 			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(outputFormatter, formattingPolicy, context.CancellationToken));
 		}

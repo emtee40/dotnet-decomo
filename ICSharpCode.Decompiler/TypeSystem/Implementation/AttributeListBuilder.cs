@@ -214,7 +214,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			}
 		}
 
-		internal bool HasAttribute(CustomAttributeCollection customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
+		internal bool HasAttribute(IEnumerable<CustomAttribute> customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
 		{
 			Debug.Assert(attribute.IsCustomAttribute());
 			foreach (var attr in customAttributes)
@@ -228,7 +228,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return false;
 		}
 
-		internal IAttribute GetAttribute(CustomAttributeCollection customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
+		internal IAttribute GetAttribute(IEnumerable<CustomAttribute> customAttributes, KnownAttribute attribute, SymbolKind symbolKind)
 		{
 			Debug.Assert(attribute.IsCustomAttribute());
 			foreach (var attr in customAttributes)

@@ -75,7 +75,11 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 			// C# sizeof(MyStruct) requires unsafe{}
 			// (not for sizeof(int), but that gets constant-folded and thus decompiled to 4)
 			base.VisitSizeOfExpression(sizeOfExpression);
-			return true;
+
+			var type = sizeOfExpression.Type.Annotation<dnlib.DotNet.ITypeDefOrRef>();
+			if (type is null)
+				return true;
+			return !type.IsPrimitive;
 		}
 
 		public override bool VisitComposedType(ComposedType composedType)

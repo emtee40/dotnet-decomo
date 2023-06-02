@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Threading;
 
 using ICSharpCode.Decompiler.CSharp;
@@ -37,7 +38,8 @@ namespace ICSharpCode.Decompiler
 		UsingScope CreateUsingScope(HashSet<string> requiredNamespacesSuperset)
 		{
 			var usingScope = new UsingScope();
-			foreach (var ns in requiredNamespacesSuperset)
+			var copyForThreadSafety = requiredNamespacesSuperset.ToImmutableHashSet();
+			foreach (var ns in copyForThreadSafety)
 			{
 				string[] parts = ns.Split('.');
 				AstType nsType = new SimpleType(parts[0]);

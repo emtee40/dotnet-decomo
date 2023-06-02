@@ -172,6 +172,7 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 				{
 					context.Step("NullSafeArrayToPointerPattern", block);
 					ILInstruction arrayToPointer = new GetPinnableReference(new LdLoc(v), null);
+					ILInstruction arrayToPointerBeforeConv = arrayToPointer;
 					if (p.StackType != StackType.Ref)
 					{
 						arrayToPointer = new Conv(arrayToPointer, p.StackType.ToPrimitiveType(), false, Sign.None);
@@ -181,7 +182,19 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 					var replacement = new StLoc(p, arrayToPointer)
 						.WithILRange(comp);
 					if (context.CalculateILSpans)
-						comp.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+					{
+						comp.AddSelfAndChildrenRecursiveILSpans(arrayToPointerBeforeConv.ILSpans);
+
+						var blockToRemove = ((Branch)((IfInstruction)comp).TrueInst).TargetBlock;
+						blockToRemove.AddSelfAndChildrenRecursiveILSpans(arrayToPointerBeforeConv.ILSpans);
+
+						blockToRemove = ((Branch)block.Instructions.Last()).TargetBlock;
+						blockToRemove.AddSelfAndChildrenRecursiveILSpans(arrayToPointerBeforeConv.ILSpans);
+
+						var blockToRemove2 = ((Branch)((IfInstruction)blockToRemove.Instructions[0]).TrueInst).TargetBlock;
+						blockToRemove2.AddSelfAndChildrenRecursiveILSpans(arrayToPointerBeforeConv.ILSpans);
+					}
+
 					block.Instructions[block.Instructions.Count - 2] = replacement;
 					((Branch)block.Instructions.Last()).TargetBlock = targetBlock;
 					modified = true;
@@ -202,6 +215,22 @@ namespace ICSharpCode.Decompiler.IL.ControlFlow
 							trueInst: callGPR,
 							falseInst: new Conv(new LdcI4(0), PrimitiveType.Ref, checkForOverflow: false, inputSign: Sign.None)
 						);
+					}
+					if (context.CalculateILSpans)
+					{
+						if (context.Settings.PatternBasedFixedStatement)
+							callGPR.AddSelfAndChildrenRecursiveILSpans(gpr.ILSpans);
+
+						var iif = (IfInstruction)block.Instructions[block.Instructions.Count - 2];
+						gpr.ILSpans.AddRange(iif.ILSpans);
+						iif.TrueInst.AddSelfAndChildrenRecursiveILSpans(gpr.ILSpans);
+						Comp iifCondition = (Comp)iif.Condition;
+						gpr.ILSpans.AddRange(iifCondition.ILSpans);
+						iifCondition.Right.AddSelfAndChildrenRecursiveILSpans(gpr.ILSpans);
+
+						nullBlock?.AddSelfAndChildrenRecursiveILSpans(gpr.ILSpans);
+						foreach (ILInstruction ilInstruction in notNullBlock.Instructions.Where( x=> x != stlocPtr))
+							ilInstruction.AddSelfAndChildrenRecursiveILSpans(gpr.ILSpans);
 					}
 					block.Instructions[block.Instructions.Count - 2] = new StLoc(v, gpr)
 						.WithILRange(block.Instructions[block.Instructions.Count - 2]);

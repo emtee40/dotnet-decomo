@@ -1443,11 +1443,14 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		{
 			Expression MakeFieldReference()
 			{
+				var field = mathType.GetFields(f => f.Name == memberName).FirstOrDefault();
 				AstType mathAstType = ConvertType(mathType);
-				var fieldRef = new MemberReferenceExpression(new TypeReferenceExpression(mathAstType), memberName);
+				var fieldRef = new MemberReferenceExpression {
+					Target = new TypeReferenceExpression(mathAstType),
+					MemberNameToken = Identifier.Create(memberName).WithAnnotation(field?.MetadataToken)
+				}.WithAnnotation(field?.MetadataToken);
 				if (AddResolveResultAnnotations)
 				{
-					var field = mathType.GetFields(f => f.Name == memberName).FirstOrDefault();
 					if (field != null)
 					{
 						fieldRef.WithRR(new MemberResolveResult(mathAstType.GetResolveResult(), field));
@@ -2178,7 +2181,7 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			}
 		}
 
-		MethodDeclaration ConvertMethod(IMethod method)
+		public MethodDeclaration ConvertMethod(IMethod method)
 		{
 			MethodDeclaration decl = new MethodDeclaration();
 			decl.Modifiers = GetMemberModifiers(method);

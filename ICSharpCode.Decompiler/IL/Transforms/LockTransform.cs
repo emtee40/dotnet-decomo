@@ -249,9 +249,18 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			if (objectStore.Variable.LoadCount > 1)
 				return false;
 			context.Step("LockTransformV4YieldReturn", block);
+			LockInstruction lockInstr = new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore);
+			if (context.CalculateILSpans)
+			{
+				lockInstr.OnExpression.ILSpans.AddRange(tryContainer.EntryPoint.Instructions[0].ILSpans);
+				lockInstr.OnExpression.ILSpans.AddRange(objectStore.ILSpans);
+				tryContainer.EntryPoint.Instructions[1].AddSelfAndChildrenRecursiveILSpans(lockInstr.OnExpression.ILSpans);
+
+				finallyContainer.AddSelfAndChildrenRecursiveILSpans(lockInstr.Body.EndILSpans);
+			}
 			block.Instructions.RemoveAt(i - 1);
 			tryContainer.EntryPoint.Instructions.RemoveRange(0, 2);
-			body.ReplaceWith(new LockInstruction(objectStore.Value, body.TryBlock).WithILRange(objectStore));
+			body.ReplaceWith(lockInstr);
 			return true;
 		}
 

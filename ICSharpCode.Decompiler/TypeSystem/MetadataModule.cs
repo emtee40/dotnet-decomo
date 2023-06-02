@@ -405,43 +405,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				if (resolved is not null && Compilation.GetOrAddModule(resolved.Module) is MetadataModule mod)
 					method = mod.GetDefinitionInternal(resolved).WithOriginalMember(originalMember ?? memberRef);
 				else
-				{
-					var symbolKind = memberRef.Name == ".ctor" || memberRef.Name == ".cctor"
-						? SymbolKind.Constructor
-						: SymbolKind.Method;
-					var unresolved = new MetadataUnresolvedMethod(this, memberRef, symbolKind) {
-						DeclaringType = declaringType,
-						IsStatic = !memberRef.HasThis
-					};
-
-					TypeParameterSubstitution substitution = null;
-					if (memberRef.MethodSig.GenParamCount > 0) {
-						var typeParameters = new List<ITypeParameter>();
-						for (int i = 0; i < memberRef.MethodSig.GenParamCount; i++) {
-							typeParameters.Add(new DefaultTypeParameter(unresolved, i));
-						}
-
-						unresolved.TypeParameters = typeParameters;
-						substitution = new TypeParameterSubstitution(declaringType.TypeArguments, typeParameters);
-					} else if (declaringType.TypeArguments.Count > 0) {
-						substitution = declaringType.GetSubstitution();
-					}
-
-					var parameters = new List<IParameter>();
-					foreach (var t in memberRef.MethodSig.Params.Select(x => x.DecodeSignature(this, context))) {
-						var type = t;
-						if (substitution != null) {
-							// replace the dummy method type parameters with the owned instances we just created
-							type = type.AcceptVisitor(substitution);
-						}
-
-						parameters.Add(new DefaultParameter(type, ""));
-					}
-
-					unresolved.Parameters = parameters;
-
-					method = unresolved;
-				}
+					method = CreateUnresolvedMethod(memberRef, declaringType, context);
 			}
 
 			if (classTypeArguments != null || methodTypeArguments != null) {
@@ -461,86 +425,93 @@ namespace ICSharpCode.Decompiler.TypeSystem
 		/// <summary>
 		/// Create a dummy IMethod from the specified MethodReference
 		/// </summary>
-		IMethod CreateFakeMethod(IType declaringType, string name, bool isStatic, IType retType, int numOfGeneric, List<IType> param)
+		IMethod CreateUnresolvedMethod(MemberRef memberRef, IType declaringType, GenericContext context)
 		{
-			SymbolKind symbolKind = SymbolKind.Method;
-			if (name == ".ctor" || name == ".cctor")
-				symbolKind = SymbolKind.Constructor;
-			var m = new FakeMethod(Compilation, symbolKind);
-			m.DeclaringType = declaringType;
-			m.Name = name;
-			m.ReturnType = retType;
-			m.IsStatic = isStatic;
+			var symbolKind = memberRef.Name == ".ctor" || memberRef.Name == ".cctor"
+				? SymbolKind.Constructor
+				: SymbolKind.Method;
+			var unresolved = new MetadataUnresolvedMethod(this, memberRef, symbolKind) {
+				DeclaringType = declaringType,
+				IsStatic = !memberRef.HasThis
+			};
 
 			TypeParameterSubstitution substitution = null;
-			if (numOfGeneric > 0) {
+			if (memberRef.MethodSig.GenParamCount > 0)
+			{
 				var typeParameters = new List<ITypeParameter>();
-				for (int i = 0; i < numOfGeneric; i++) {
-					typeParameters.Add(new DefaultTypeParameter(m, i));
+				for (int i = 0; i < memberRef.MethodSig.GenParamCount; i++)
+				{
+					typeParameters.Add(new DefaultTypeParameter(unresolved, i));
 				}
-				m.TypeParameters = typeParameters;
+
+				unresolved.TypeParameters = typeParameters;
 				substitution = new TypeParameterSubstitution(declaringType.TypeArguments, typeParameters);
-			} else if (declaringType.TypeArguments.Count > 0) {
+			}
+			else if (declaringType.TypeArguments.Count > 0)
+			{
 				substitution = declaringType.GetSubstitution();
 			}
+
 			var parameters = new List<IParameter>();
-			for (int i = 0; i < param.Count; i++) {
-				var type = param[i];
-				if (substitution != null) {
+			foreach (var t in memberRef.MethodSig.Params.Select(x => x.DecodeSignature(this, context)))
+			{
+				var type = t;
+				if (substitution != null)
+				{
 					// replace the dummy method type parameters with the owned instances we just created
 					type = type.AcceptVisitor(substitution);
 				}
+
 				parameters.Add(new DefaultParameter(type, ""));
 			}
-			m.Parameters = parameters;
 
-			GuessFakeMethodAccessor(declaringType, name, retType, numOfGeneric, m, parameters);
+			unresolved.Parameters = parameters;
 
-			return m;
+			if (memberRef.MethodSig.GenParamCount == 0)
+				GuessFakeMethodAccessor(unresolved);
+
+			return unresolved;
 		}
 
-		private void GuessFakeMethodAccessor(IType declaringType, string name, IType retType, int numOfGeneric, FakeMethod m, List<IParameter> parameters)
+		private void GuessFakeMethodAccessor(MetadataUnresolvedMethod m)
 		{
-			if (numOfGeneric > 0)
-				return;
-
-			var guessedGetter = name.StartsWith("get_", StringComparison.Ordinal);
-			var guessedSetter = name.StartsWith("set_", StringComparison.Ordinal);
+			var guessedGetter = m.Name.StartsWith("get_", StringComparison.Ordinal);
+			var guessedSetter = m.Name.StartsWith("set_", StringComparison.Ordinal);
 			if (guessedGetter || guessedSetter)
 			{
-				var propertyName = name.Substring(4);
+				var propertyName = m.Name.Substring(4);
 
 				var fakeProperty = new FakeProperty(Compilation) {
 					Name = propertyName,
-					DeclaringType = declaringType,
+					DeclaringType = m.DeclaringType,
 					IsStatic = m.IsStatic,
 				};
 
 				if (guessedGetter)
 				{
-					if (retType.Kind == TypeKind.Void)
+					if (m.ReturnType.Kind == TypeKind.Void)
 						return;
 
 					m.AccessorKind = MethodSemanticsAttributes.Getter;
 					m.AccessorOwner = fakeProperty;
 					fakeProperty.Getter = m;
-					fakeProperty.ReturnType = retType;
-					fakeProperty.IsIndexer = parameters.Count > 0;
-					fakeProperty.Parameters = parameters;
+					fakeProperty.ReturnType = m.ReturnType;
+					fakeProperty.IsIndexer = m.Parameters.Count > 0;
+					fakeProperty.Parameters = m.Parameters;
 					return;
 				}
 
 				if (guessedSetter)
 				{
-					if (parameters.Count < 1 || retType.Kind != TypeKind.Void)
+					if (m.Parameters.Count < 1 || m.ReturnType.Kind != TypeKind.Void)
 						return;
 
 					m.AccessorKind = MethodSemanticsAttributes.Setter;
 					m.AccessorOwner = fakeProperty;
 					fakeProperty.Setter = m;
-					fakeProperty.ReturnType = parameters.Last().Type;
-					fakeProperty.IsIndexer = parameters.Count > 1;
-					fakeProperty.Parameters = parameters.SkipLast(1).ToArray();
+					fakeProperty.ReturnType = m.Parameters[m.Parameters.Count - 1].Type;
+					fakeProperty.IsIndexer = m.Parameters.Count > 1;
+					fakeProperty.Parameters = m.Parameters.SkipLast(1).ToArray();
 					return;
 				}
 			}
@@ -548,49 +519,49 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			const string addPrefix = "add_";
 			const string removePrefix = "remove_";
 			const string raisePrefix = "raise_";
-			var guessedAdd = name.StartsWith(addPrefix, StringComparison.Ordinal);
-			var guessedRemove = name.StartsWith(removePrefix, StringComparison.Ordinal);
-			var guessedRaise = name.StartsWith(raisePrefix, StringComparison.Ordinal);
+			var guessedAdd = m.Name.StartsWith(addPrefix, StringComparison.Ordinal);
+			var guessedRemove = m.Name.StartsWith(removePrefix, StringComparison.Ordinal);
+			var guessedRaise = m.Name.StartsWith(raisePrefix, StringComparison.Ordinal);
 			if (guessedAdd || guessedRemove || guessedRaise)
 			{
 				var fakeEvent = new FakeEvent(Compilation) {
-					DeclaringType = declaringType,
+					DeclaringType = m.DeclaringType,
 					IsStatic = m.IsStatic,
 				};
 
 				if (guessedAdd)
 				{
-					if (parameters.Count != 1)
+					if (m.Parameters.Count != 1)
 						return;
 
 					m.AccessorKind = MethodSemanticsAttributes.AddOn;
 					m.AccessorOwner = fakeEvent;
 
-					fakeEvent.Name = name.Substring(addPrefix.Length);
+					fakeEvent.Name = m.Name.Substring(addPrefix.Length);
 					fakeEvent.AddAccessor = m;
-					fakeEvent.ReturnType = parameters.Single().Type;
+					fakeEvent.ReturnType = m.Parameters.Single().Type;
 
 					return;
 				}
 
 				if (guessedRemove)
 				{
-					if (parameters.Count != 1)
+					if (m.Parameters.Count != 1)
 						return;
 
 					m.AccessorKind = MethodSemanticsAttributes.RemoveOn;
 					m.AccessorOwner = fakeEvent;
 
-					fakeEvent.Name = name.Substring(removePrefix.Length);
+					fakeEvent.Name = m.Name.Substring(removePrefix.Length);
 					fakeEvent.RemoveAccessor = m;
-					fakeEvent.ReturnType = parameters.Single().Type;
+					fakeEvent.ReturnType = m.Parameters.Single().Type;
 
 					return;
 				}
 
 				if (guessedRaise)
 				{
-					fakeEvent.Name = name.Substring(raisePrefix.Length);
+					fakeEvent.Name = m.Name.Substring(raisePrefix.Length);
 					fakeEvent.InvokeAccessor = m;
 					m.AccessorKind = MethodSemanticsAttributes.Fire;
 					m.AccessorOwner = fakeEvent;
