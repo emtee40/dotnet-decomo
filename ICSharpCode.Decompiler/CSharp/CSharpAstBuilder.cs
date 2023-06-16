@@ -845,7 +845,7 @@ namespace ICSharpCode.Decompiler.CSharp
 			CSharpTransformationPipeline.RunTransformationsUntil(syntaxTree, transformAbortCondition, context, transformContext);
 
 			context.CancellationToken.ThrowIfCancellationRequested();
-			syntaxTree.AcceptVisitor(new InsertParenthesesVisitor { InsertParenthesesForReadability = true });
+			syntaxTree.AcceptVisitor(new InsertParenthesesVisitor { InsertParenthesesForReadability = context.Settings.InsertParenthesesForReadability });
 			context.CancellationToken.ThrowIfCancellationRequested();
 			GenericGrammarAmbiguityVisitor.ResolveAmbiguities(syntaxTree);
 		}

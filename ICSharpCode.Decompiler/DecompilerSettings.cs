@@ -2161,6 +2161,17 @@ namespace ICSharpCode.Decompiler
 		}
 		bool sortSwitchCasesByILOffset = true;
 
+		public bool InsertParenthesesForReadability {
+			get { return insertParenthesesForReadability; }
+			set {
+				if (insertParenthesesForReadability != value) {
+					insertParenthesesForReadability = value;
+					OnPropertyChanged(nameof(InsertParenthesesForReadability));
+				}
+			}
+		}
+		bool insertParenthesesForReadability = true;
+
 		CSharpFormattingOptions csharpFormattingOptions;
 
 		[Browsable(false)]
@@ -2242,6 +2253,8 @@ namespace ICSharpCode.Decompiler
 			if (AllowFieldInitializers != other.AllowFieldInitializers) return false;
 			if (OneCustomAttributePerLine != other.OneCustomAttributePerLine) return false;
 			if (HexadecimalNumbers != other.HexadecimalNumbers) return false;
+			if (SortSwitchCasesByILOffset != other.SortSwitchCasesByILOffset) return false;
+			if (InsertParenthesesForReadability != other.InsertParenthesesForReadability) return false;
 
 			//TODO: CSharpFormattingOptions. This isn't currently used but it has a ton of properties
 
@@ -2282,6 +2295,9 @@ namespace ICSharpCode.Decompiler
 				h ^= AllowFieldInitializers			? 0 : 0x00000010U;
 				h ^= OneCustomAttributePerLine		? 0 : 0x00000008U;
 				h ^= HexadecimalNumbers				? 0 : 0x00000002U;
+				h ^= SortSwitchCasesByILOffset		? 0 : 0x00000001U;
+				h ^= InsertParenthesesForReadability? 0 : 0x00000002U;
+
 
 				for (int i = 0; i < decompilationObjects.Length; i++)
 					h ^= (uint)decompilationObjects[i] << (i * 8);
@@ -2327,6 +2343,8 @@ namespace ICSharpCode.Decompiler
 			other.AllowFieldInitializers = this.AllowFieldInitializers;
 			other.OneCustomAttributePerLine = this.OneCustomAttributePerLine;
 			other.HexadecimalNumbers = this.HexadecimalNumbers;
+			other.SortSwitchCasesByILOffset = this.SortSwitchCasesByILOffset;
+			other.InsertParenthesesForReadability = this.InsertParenthesesForReadability;
 			//TODO: CSharpFormattingOptions
 			return other;
 		}
