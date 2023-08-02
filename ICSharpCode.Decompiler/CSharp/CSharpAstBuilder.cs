@@ -94,6 +94,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				SupportRecordClasses = context.Settings.RecordClasses,
 				SupportRecordStructs = context.Settings.RecordStructs,
 				AlwaysUseGlobal = context.Settings.AlwaysUseGlobal,
+				TypeAddInternalModifier = context.Settings.TypeAddInternalModifier,
+				MemberAddPrivateModifier = context.Settings.MemberAddPrivateModifier,
 			};
 			currentTypeResolveContext =
 				new SimpleTypeResolveContext(typeSystem.MainModule).WithCurrentTypeDefinition(

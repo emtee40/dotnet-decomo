@@ -26,6 +26,8 @@ using dnlib.DotNet.Pdb;
 using dnSpy.Contracts.Decompiler;
 using dnSpy.Contracts.Text;
 
+using ICSharpCode.Decompiler.Util;
+
 namespace ICSharpCode.Decompiler.Disassembler {
 	public enum ILNameSyntax
 	{
@@ -560,9 +562,9 @@ namespace ICSharpCode.Decompiler.Disassembler {
 			else if (type is TypeDefOrRefSig tdrs) {
 				ThreeState isVT;
 				if (tdrs is ClassSig)
-					isVT = ThreeState.No;
+					isVT = ThreeState.False;
 				else if (tdrs is ValueTypeSig)
-					isVT = ThreeState.Yes;
+					isVT = ThreeState.True;
 				else if (tdrs is CorLibTypeSig corLibTypeSig)
 					isVT = IsValueType(corLibTypeSig);
 				else
@@ -597,7 +599,7 @@ namespace ICSharpCode.Decompiler.Disassembler {
 				if (syntax == ILNameSyntax.Signature || syntax == ILNameSyntax.SignatureNoNamedTypeParameters) {
 					bool isVT;
 					if (isValueType != ThreeState.Unknown)
-						isVT = isValueType == ThreeState.Yes;
+						isVT = isValueType == ThreeState.True;
 					else
 						isVT = DnlibExtensions.IsValueType(type);
 					writer.Write(isVT ? "valuetype" : "class", BoxedTextColor.Keyword);
@@ -913,19 +915,13 @@ namespace ICSharpCode.Decompiler.Disassembler {
 			case ElementType.I:
 			case ElementType.U:
 			case ElementType.R:
-				return ThreeState.Yes;
+				return ThreeState.True;
 			case ElementType.String:
 			case ElementType.Object:
-				return ThreeState.No;
+				return ThreeState.False;
 			default:
 				return ThreeState.Unknown;
 			}
 		}
-	}
-
-	enum ThreeState : byte {
-		Unknown,
-		No,
-		Yes,
 	}
 }

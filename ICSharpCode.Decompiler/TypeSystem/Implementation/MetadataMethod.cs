@@ -252,12 +252,20 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			}
 		}
 
+		private IMember[] explitImpls;
+
 		public IEnumerable<IMember> ExplicitlyImplementedInterfaceMembers {
 			get {
+				var impls = LazyInit.VolatileRead(ref this.explitImpls);
+				if (impls != null)
+					return impls;
+
+				var explitImpls = new List<IMember>(handle.Overrides.Count);
 				foreach (MethodOverride handleOverride in handle.Overrides) {
-					yield return module.ResolveMethod(handleOverride.MethodDeclaration,
-						new GenericContext(this.DeclaringType.TypeParameters));
+					explitImpls.Add(module.ResolveMethod(handleOverride.MethodDeclaration, new GenericContext(this.DeclaringTypeDefinition.TypeParameters)));
 				}
+
+				return LazyInit.GetOrSet(ref this.explitImpls, explitImpls.ToArray());
 			}
 		}
 

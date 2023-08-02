@@ -105,6 +105,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		/// </summary>
 		public bool ShowAccessibility { get; set; }
 
+		public bool TypeAddInternalModifier { get; set; }
+
+		public bool MemberAddPrivateModifier { get; set; }
+
 		/// <summary>
 		/// Controls the non-accessibility modifiers are shown.
 		/// The default value is <see langword="true" />.
@@ -1404,22 +1408,21 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 
 			if (useFraction && expr == null && UseSpecialConstants)
 			{
-				IType mathType;
-				//TODO: corlib
+				ICorLibTypes corlib = ((MetadataModule)compilation.MainModule).metadata.CorLibTypes;
+				TypeRef mathtypeRef;
 				if (isDouble)
-					mathType = compilation.FindType(new TopLevelTypeName("System", "Math"));
-				else {
-					mathType = compilation.FindType(new TopLevelTypeName("System", "MathF"));
-					var typeDef = mathType.GetDefinition();
-					if (typeDef != null && typeDef.IsDirectImportOf(compilation.MainModule) &&
-						typeDef.GetFields(f => f.Name == "PI" && f.IsConst).Any() &&
-						typeDef.GetFields(f => f.Name == "E" && f.IsConst).Any()) { } else {
-						mathType = compilation.FindType(new TopLevelTypeName("System", "Math"));
-					}
+					mathtypeRef = corlib.GetTypeRef("System", "Math");
+				else
+				{
+					mathtypeRef = corlib.GetTypeRef("System", "MathF");
+					if (mathtypeRef.Resolve() is null)
+						mathtypeRef = corlib.GetTypeRef("System", "Math");
 				}
 
+				IType mathType = ((MetadataModule)compilation.MainModule).ResolveType(mathtypeRef, default);
+
 				expr = TryExtractExpression(mathType, type, constantValue, "PI", isDouble)
-					?? TryExtractExpression(mathType, type, constantValue, "E", isDouble);
+					   ?? TryExtractExpression(mathType, type, constantValue, "E", isDouble);
 			}
 
 			if (expr == null)
@@ -1760,6 +1763,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 			{
 				modifiers |= ModifierFromAccessibility(typeDefinition.Accessibility);
 			}
+			if (!TypeAddInternalModifier && typeDefinition.MetadataToken.IsNotPublic)
+				modifiers &= ~Modifiers.Internal;
+			if (!MemberAddPrivateModifier && typeDefinition.MetadataToken.IsNestedPrivate)
+				modifiers &= ~Modifiers.Private;
 			if (this.ShowModifiers)
 			{
 				if (typeDefinition.IsStatic)
@@ -1971,6 +1978,8 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 				{
 					m |= Modifiers.Volatile;
 				}
+				if (!MemberAddPrivateModifier && field.MetadataToken is FieldDef fd && fd.IsPrivate)
+					m &= ~Modifiers.Private;
 				decl.Modifiers = m;
 			}
 			if (ShowAttributes)
@@ -2184,7 +2193,10 @@ namespace ICSharpCode.Decompiler.CSharp.Syntax
 		public MethodDeclaration ConvertMethod(IMethod method)
 		{
 			MethodDeclaration decl = new MethodDeclaration();
-			decl.Modifiers = GetMemberModifiers(method);
+			Modifiers m = GetMemberModifiers(method);
+			if (!MemberAddPrivateModifier && method.MetadataToken is MethodDef md && md.IsPrivate)
+				m &= ~Modifiers.Private;
+			decl.Modifiers = m;
 			if (ShowAttributes)
 			{
 				decl.Attributes.AddRange(ConvertAttributes(method.GetAttributes()));

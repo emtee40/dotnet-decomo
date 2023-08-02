@@ -1240,48 +1240,6 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		bool foldBraces = false;
-
-		[Browsable(false)]
-		public bool FoldBraces {
-			get { return foldBraces; }
-			set {
-				if (foldBraces != value)
-				{
-					foldBraces = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
-		bool expandMemberDefinitions = false;
-
-		[Browsable(false)]
-		public bool ExpandMemberDefinitions {
-			get { return expandMemberDefinitions; }
-			set {
-				if (expandMemberDefinitions != value)
-				{
-					expandMemberDefinitions = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
-		bool expandUsingDeclarations = false;
-
-		[Browsable(false)]
-		public bool ExpandUsingDeclarations {
-			get { return expandUsingDeclarations; }
-			set {
-				if (expandUsingDeclarations != value)
-				{
-					expandUsingDeclarations = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
 		bool decompileMemberBodies = true;
 
 		/// <summary>
@@ -1716,22 +1674,6 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		bool showDebugInfo;
-
-		[Category("DecompilerSettings.Other")]
-		[Description("DecompilerSettings.ShowInfoFromDebugSymbolsIfAvailable")]
-		[Browsable(false)]
-		public bool ShowDebugInfo {
-			get { return showDebugInfo; }
-			set {
-				if (showDebugInfo != value)
-				{
-					showDebugInfo = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
 		#region Options to aid VB decompilation
 		bool assumeArrayLengthFitsIntoInt32 = true;
 
@@ -1820,53 +1762,6 @@ namespace ICSharpCode.Decompiler
 				}
 			}
 		}
-		#endregion
-
-		#region Assembly Load and Resolve options
-
-		bool loadInMemory = false;
-
-		[Browsable(false)]
-		public bool LoadInMemory {
-			get { return loadInMemory; }
-			set {
-				if (loadInMemory != value)
-				{
-					loadInMemory = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
-		bool throwOnAssemblyResolveErrors = true;
-
-		[Browsable(false)]
-		public bool ThrowOnAssemblyResolveErrors {
-			get { return throwOnAssemblyResolveErrors; }
-			set {
-				if (throwOnAssemblyResolveErrors != value)
-				{
-					throwOnAssemblyResolveErrors = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
-		bool applyWindowsRuntimeProjections = true;
-
-		[Category("DecompilerSettings.Other")]
-		[Description("DecompilerSettings.ApplyWindowsRuntimeProjectionsOnLoadedAssemblies")]
-		public bool ApplyWindowsRuntimeProjections {
-			get { return applyWindowsRuntimeProjections; }
-			set {
-				if (applyWindowsRuntimeProjections != value)
-				{
-					applyWindowsRuntimeProjections = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
 		#endregion
 
 		bool forStatement = true;
@@ -2083,6 +1978,19 @@ namespace ICSharpCode.Decompiler
 		}
 		bool sortSystemUsingStatementsFirst = true;
 
+		public int MaxArrayElements {
+			get { return maxArrayElements; }
+			set {
+				if (maxArrayElements != value) {
+					maxArrayElements = value;
+					OnPropertyChanged(nameof(MaxArrayElements));
+				}
+			}
+		}
+		// Don't show too big arrays, no-one will read every single element, and too big
+		// arrays could cause OOM exceptions.
+		int maxArrayElements = 10000;
+
 		public int MaxStringLength {
 			get { return maxStringLength; }
 			set {
@@ -2138,6 +2046,28 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 		bool oneCustomAttributePerLine = true;
+
+		public bool TypeAddInternalModifier {
+			get { return typeAddInternalModifier; }
+			set {
+				if (typeAddInternalModifier != value) {
+					typeAddInternalModifier = value;
+					OnPropertyChanged(nameof(TypeAddInternalModifier));
+				}
+			}
+		}
+		bool typeAddInternalModifier = true;
+
+		public bool MemberAddPrivateModifier {
+			get { return memberAddPrivateModifier; }
+			set {
+				if (memberAddPrivateModifier != value) {
+					memberAddPrivateModifier = value;
+					OnPropertyChanged(nameof(MemberAddPrivateModifier));
+				}
+			}
+		}
+		bool memberAddPrivateModifier = true;
 
 		public bool HexadecimalNumbers {
 			get { return hexadecimalNumbers; }

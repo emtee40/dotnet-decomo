@@ -18,15 +18,19 @@
 
 #nullable enable
 
+using ICSharpCode.Decompiler.TypeSystem.Implementation;
+
 namespace ICSharpCode.Decompiler.TypeSystem
 {
 	/// <summary>
 	/// Main interface for the decompiler type system.
-	/// 
+	///
 	/// The MetadataModule class allows decoding/resolving metadata tokens into type system entities.
 	/// </summary>
 	public interface IDecompilerTypeSystem : ICompilation
 	{
 		new MetadataModule MainModule { get; }
+
+		FakeCorLibTypesModule? FakeCorLibModule { get; }
 	}
 }

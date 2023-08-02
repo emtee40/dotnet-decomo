@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using dnlib.DotNet;
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
@@ -38,7 +38,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				}
 				case GenericInstSig instSig:
 					return new ParameterizedType(instSig.GenericType.DecodeSignature(module, context),
-							instSig.GenericArguments.Select(x => x.DecodeSignature(module, context)))
+							instSig.GenericArguments.Select(x => x.DecodeSignature(module, context)).ToArray())
 						{ OriginalMember = instSig, MetadataToken = instSig };
 				case ByRefSig byRefSig:
 					return new ByReferenceType(byRefSig.Next.DecodeSignature(module, context))
@@ -90,8 +90,16 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 					var resolved = typeRef.Resolve();
 					if (resolved != null && module.Compilation.GetOrAddModule(resolved.Module) is MetadataModule mod)
+					{
 						tsType = mod.GetDefinitionInternal(resolved).WithOriginalMember(typeRef);
-					else
+					}
+					else if (typeRef.Scope is IAssembly assembly && assembly.IsCorLib())
+					{
+						var ts = module.Compilation as IDecompilerTypeSystem;
+						tsType = ts?.FakeCorLibModule?.GetFakeCorLibType(typeRef);
+					}
+
+					if (tsType is null)
 					{
 						bool? isReferenceType;
 						if (isVT != ThreeState.Unknown)

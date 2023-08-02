@@ -109,7 +109,7 @@ namespace ICSharpCode.Decompiler.TypeSystem
 
 		public ITypeDefinition GetTypeDefinition(TopLevelTypeName topLevelTypeName)
 		{
-			var typeDefHandle = PEFile.GetTypeDefinition(topLevelTypeName);
+			var typeDefHandle = metadata.Find(topLevelTypeName.ReflectionName, true);
 			if (typeDefHandle == null)
 			{
 				var forwarderHandle = PEFile.GetTypeForwarder(topLevelTypeName);

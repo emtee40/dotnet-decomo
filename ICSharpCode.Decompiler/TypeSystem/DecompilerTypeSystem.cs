@@ -186,6 +186,8 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			var corLibAsm = maindnlibMod.Context.AssemblyResolver.Resolve(maindnlibMod.CorLibTypes.AssemblyRef, maindnlibMod);
 			if (corLibAsm != null)
 				GetOrAddModule(corLibAsm.ManifestModule);
+			else
+				modules.Add(FakeCorLibModule = new FakeCorLibTypesModule(this, maindnlibMod));
 		}
 
 		void Init(IModuleReference mainAssembly)
@@ -205,6 +207,8 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				return mainModule;
 			}
 		}
+
+		public FakeCorLibTypesModule FakeCorLibModule { get; }
 
 		IModule ICompilation.MainModule => MainModule;
 

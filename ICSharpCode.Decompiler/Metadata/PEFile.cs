@@ -55,14 +55,6 @@ namespace ICSharpCode.Decompiler.Metadata
 			Module.Dispose();
 		}
 
-		/// <summary>
-		/// Finds the top-level-type with the specified name.
-		/// </summary>
-		public TypeDef? GetTypeDefinition(TopLevelTypeName typeName)
-		{
-			return Module.Find(typeName.ReflectionName, true);
-		}
-
 		Dictionary<FullTypeName, ExportedType>? typeForwarderLookup;
 
 		/// <summary>

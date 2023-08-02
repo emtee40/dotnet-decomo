@@ -25,6 +25,7 @@ using System.Text;
 using dnlib.DotNet;
 
 using ICSharpCode.Decompiler.TypeSystem.Implementation;
+using ICSharpCode.Decompiler.Util;
 
 namespace ICSharpCode.Decompiler.TypeSystem
 {
@@ -64,11 +65,6 @@ namespace ICSharpCode.Decompiler.TypeSystem
 				if (p != null && gp != null && p.Compilation != gp.Compilation)
 					throw new InvalidOperationException("Cannot parameterize a type with type arguments from a different compilation.");
 			}
-
-			var dnTypeArgs = this.typeArguments.Select(x => x.MetadataToken.GetTypeSig()).ToArray();
-			if (dnTypeArgs.Any(x => x is null))
-				return;
-			MetadataToken = genericType.MetadataToken.GetTypeSig() is not ClassOrValueTypeSig ts ? null : new GenericInstSig(ts, dnTypeArgs);
 		}
 
 		/// <summary>
@@ -80,14 +76,28 @@ namespace ICSharpCode.Decompiler.TypeSystem
 			Debug.Assert(genericType.TypeParameterCount == typeArguments.Length);
 			this.genericType = genericType;
 			this.typeArguments = typeArguments;
-
-			var dnTypeArgs = typeArguments.Select(x => x.MetadataToken.GetTypeSig()).ToArray();
-			if (dnTypeArgs.Any(x => x is null))
-				return;
-			MetadataToken = genericType.MetadataToken.GetTypeSig() is not ClassOrValueTypeSig ts ? null : new GenericInstSig(ts, dnTypeArgs);
 		}
 
-		public dnlib.DotNet.IType MetadataToken { get; internal set; }
+		private dnlib.DotNet.IType metaToken;
+
+		public dnlib.DotNet.IType MetadataToken {
+			get {
+				var mdToken = LazyInit.VolatileRead(ref metaToken);
+				if (mdToken is not null)
+					return mdToken;
+
+				var dnTypeArgs = typeArguments.Select(x => x.MetadataToken.GetTypeSig()).ToArray();
+				if (Enumerable.Any(dnTypeArgs, x => x is null))
+					return null;
+				mdToken = genericType.MetadataToken.GetTypeSig() is not ClassOrValueTypeSig ts
+					? null
+					: new GenericInstSig(ts, dnTypeArgs);
+				return LazyInit.GetOrSet(ref metaToken, mdToken);
+			}
+			internal set {
+				LazyInit.GetOrSet(ref metaToken, value);
+			}
+		}
 
 		public dnlib.DotNet.IType OriginalMember { get; internal set; }
 

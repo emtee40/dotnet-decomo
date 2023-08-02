@@ -616,18 +616,14 @@ namespace ICSharpCode.Decompiler.CSharp
 
 			var info = new CodeMappingInfo(module, declaringType);
 
-			var td = declaringType;
-
-			foreach (var method in td.Methods) {
-				var part = method;
-
+			foreach (var method in declaringType.Methods) {
 				var connectedMethods = new Queue<MethodDef>();
 				var processedMethods = new HashSet<MethodDef>();
 				var processedNestedTypes = new HashSet<TypeDef>();
-				connectedMethods.Enqueue(part);
+				connectedMethods.Enqueue(method);
 
 				while (connectedMethods.Count > 0) {
-					part = connectedMethods.Dequeue();
+					var part = connectedMethods.Dequeue();
 					if (!processedMethods.Add(part))
 						continue;
 					ReadCodeMappingInfo(info, method, part, connectedMethods, processedNestedTypes);
