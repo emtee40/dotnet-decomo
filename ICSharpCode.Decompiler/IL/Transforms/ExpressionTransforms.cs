@@ -365,12 +365,12 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 					ILInlining.InlineIfPossible(block, stmt.ChildIndex, context);
 				return;
 			}
-			if (TransformArrayInitializers.TransformSpanTArrayInitialization(inst, context, out block))
+			if (TransformArrayInitializers.TransformSpanTArrayInitialization(inst, context, out var replacement))
 			{
 				context.Step("TransformSpanTArrayInitialization: single-dim", inst);
 				if (context.CalculateILSpans)
-					inst.AddSelfAndChildrenRecursiveILSpans(block.ILSpans);
-				inst.ReplaceWith(block);
+					inst.AddSelfAndChildrenRecursiveILSpans(replacement.ILSpans);
+				inst.ReplaceWith(replacement);
 				return;
 			}
 			if (TransformDelegateCtorLdVirtFtnToLdVirtDelegate(inst, out LdVirtDelegate ldVirtDelegate))

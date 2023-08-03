@@ -239,6 +239,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 			astBuilder.SupportInitAccessors = (ConversionFlags & ConversionFlags.SupportInitAccessors) != 0;
 			astBuilder.SupportRecordClasses = (ConversionFlags & ConversionFlags.SupportRecordClasses) != 0;
 			astBuilder.SupportRecordStructs = (ConversionFlags & ConversionFlags.SupportRecordStructs) != 0;
+			astBuilder.SupportUnsignedRightShift = (ConversionFlags & ConversionFlags.SupportUnsignedRightShift) != 0;
+			astBuilder.SupportOperatorChecked = (ConversionFlags & ConversionFlags.SupportOperatorChecked) != 0;
 			return astBuilder;
 		}
 
@@ -297,20 +299,35 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 							ConvertType(member.ReturnType, writer, formattingPolicy);
 							break;
 						case "op_Explicit":
+						case "op_CheckedExplicit":
 							writer.WriteKeyword(OperatorDeclaration.ExplicitRole, "explicit");
 							writer.Space();
 							writer.WriteKeyword(OperatorDeclaration.OperatorKeywordRole, "operator");
 							writer.Space();
+							if (member.Name == "op_CheckedExplicit")
+							{
+								writer.WriteKeyword(OperatorDeclaration.CheckedKeywordRole, "checked");
+								writer.Space();
+							}
 							ConvertType(member.ReturnType, writer, formattingPolicy);
 							break;
 						default:
 							writer.WriteKeyword(OperatorDeclaration.OperatorKeywordRole, "operator");
 							writer.Space();
 							var operatorType = OperatorDeclaration.GetOperatorType(member.Name);
-							if (operatorType.HasValue)
+							if (operatorType.HasValue && !((ConversionFlags & ConversionFlags.SupportOperatorChecked) == 0 && OperatorDeclaration.IsChecked(operatorType.Value)))
+							{
+								if (OperatorDeclaration.IsChecked(operatorType.Value))
+								{
+									writer.WriteKeyword(OperatorDeclaration.CheckedKeywordRole, "checked");
+									writer.Space();
+								}
 								writer.WriteToken(OperatorDeclaration.GetRole(operatorType.Value), OperatorDeclaration.GetToken(operatorType.Value), BoxedTextColor.Text);
+							}
 							else
+							{
 								writer.WriteIdentifier(node.NameToken, BoxedTextColor.Text);
+							}
 							break;
 					}
 					break;

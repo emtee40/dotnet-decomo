@@ -109,7 +109,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public LifetimeAnnotation Lifetime {
 			get {
-				if ((module.TypeSystemOptions & TypeSystemOptions.LifetimeAnnotations) == 0)
+				if ((module.TypeSystemOptions & TypeSystemOptions.ScopedRef) == 0)
 				{
 					return default;
 				}
@@ -117,23 +117,10 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 				if (!handle.HasParamDef)
 					return default;
 
-				foreach (var custom in handle.ParamDef.CustomAttributes)
+				if (handle.ParamDef.CustomAttributes.HasKnownAttribute(KnownAttribute.ScopedRef))
 				{
-					if (!custom.IsKnownAttribute(KnownAttribute.LifetimeAnnotation))
-						continue;
-
-					if (custom.ConstructorArguments.Count != 2)
-						continue;
-					if (custom.ConstructorArguments[0].Value is bool refScoped
-					    && custom.ConstructorArguments[1].Value is bool valueScoped)
-					{
-						return new LifetimeAnnotation {
-							RefScoped = refScoped,
-							ValueScoped = valueScoped
-						};
-					}
+					return new LifetimeAnnotation { ScopedRef = true };
 				}
-
 				return default;
 			}
 		}

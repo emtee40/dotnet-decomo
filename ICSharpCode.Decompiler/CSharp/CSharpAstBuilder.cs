@@ -96,6 +96,8 @@ namespace ICSharpCode.Decompiler.CSharp
 				AlwaysUseGlobal = context.Settings.AlwaysUseGlobal,
 				TypeAddInternalModifier = context.Settings.TypeAddInternalModifier,
 				MemberAddPrivateModifier = context.Settings.MemberAddPrivateModifier,
+				SupportUnsignedRightShift = context.Settings.UnsignedRightShift,
+				SupportOperatorChecked = context.Settings.CheckedOperators,
 			};
 			currentTypeResolveContext =
 				new SimpleTypeResolveContext(typeSystem.MainModule).WithCurrentTypeDefinition(
@@ -314,16 +316,8 @@ namespace ICSharpCode.Decompiler.CSharp
 			}
 			if (context.Settings.IntroduceRefModifiersOnStructs)
 			{
-				if (FindAttribute(typeDecl, KnownAttribute.Obsolete, out var attr))
-				{
-					if (obsoleteAttributePattern.IsMatch(attr))
-					{
-						if (attr.Parent is AttributeSection section && section.Attributes.Count == 1)
-							section.Remove();
-						else
-							attr.Remove();
-					}
-				}
+				RemoveObsoleteAttribute(typeDecl, "Types with embedded references are not supported in this version of your compiler.");
+				RemoveCompilerFeatureRequiredAttribute(typeDecl, "RefStructs");
 			}
 			if (context.Settings.RequiredMembers)
 			{
@@ -418,6 +412,10 @@ namespace ICSharpCode.Decompiler.CSharp
 				RemoveAttribute(methodDecl, KnownAttribute.PreserveBaseOverrides);
 				methodDecl.Modifiers &= ~(Modifiers.New | Modifiers.Virtual);
 				methodDecl.Modifiers |= Modifiers.Override;
+			}
+			if (methodDef.IsConstructor && context.Settings.RequiredMembers && RemoveCompilerFeatureRequiredAttribute(methodDecl, "RequiredMembers"))
+			{
+				RemoveObsoleteAttribute(methodDecl, "Constructors of types with required members are not supported in this version of your compiler.");
 			}
 
 			if (methodDef.IsConstructor && methodDef.IsStatic && methodDef.DeclaringType.IsBeforeFieldInit)

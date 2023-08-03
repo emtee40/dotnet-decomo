@@ -161,6 +161,12 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			return b.GetAttribute(handle.CustomAttributes, attribute, SymbolKind.Field);
 		}
 
+		public bool ReturnTypeIsRefReadOnly {
+			get {
+				return handle.CustomAttributes.HasKnownAttribute(KnownAttribute.IsReadOnly);
+			}
+		}
+
 		public string FullName => $"{DeclaringType?.FullName}.{Name}";
 		public string ReflectionName => $"{DeclaringType?.ReflectionName}.{Name}";
 		public string Namespace => DeclaringType?.Namespace ?? string.Empty;
@@ -283,6 +289,8 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			public string Name => backing.Name;
 
 			public bool IsReadOnly => backing.IsReadOnly;
+
+			public bool ReturnTypeIsRefReadOnly => backing.ReturnTypeIsRefReadOnly;
 
 			public bool IsVolatile => backing.IsVolatile;
 

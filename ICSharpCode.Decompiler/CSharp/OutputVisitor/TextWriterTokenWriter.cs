@@ -236,9 +236,9 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				return;
 			}
 
-			if (value is bool)
+			if (value is bool b)
 			{
-				if ((bool)value)
+				if (b)
 				{
 					writer("true", null, BoxedTextColor.Keyword);
 					column += 4;
@@ -251,28 +251,26 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 				return;
 			}
 
-			var s = value as string;
-			if (s != null)
+			if (value is string s)
 			{
-				string tmp = "\"" + ConvertStringMaxLength(s, maxStringLength) + "\"";
+				string tmp = $"\"{ConvertStringMaxLength(s, maxStringLength)}\"{(format == LiteralFormat.Utf8Literal ? "u8" : "")}";
 				column += tmp.Length;
 				writer(tmp, null, BoxedTextColor.String);
 			}
-			else if (value is char)
+			else if (value is char c)
 			{
-				string tmp = "'" + ConvertCharLiteral((char)value) + "'";
+				string tmp = $"'{ConvertCharLiteral(c)}'";
 				column += tmp.Length;
 				writer(tmp, null, BoxedTextColor.Char);
 			}
-			else if (value is decimal)
+			else if (value is decimal dec)
 			{
-				string str = ((decimal)value).ToString(NumberFormatInfo.InvariantInfo) + "m";
+				string str = dec.ToString(NumberFormatInfo.InvariantInfo) + "m";
 				column += str.Length;
 				writer(str, null, BoxedTextColor.Number);
 			}
-			else if (value is float)
+			else if (value is float f)
 			{
-				float f = (float)value;
 				if (float.IsInfinity(f) || float.IsNaN(f))
 				{
 					// Strictly speaking, these aren't PrimitiveExpressions;
@@ -306,24 +304,23 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					number = "-" + number;
 				}
 				column += number.Length;
-				writer(number, value, BoxedTextColor.Number);
+				writer(number, f, BoxedTextColor.Number);
 			}
-			else if (value is double)
+			else if (value is double d)
 			{
-				double f = (double)value;
-				if (double.IsInfinity(f) || double.IsNaN(f))
+				if (double.IsInfinity(d) || double.IsNaN(d))
 				{
 					// Strictly speaking, these aren't PrimitiveExpressions;
 					// but we still support writing these to make life easier for code generators.
 					writer("double", null, BoxedTextColor.Keyword);
 					column += 6;
 					writeToken(Roles.Dot, ".", BoxedTextColor.Operator);
-					if (double.IsPositiveInfinity(f))
+					if (double.IsPositiveInfinity(d))
 					{
 						writer("PositiveInfinity", null, BoxedTextColor.LiteralField);
 						column += "PositiveInfinity".Length;
 					}
-					else if (double.IsNegativeInfinity(f))
+					else if (double.IsNegativeInfinity(d))
 					{
 						writer("NegativeInfinity", null, BoxedTextColor.LiteralField);
 						column += "NegativeInfinity".Length;
@@ -335,8 +332,8 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					}
 					return;
 				}
-				string number = f.ToString("R", NumberFormatInfo.InvariantInfo);
-				if (f == 0 && 1 / f == double.NegativeInfinity && number[0] != '-')
+				string number = d.ToString("R", NumberFormatInfo.InvariantInfo);
+				if (d == 0 && 1 / d == double.NegativeInfinity && number[0] != '-')
 				{
 					// negative zero is a special case
 					// (again, not a primitive expression, but it's better to handle
@@ -348,12 +345,12 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					number += ".0";
 				}
 				column += number.Length;
-				writer(number, value, BoxedTextColor.Number);
+				writer(number, d, BoxedTextColor.Number);
 			}
-			else if (value is IFormattable)
+			else if (value is IFormattable formattable)
 			{
 				string valueStr;
-				switch (value) {
+				switch (formattable) {
 				case int v:
 					valueStr = numberFormatter.Format(v);
 					break;
@@ -379,10 +376,10 @@ namespace ICSharpCode.Decompiler.CSharp.OutputVisitor
 					valueStr = numberFormatter.Format(v);
 					break;
 				default:
-					valueStr = ((IFormattable)value).ToString(null, NumberFormatInfo.InvariantInfo);
+					valueStr = formattable.ToString(null, NumberFormatInfo.InvariantInfo);
 					break;
 				}
-				writer(valueStr, value, BoxedTextColor.Number);
+				writer(valueStr, formattable, BoxedTextColor.Number);
 				column += valueStr.Length;
 			}
 			else

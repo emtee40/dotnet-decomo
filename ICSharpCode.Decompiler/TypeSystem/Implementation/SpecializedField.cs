@@ -47,13 +47,9 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public new dnlib.DotNet.IField MetadataToken => fieldDefinition.MetadataToken;
 
-		public bool IsReadOnly {
-			get { return fieldDefinition.IsReadOnly; }
-		}
-
-		public bool IsVolatile {
-			get { return fieldDefinition.IsVolatile; }
-		}
+		public bool IsReadOnly => fieldDefinition.IsReadOnly;
+		public bool ReturnTypeIsRefReadOnly => fieldDefinition.ReturnTypeIsRefReadOnly;
+		public bool IsVolatile => fieldDefinition.IsVolatile;
 
 		IField IField.Specialize(TypeParameterSubstitution newSubstitution)
 		{

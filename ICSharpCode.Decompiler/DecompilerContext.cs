@@ -18,7 +18,8 @@ namespace ICSharpCode.Decompiler
 
 		public DecompilerContext(int settingsVersion, ModuleDef currentModule, MetadataTextColorProvider metadataTextColorProvider, bool calculateILSpans)
 		{
-			this.Settings = new DecompilerSettings(LanguageVersion.CSharp9_0);
+			this.Settings = new DecompilerSettings(LanguageVersion.CSharp11_0)
+				{ FileScopedNamespaces = false, NumericIntPtr = false };
 			this.UsingNamespaces = new List<string>();
 			this.SettingsVersion = settingsVersion;
 			this.CurrentModule = currentModule;

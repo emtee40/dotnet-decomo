@@ -258,7 +258,7 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 
 		public IType ChangeNullability(Nullability nullability)
 		{
-			if (nullability == Nullability.Oblivious)
+			if (nullability == Nullability.Oblivious || IsReferenceType == false)
 				return this;
 			else
 				return new NullabilityAnnotatedType(this, nullability);

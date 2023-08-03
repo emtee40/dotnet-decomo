@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
+// Copyright (c) 2011 AlphaSierraPapa for the SharpDevelop Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
@@ -161,14 +161,18 @@ namespace ICSharpCode.Decompiler
 			if (languageVersion < CSharp.LanguageVersion.CSharp11_0)
 			{
 				parameterNullCheck = false;
-				lifetimeAnnotations = false;
+				scopedRef = false;
 				requiredMembers = false;
+				numericIntPtr = false;
+				utf8StringLiterals = false;
+				unsignedRightShift = false;
+				checkedOperators = false;
 			}
 		}
 
 		public CSharp.LanguageVersion GetMinimumRequiredVersion()
 		{
-			if (parameterNullCheck || lifetimeAnnotations || requiredMembers)
+			if (parameterNullCheck || scopedRef || requiredMembers || numericIntPtr || utf8StringLiterals || unsignedRightShift || checkedOperators)
 				return CSharp.LanguageVersion.CSharp11_0;
 			if (fileScopedNamespaces || recordStructs)
 				return CSharp.LanguageVersion.CSharp10_0;
@@ -273,6 +277,24 @@ namespace ICSharpCode.Decompiler
 				if (nativeIntegers != value)
 				{
 					nativeIntegers = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool numericIntPtr = false; // TODO: reenable
+
+		/// <summary>
+		/// Treat <c>IntPtr</c>/<c>UIntPtr</c> as <c>nint</c>/<c>nuint</c>.
+		/// </summary>
+		[Category("C# 11.0 / VS 2022.4")]
+		[Description("DecompilerSettings.NumericIntPtr")]
+		public bool NumericIntPtr {
+			get { return numericIntPtr; }
+			set {
+				if (numericIntPtr != value)
+				{
+					numericIntPtr = value;
 					OnPropertyChanged();
 				}
 			}
@@ -405,23 +427,29 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		bool lifetimeAnnotations = true;
+		bool scopedRef = true;
 
 		/// <summary>
-		/// Use C# 9 <c>delegate* unmanaged</c> types.
-		/// If this option is disabled, function pointers will instead be decompiled with type `IntPtr`.
+		/// Use C# 11 <c>scoped</c> modifier.
 		/// </summary>
 		[Category("C# 11.0 / VS 2022.4")]
-		[Description("DecompilerSettings.LifetimeAnnotations")]
-		public bool LifetimeAnnotations {
-			get { return lifetimeAnnotations; }
+		[Description("DecompilerSettings.ScopedRef")]
+		public bool ScopedRef {
+			get { return scopedRef; }
 			set {
-				if (lifetimeAnnotations != value)
+				if (scopedRef != value)
 				{
-					lifetimeAnnotations = value;
+					scopedRef = value;
 					OnPropertyChanged();
 				}
 			}
+		}
+
+		[Obsolete("Renamed to ScopedRef. This property will be removed in a future version of the decompiler.")]
+		[Browsable(false)]
+		public bool LifetimeAnnotations {
+			get { return ScopedRef; }
+			set { ScopedRef = value; }
 		}
 
 		bool requiredMembers = true;
@@ -460,7 +488,7 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		bool fileScopedNamespaces = true;
+		bool fileScopedNamespaces = false; // TODO: reenable
 
 		/// <summary>
 		/// Use C# 10 file-scoped namespaces.
@@ -483,9 +511,10 @@ namespace ICSharpCode.Decompiler
 		/// <summary>
 		/// Use C# 11 preview parameter null-checking (<code>string param!!</code>).
 		/// </summary>
-		[Category("C# 11.0 / VS 2022.1")]
+		[Category("C# 11.0 / VS 2022.4")]
 		[Description("DecompilerSettings.ParameterNullCheck")]
 		[Browsable(false)]
+		[Obsolete("This feature did not make it into C# 11, and may be removed in a future version of the decompiler.")]
 		public bool ParameterNullCheck {
 			get { return parameterNullCheck; }
 			set {
@@ -1217,6 +1246,60 @@ namespace ICSharpCode.Decompiler
 				if (stringInterpolation != value)
 				{
 					stringInterpolation = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool utf8StringLiterals = true;
+
+		/// <summary>
+		/// Gets/Sets whether to use C# 11.0 UTF-8 string literals
+		/// </summary>
+		[Category("C# 11.0 / VS 2022.4")]
+		[Description("DecompilerSettings.Utf8StringLiterals")]
+		public bool Utf8StringLiterals {
+			get { return utf8StringLiterals; }
+			set {
+				if (utf8StringLiterals != value)
+				{
+					utf8StringLiterals = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool unsignedRightShift = true;
+
+		/// <summary>
+		/// Gets/Sets whether to use C# 11.0 unsigned right shift operator.
+		/// </summary>
+		[Category("C# 11.0 / VS 2022.4")]
+		[Description("DecompilerSettings.UnsignedRightShift")]
+		public bool UnsignedRightShift {
+			get { return unsignedRightShift; }
+			set {
+				if (unsignedRightShift != value)
+				{
+					unsignedRightShift = value;
+					OnPropertyChanged();
+				}
+			}
+		}
+
+		bool checkedOperators = true;
+
+		/// <summary>
+		/// Gets/Sets whether to use C# 11.0 user-defined checked operators.
+		/// </summary>
+		[Category("C# 11.0 / VS 2022.4")]
+		[Description("DecompilerSettings.CheckedOperators")]
+		public bool CheckedOperators {
+			get { return checkedOperators; }
+			set {
+				if (checkedOperators != value)
+				{
+					checkedOperators = value;
 					OnPropertyChanged();
 				}
 			}

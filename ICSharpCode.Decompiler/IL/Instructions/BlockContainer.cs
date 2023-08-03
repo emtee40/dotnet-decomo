@@ -91,7 +91,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		public override ILInstruction Clone()
 		{
-			BlockContainer clone = new BlockContainer();
+			BlockContainer clone = new BlockContainer(this.Kind, this.ExpectedResultType);
 			clone.AddILRange(this);
 			clone.ILSpans.AddRange(ILSpans);
 			clone.endILSpans.AddRange(endILSpans);

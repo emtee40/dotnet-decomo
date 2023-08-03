@@ -99,6 +99,9 @@ namespace ICSharpCode.Decompiler.TypeSystem.Implementation
 			: base(compilation, dnlibRef) { }
 
 		bool IField.IsReadOnly => false;
+
+		public bool ReturnTypeIsRefReadOnly => false;
+
 		public bool IsVolatile { get; private set; }
 
 		bool IVariable.IsConst => false;

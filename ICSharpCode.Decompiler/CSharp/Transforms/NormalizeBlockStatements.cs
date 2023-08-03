@@ -228,8 +228,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				if (retSpans.Count > 0)
 					propertyDeclaration.ExpressionBody.AddAnnotation(retSpans);
 				propertyDeclaration.ExpressionBody.WithAnnotation(propertyDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+				propertyDeclaration.Getter.RemoveAnnotations<MethodDebugInfoBuilder>();
+				propertyDeclaration.Getter.RemoveAllILSpansRecursive();
 			}
-
+			propertyDeclaration.CopyAnnotationsFrom(propertyDeclaration.Getter);
 			propertyDeclaration.Getter.Remove();
 		}
 
@@ -248,7 +250,10 @@ namespace ICSharpCode.Decompiler.CSharp.Transforms
 				if (retSpans.Count > 0)
 					indexerDeclaration.ExpressionBody.AddAnnotation(retSpans);
 				indexerDeclaration.ExpressionBody.WithAnnotation(indexerDeclaration.Getter.Annotation<MethodDebugInfoBuilder>());
+				indexerDeclaration.Getter.RemoveAnnotations<MethodDebugInfoBuilder>();
+				indexerDeclaration.Getter.RemoveAllILSpansRecursive();
 			}
+			indexerDeclaration.CopyAnnotationsFrom(indexerDeclaration.Getter);
 			indexerDeclaration.Getter.Remove();
 		}
 	}
