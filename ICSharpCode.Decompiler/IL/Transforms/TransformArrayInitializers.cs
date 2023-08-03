@@ -1,5 +1,5 @@
 // Copyright (c) 2015 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
@@ -19,6 +19,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+
 using dnlib.DotNet;
 using dnlib.IO;
 
@@ -116,9 +118,9 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			return false;
 		}
 
-		internal static bool TransformSpanTArrayInitialization(NewObj inst, StatementTransformContext context, out Block block)
+		internal static bool TransformSpanTArrayInitialization(NewObj inst, StatementTransformContext context, out ILInstruction replacement)
 		{
-			block = null;
+			replacement = null;
 			if (!context.Settings.ArrayInitializers)
 				return false;
 			if (MatchSpanTCtorWithPointerAndSize(inst, context, out var elementType, out var field, out var size))
@@ -127,15 +129,45 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 				{
 					var valuesList = new List<ILInstruction>();
 					var initialValue = field.InitialValue;
+					if (context.Settings.Utf8StringLiterals &&
+						elementType.IsKnownType(KnownTypeCode.Byte) &&
+						DecodeUTF8String(initialValue, size, out string text))
+					{
+						replacement = new LdStrUtf8(text);
+						return true;
+					}
 					if (DecodeArrayInitializer(elementType, initialValue, new[] { size }, valuesList))
 					{
 						var tempStore = context.Function.RegisterVariable(VariableKind.InitializerTarget, new ArrayType(context.TypeSystem, elementType));
-						block = BlockFromInitializer(tempStore, elementType, new[] { size }, valuesList.ToArray());
+						replacement = BlockFromInitializer(tempStore, elementType, new[] { size }, valuesList.ToArray());
 						return true;
 					}
 				}
 			}
 			return false;
+		}
+
+		private static unsafe bool DecodeUTF8String(byte[] blob, int size, out string text)
+		{
+			if (size > blob.Length)
+			{
+				text = null;
+				return false;
+			}
+			for (int i = 0; i < size; i++)
+			{
+				byte val = blob[i];
+				// If the string has control characters, it's probably binary data and not a string.
+				if (val < 0x20 && val is not ((byte)'\r' or (byte)'\n' or (byte)'\t'))
+				{
+					text = null;
+					return false;
+				}
+			}
+			text = Encoding.UTF8.GetString(blob, 0, size);
+			// Only use UTF8 string literal if we can perfectly roundtrip the data
+			byte[] bytes = Encoding.UTF8.GetBytes(text);
+			return MemoryExtensions.SequenceEqual(bytes, new ReadOnlySpan<byte>(blob, 0, size));
 		}
 
 		static bool MatchSpanTCtorWithPointerAndSize(NewObj newObj, StatementTransformContext context, out IType elementType, out dnlib.DotNet.FieldDef field, out int size)
@@ -144,7 +176,7 @@ namespace ICSharpCode.Decompiler.IL.Transforms
 			size = default;
 			elementType = null;
 			IType type = newObj.Method.DeclaringType;
-			if (!type.IsKnownType(KnownTypeCode.SpanOfT) && !type.IsKnownType(KnownTypeCode.ReadOnlySpanOfT))
+			if (!type.IsKnownType(KnownTypeCode.ReadOnlySpanOfT))
 				return false;
 			if (newObj.Arguments.Count != 2 || type.TypeArguments.Count != 1)
 				return false;
