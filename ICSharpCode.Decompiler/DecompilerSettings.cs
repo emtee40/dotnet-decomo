@@ -1045,7 +1045,7 @@ namespace ICSharpCode.Decompiler
 		/// false: <c>pictureBox1.BeginInit();</c>
 		/// default: false
 		/// </summary>
-		[Category("Other")]
+		[Category("DecompilerSettings.Other")]
 		[Description("DecompilerSettings.AlwaysCastTargetsOfExplicitInterfaceImplementationCalls")]
 		public bool AlwaysCastTargetsOfExplicitInterfaceImplementationCalls {
 			get { return alwaysCastTargetsOfExplicitInterfaceImplementationCalls; }
@@ -1066,7 +1066,7 @@ namespace ICSharpCode.Decompiler
 		/// false: <c>DoSomething();</c>
 		/// default: false
 		/// </summary>
-		[Category("Other")]
+		[Category("DecompilerSettings.Other")]
 		[Description("DecompilerSettings.AlwaysQualifyMemberReferences")]
 		public bool AlwaysQualifyMemberReferences {
 			get { return alwaysQualifyMemberReferences; }
@@ -1087,7 +1087,7 @@ namespace ICSharpCode.Decompiler
 		/// false: <c>enum Kind { A, B, C = 5 }</c>
 		/// default: false
 		/// </summary>
-		[Category("Other")]
+		[Category("DecompilerSettings.Other")]
 		[Description("DecompilerSettings.AlwaysShowEnumMemberValues")]
 		public bool AlwaysShowEnumMemberValues {
 			get { return alwaysShowEnumMemberValues; }
@@ -1105,7 +1105,7 @@ namespace ICSharpCode.Decompiler
 		/// <summary>
 		/// Gets/Sets whether to use variable names from debug symbols, if available.
 		/// </summary>
-		[Category("Other")]
+		[Category("DecompilerSettings.Other")]
 		[Description("DecompilerSettings.UseVariableNamesFromDebugSymbolsIfAvailable")]
 		public bool UseDebugSymbols {
 			get { return useDebugSymbols; }
@@ -1902,44 +1902,6 @@ namespace ICSharpCode.Decompiler
 			}
 		}
 
-		bool useSdkStyleProjectFormat = true;
-
-		/// <summary>
-		/// Gets or sets a value indicating whether the new SDK style format
-		/// shall be used for the generated project files.
-		/// </summary>
-		[Category("DecompilerSettings.ProjectExport")]
-		[Description("DecompilerSettings.UseSdkStyleProjectFormat")]
-		public bool UseSdkStyleProjectFormat {
-			get { return useSdkStyleProjectFormat; }
-			set {
-				if (useSdkStyleProjectFormat != value)
-				{
-					useSdkStyleProjectFormat = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
-		bool useNestedDirectoriesForNamespaces;
-
-		/// <summary>
-		/// Gets/sets whether namespaces and namespace-like identifiers should be split at '.'
-		/// and each part should produce a new level of nesting in the output directory structure.
-		/// </summary>
-		[Category("DecompilerSettings.ProjectExport")]
-		[Description("DecompilerSettings.UseNestedDirectoriesForNamespaces")]
-		public bool UseNestedDirectoriesForNamespaces {
-			get { return useNestedDirectoriesForNamespaces; }
-			set {
-				if (useNestedDirectoriesForNamespaces != value)
-				{
-					useNestedDirectoriesForNamespaces = value;
-					OnPropertyChanged();
-				}
-			}
-		}
-
 		bool aggressiveScalarReplacementOfAggregates = false;
 
 		[Category("DecompilerSettings.Other")]
@@ -1999,12 +1961,14 @@ namespace ICSharpCode.Decompiler
 
 		bool removeEmptyDefaultConstructors = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.RemoveEmptyDefaultConstructors")]
 		public bool RemoveEmptyDefaultConstructors {
 			get { return removeEmptyDefaultConstructors; }
 			set {
 				if (removeEmptyDefaultConstructors != value) {
 					removeEmptyDefaultConstructors = value;
-					OnPropertyChanged(nameof(RemoveEmptyDefaultConstructors));
+					OnPropertyChanged();
 				}
 			}
 		}
@@ -2014,12 +1978,14 @@ namespace ICSharpCode.Decompiler
 		/// <summary>
 		/// Gets/sets whether to show tokens of types/methods/etc and the RVA / file offset in comments
 		/// </summary>
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.ShowTokenAndRvaComments")]
 		public bool ShowTokenAndRvaComments {
 			get { return showTokenAndRvaComments; }
 			set {
 				if (showTokenAndRvaComments != value) {
 					showTokenAndRvaComments = value;
-					OnPropertyChanged(nameof(ShowTokenAndRvaComments));
+					OnPropertyChanged();
 				}
 			}
 		}
@@ -2029,33 +1995,39 @@ namespace ICSharpCode.Decompiler
 		/// <summary>
 		/// Gets/sets whether to sort members
 		/// </summary>
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.SortMembers")]
 		public bool SortMembers {
 			get { return sortMembers; }
 			set {
 				if (sortMembers != value) {
 					sortMembers = value;
-					OnPropertyChanged(nameof(SortMembers));
+					OnPropertyChanged();
 				}
 			}
 		}
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.ForceShowAllMembers")]
 		public bool ForceShowAllMembers {
 			get { return forceShowAllMembers; }
 			set {
 				if (forceShowAllMembers != value) {
 					forceShowAllMembers = value;
-					OnPropertyChanged(nameof(ForceShowAllMembers));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool forceShowAllMembers = false;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.SortSystemUsingStatementsFirst")]
 		public bool SortSystemUsingStatementsFirst {
 			get { return sortSystemUsingStatementsFirst; }
 			set {
 				if (sortSystemUsingStatementsFirst != value) {
 					sortSystemUsingStatementsFirst = value;
-					OnPropertyChanged(nameof(SortSystemUsingStatementsFirst));
+					OnPropertyChanged();
 				}
 			}
 		}
@@ -2066,7 +2038,7 @@ namespace ICSharpCode.Decompiler
 			set {
 				if (maxArrayElements != value) {
 					maxArrayElements = value;
-					OnPropertyChanged(nameof(MaxArrayElements));
+					OnPropertyChanged();
 				}
 			}
 		}
@@ -2079,107 +2051,125 @@ namespace ICSharpCode.Decompiler
 			set {
 				if (maxStringLength != value) {
 					maxStringLength = value;
-					OnPropertyChanged(nameof(MaxStringLength));
+					OnPropertyChanged();
 				}
 			}
 		}
 		int maxStringLength = ConstMaxStringLength;
 		public const int ConstMaxStringLength = 20000;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.SortCustomAttributes")]
 		public bool SortCustomAttributes {
 			get { return sortCustomAttributes; }
 			set {
 				if (sortCustomAttributes != value) {
 					sortCustomAttributes = value;
-					OnPropertyChanged(nameof(SortCustomAttributes));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool sortCustomAttributes = false;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.UseSourceCodeOrder")]
 		public bool UseSourceCodeOrder {
 			get { return useSourceCodeOrder; }
 			set {
 				if (useSourceCodeOrder != value) {
 					useSourceCodeOrder = value;
-					OnPropertyChanged(nameof(UseSourceCodeOrder));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool useSourceCodeOrder = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.AllowFieldInitializers")]
 		public bool AllowFieldInitializers {
 			get { return allowFieldInitializers; }
 			set {
 				if (allowFieldInitializers != value) {
 					allowFieldInitializers = value;
-					OnPropertyChanged(nameof(AllowFieldInitializers));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool allowFieldInitializers = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.OneCustomAttributePerLine")]
 		public bool OneCustomAttributePerLine {
 			get { return oneCustomAttributePerLine; }
 			set {
 				if (oneCustomAttributePerLine != value) {
 					oneCustomAttributePerLine = value;
-					OnPropertyChanged(nameof(OneCustomAttributePerLine));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool oneCustomAttributePerLine = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.TypeAddInternalModifier")]
 		public bool TypeAddInternalModifier {
 			get { return typeAddInternalModifier; }
 			set {
 				if (typeAddInternalModifier != value) {
 					typeAddInternalModifier = value;
-					OnPropertyChanged(nameof(TypeAddInternalModifier));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool typeAddInternalModifier = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.MemberAddPrivateModifier")]
 		public bool MemberAddPrivateModifier {
 			get { return memberAddPrivateModifier; }
 			set {
 				if (memberAddPrivateModifier != value) {
 					memberAddPrivateModifier = value;
-					OnPropertyChanged(nameof(MemberAddPrivateModifier));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool memberAddPrivateModifier = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.HexadecimalNumbers")]
 		public bool HexadecimalNumbers {
 			get { return hexadecimalNumbers; }
 			set {
 				if (hexadecimalNumbers != value) {
 					hexadecimalNumbers = value;
-					OnPropertyChanged(nameof(HexadecimalNumbers));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool hexadecimalNumbers = false;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.SortSwitchCasesByILOffset")]
 		public bool SortSwitchCasesByILOffset {
 			get { return sortSwitchCasesByILOffset; }
 			set {
 				if (sortSwitchCasesByILOffset != value) {
 					sortSwitchCasesByILOffset = value;
-					OnPropertyChanged(nameof(SortSwitchCasesByILOffset));
+					OnPropertyChanged();
 				}
 			}
 		}
 		bool sortSwitchCasesByILOffset = true;
 
+		[Category("DecompilerSettings.Other")]
+		[Description("DecompilerSettings.InsertParenthesesForReadability")]
 		public bool InsertParenthesesForReadability {
 			get { return insertParenthesesForReadability; }
 			set {
 				if (insertParenthesesForReadability != value) {
 					insertParenthesesForReadability = value;
-					OnPropertyChanged(nameof(InsertParenthesesForReadability));
+					OnPropertyChanged();
 				}
 			}
 		}
@@ -2234,37 +2224,108 @@ namespace ICSharpCode.Decompiler
 			if (other == null)
 				return false;
 
-			if (AnonymousMethods != other.AnonymousMethods) return false;
-			if (ExpressionTrees != other.ExpressionTrees) return false;
-			if (YieldReturn != other.YieldReturn) return false;
-			if (AsyncAwait != other.AsyncAwait) return false;
-			if (AutomaticProperties != other.AutomaticProperties) return false;
-			if (AutomaticEvents != other.AutomaticEvents) return false;
-			if (UsingStatement != other.UsingStatement) return false;
-			if (ForEachStatement != other.ForEachStatement) return false;
-			if (LockStatement != other.LockStatement) return false;
-			if (SwitchStatementOnString != other.SwitchStatementOnString) return false;
-			if (UsingDeclarations != other.UsingDeclarations) return false;
-			if (QueryExpressions != other.QueryExpressions) return false;
-			if (UseDebugSymbols != other.UseDebugSymbols) return false;
-			if (ObjectOrCollectionInitializers != other.ObjectOrCollectionInitializers) return false;
-			if (ShowXmlDocumentation != other.ShowXmlDocumentation) return false;
-			if (IntroduceIncrementAndDecrement != other.IntroduceIncrementAndDecrement) return false;
-			if (MakeAssignmentExpressions != other.MakeAssignmentExpressions) return false;
-			if (ShowTokenAndRvaComments != other.ShowTokenAndRvaComments) return false;
 			if (DecompilationObject0 != other.DecompilationObject0) return false;
 			if (DecompilationObject1 != other.DecompilationObject1) return false;
 			if (DecompilationObject2 != other.DecompilationObject2) return false;
 			if (DecompilationObject3 != other.DecompilationObject3) return false;
 			if (DecompilationObject4 != other.DecompilationObject4) return false;
-			if (SortMembers != other.SortMembers) return false;
-			if (ForceShowAllMembers != other.ForceShowAllMembers) return false;
-			if (SortSystemUsingStatementsFirst != other.SortSystemUsingStatementsFirst) return false;
-			if (MaxStringLength != other.MaxStringLength) return false;
-			if (SortCustomAttributes != other.SortCustomAttributes) return false;
-			if (UseSourceCodeOrder != other.UseSourceCodeOrder) return false;
-			if (AllowFieldInitializers != other.AllowFieldInitializers) return false;
-			if (OneCustomAttributePerLine != other.OneCustomAttributePerLine) return false;
+			if (NativeIntegers != other.NativeIntegers) return false;
+			if (NumericIntPtr != other.NumericIntPtr) return false;
+			if (CovariantReturns != other.CovariantReturns) return false;
+			if (InitAccessors != other.InitAccessors) return false;
+			if (RecordClasses != other.RecordClasses) return false;
+			if (RecordStructs != other.RecordStructs) return false;
+			if (WithExpressions != other.WithExpressions) return false;
+			if (UsePrimaryConstructorSyntax != other.UsePrimaryConstructorSyntax) return false;
+			if (FunctionPointers != other.FunctionPointers) return false;
+			if (ScopedRef != other.ScopedRef) return false;
+			if (RequiredMembers != other.RequiredMembers) return false;
+			if (SwitchExpressions != other.SwitchExpressions) return false;
+			if (FileScopedNamespaces != other.FileScopedNamespaces) return false;
+			#pragma warning disable CS0618 // Type or member is obsolete
+			if (ParameterNullCheck != other.ParameterNullCheck) return false;
+			#pragma warning restore CS0618 // Type or member is obsolete
+			if (AnonymousMethods != other.AnonymousMethods) return false;
+			if (AnonymousTypes != other.AnonymousTypes) return false;
+			if (UseLambdaSyntax != other.UseLambdaSyntax) return false;
+			if (ExpressionTrees != other.ExpressionTrees) return false;
+			if (YieldReturn != other.YieldReturn) return false;
+			if (Dynamic != other.Dynamic) return false;
+			if (AsyncAwait != other.AsyncAwait) return false;
+			if (AwaitInCatchFinally != other.AwaitInCatchFinally) return false;
+			if (AsyncEnumerator != other.AsyncEnumerator) return false;
+			if (DecimalConstants != other.DecimalConstants) return false;
+			if (FixedBuffers != other.FixedBuffers) return false;
+			if (StringConcat != other.StringConcat) return false;
+			if (LiftNullables != other.LiftNullables) return false;
+			if (NullPropagation != other.NullPropagation) return false;
+			if (AutomaticProperties != other.AutomaticProperties) return false;
+			if (GetterOnlyAutomaticProperties != other.GetterOnlyAutomaticProperties) return false;
+			if (AutomaticEvents != other.AutomaticEvents) return false;
+			if (UsingStatement != other.UsingStatement) return false;
+			if (UseEnhancedUsing != other.UseEnhancedUsing) return false;
+			if (AlwaysUseBraces != other.AlwaysUseBraces) return false;
+			if (ForEachStatement != other.ForEachStatement) return false;
+			if (ForEachWithGetEnumeratorExtension != other.ForEachWithGetEnumeratorExtension) return false;
+			if (LockStatement != other.LockStatement) return false;
+			if (SwitchStatementOnString != other.SwitchStatementOnString) return false;
+			if (SparseIntegerSwitch != other.SparseIntegerSwitch) return false;
+			if (UsingDeclarations != other.UsingDeclarations) return false;
+			if (ExtensionMethods != other.ExtensionMethods) return false;
+			if (QueryExpressions != other.QueryExpressions) return false;
+			if (UseImplicitMethodGroupConversion != other.UseImplicitMethodGroupConversion) return false;
+			if (AlwaysCastTargetsOfExplicitInterfaceImplementationCalls != other.AlwaysCastTargetsOfExplicitInterfaceImplementationCalls) return false;
+			if (AlwaysQualifyMemberReferences != other.AlwaysQualifyMemberReferences) return false;
+			if (AlwaysShowEnumMemberValues != other.AlwaysShowEnumMemberValues) return false;
+			if (UseDebugSymbols != other.UseDebugSymbols) return false;
+			if (ArrayInitializers != other.ArrayInitializers) return false;
+			if (ObjectOrCollectionInitializers != other.ObjectOrCollectionInitializers) return false;
+			if (DictionaryInitializers != other.DictionaryInitializers) return false;
+			if (ExtensionMethodsInCollectionInitializers != other.ExtensionMethodsInCollectionInitializers) return false;
+			if (UseRefLocalsForAccurateOrderOfEvaluation != other.UseRefLocalsForAccurateOrderOfEvaluation) return false;
+			if (RefExtensionMethods != other.RefExtensionMethods) return false;
+			if (StringInterpolation != other.StringInterpolation) return false;
+			if (Utf8StringLiterals != other.Utf8StringLiterals) return false;
+			if (UnsignedRightShift != other.UnsignedRightShift) return false;
+			if (CheckedOperators != other.CheckedOperators) return false;
+			if (ShowXmlDocumentation != other.ShowXmlDocumentation) return false;
+			if (DecompileMemberBodies != other.DecompileMemberBodies) return false;
+			if (UseExpressionBodyForCalculatedGetterOnlyProperties != other.UseExpressionBodyForCalculatedGetterOnlyProperties) return false;
+			if (OutVariables != other.OutVariables) return false;
+			if (Discards != other.Discards) return false;
+			if (IntroduceRefModifiersOnStructs != other.IntroduceRefModifiersOnStructs) return false;
+			if (IntroduceReadonlyAndInModifiers != other.IntroduceReadonlyAndInModifiers) return false;
+			if (ReadOnlyMethods != other.ReadOnlyMethods) return false;
+			if (AsyncUsingAndForEachStatement != other.AsyncUsingAndForEachStatement) return false;
+			if (IntroduceUnmanagedConstraint != other.IntroduceUnmanagedConstraint) return false;
+			if (StackAllocInitializers != other.StackAllocInitializers) return false;
+			if (PatternBasedFixedStatement != other.PatternBasedFixedStatement) return false;
+			if (TupleTypes != other.TupleTypes) return false;
+			if (ThrowExpressions != other.ThrowExpressions) return false;
+			if (TupleConversions != other.TupleConversions) return false;
+			if (TupleComparisons != other.TupleComparisons) return false;
+			if (NamedArguments != other.NamedArguments) return false;
+			if (NonTrailingNamedArguments != other.NonTrailingNamedArguments) return false;
+			if (OptionalArguments != other.OptionalArguments) return false;
+			if (LocalFunctions != other.LocalFunctions) return false;
+			if (Deconstruction != other.Deconstruction) return false;
+			if (PatternMatching != other.PatternMatching) return false;
+			if (StaticLocalFunctions != other.StaticLocalFunctions) return false;
+			if (Ranges != other.Ranges) return false;
+			if (NullableReferenceTypes != other.NullableReferenceTypes) return false;
+			if (AssumeArrayLengthFitsIntoInt32 != other.AssumeArrayLengthFitsIntoInt32) return false;
+			if (IntroduceIncrementAndDecrement != other.IntroduceIncrementAndDecrement) return false;
+			if (MakeAssignmentExpressions != other.MakeAssignmentExpressions) return false;
+			if (RemoveDeadCode != other.RemoveDeadCode) return false;
+			if (RemoveDeadStores != other.RemoveDeadStores) return false;
+			if (ForStatement != other.ForStatement) return false;
+			if (DoWhileStatement != other.DoWhileStatement) return false;
+			if (SeparateLocalVariableDeclarations != other.SeparateLocalVariableDeclarations) return false;
+			if (AggressiveScalarReplacementOfAggregates != other.AggressiveScalarReplacementOfAggregates) return false;
+			if (AggressiveInlining != other.AggressiveInlining) return false;
+			if (AlwaysUseGlobal != other.AlwaysUseGlobal) return false;
+			if (TypeAddInternalModifier != other.TypeAddInternalModifier) return false;
+			if (MemberAddPrivateModifier != other.MemberAddPrivateModifier) return false;
 			if (HexadecimalNumbers != other.HexadecimalNumbers) return false;
 			if (SortSwitchCasesByILOffset != other.SortSwitchCasesByILOffset) return false;
 			if (InsertParenthesesForReadability != other.InsertParenthesesForReadability) return false;
@@ -2280,48 +2341,125 @@ namespace ICSharpCode.Decompiler
 
 		public override int GetHashCode() {
 			unchecked {
-				uint h = 0;
-
-				h ^= AnonymousMethods				? 0 : 0x80000000U;
-				h ^= ExpressionTrees				? 0 : 0x40000000U;
-				h ^= YieldReturn					? 0 : 0x20000000U;
-				h ^= AsyncAwait						? 0 : 0x10000000U;
-				h ^= AutomaticProperties			? 0 : 0x08000000U;
-				h ^= AutomaticEvents				? 0 : 0x04000000U;
-				h ^= UsingStatement					? 0 : 0x02000000U;
-				h ^= ForEachStatement				? 0 : 0x01000000U;
-				h ^= LockStatement					? 0 : 0x00800000U;
-				h ^= SwitchStatementOnString		? 0 : 0x00400000U;
-				h ^= UsingDeclarations				? 0 : 0x00200000U;
-				h ^= QueryExpressions				? 0 : 0x00100000U;
-				h ^= UseDebugSymbols				? 0 : 0x00040000U;
-				h ^= ObjectOrCollectionInitializers	? 0 : 0x00020000U;
-				h ^= ShowXmlDocumentation			? 0 : 0x00010000U;
-				h ^= IntroduceIncrementAndDecrement	? 0 : 0x00008000U;
-				h ^= MakeAssignmentExpressions		? 0 : 0x00004000U;
-				h ^= ShowTokenAndRvaComments		? 0 : 0x00000800U;
-				h ^= SortMembers					? 0 : 0x00000400U;
-				h ^= ForceShowAllMembers			? 0 : 0x00000200U;
-				h ^= SortSystemUsingStatementsFirst	? 0 : 0x00000100U;
-				h ^= SortCustomAttributes			? 0 : 0x00000040U;
-				h ^= UseSourceCodeOrder				? 0 : 0x00000020U;
-				h ^= AllowFieldInitializers			? 0 : 0x00000010U;
-				h ^= OneCustomAttributePerLine		? 0 : 0x00000008U;
-				h ^= HexadecimalNumbers				? 0 : 0x00000002U;
-				h ^= SortSwitchCasesByILOffset		? 0 : 0x00000001U;
-				h ^= InsertParenthesesForReadability? 0 : 0x00000002U;
-
-
-				for (int i = 0; i < decompilationObjects.Length; i++)
-					h ^= (uint)decompilationObjects[i] << (i * 8);
-
-				h ^= (uint)MaxStringLength;
-
-				//TODO: CSharpFormattingOptions. This isn't currently used but it has a ton of properties
-
-				return (int)h;
+				// ReSharper disable NonReadonlyMemberInGetHashCode
+				int hashCode = 0;
+				for (var i = 0; i < decompilationObjects.Length; i++)
+					hashCode = (hashCode * 397) ^ decompilationObjects[i].GetHashCode();
+				hashCode = (hashCode * 397) ^ nativeIntegers.GetHashCode();
+				hashCode = (hashCode * 397) ^ numericIntPtr.GetHashCode();
+				hashCode = (hashCode * 397) ^ covariantReturns.GetHashCode();
+				hashCode = (hashCode * 397) ^ initAccessors.GetHashCode();
+				hashCode = (hashCode * 397) ^ recordClasses.GetHashCode();
+				hashCode = (hashCode * 397) ^ recordStructs.GetHashCode();
+				hashCode = (hashCode * 397) ^ withExpressions.GetHashCode();
+				hashCode = (hashCode * 397) ^ usePrimaryConstructorSyntax.GetHashCode();
+				hashCode = (hashCode * 397) ^ functionPointers.GetHashCode();
+				hashCode = (hashCode * 397) ^ scopedRef.GetHashCode();
+				hashCode = (hashCode * 397) ^ requiredMembers.GetHashCode();
+				hashCode = (hashCode * 397) ^ switchExpressions.GetHashCode();
+				hashCode = (hashCode * 397) ^ fileScopedNamespaces.GetHashCode();
+				hashCode = (hashCode * 397) ^ parameterNullCheck.GetHashCode();
+				hashCode = (hashCode * 397) ^ anonymousMethods.GetHashCode();
+				hashCode = (hashCode * 397) ^ anonymousTypes.GetHashCode();
+				hashCode = (hashCode * 397) ^ useLambdaSyntax.GetHashCode();
+				hashCode = (hashCode * 397) ^ expressionTrees.GetHashCode();
+				hashCode = (hashCode * 397) ^ yieldReturn.GetHashCode();
+				hashCode = (hashCode * 397) ^ dynamic.GetHashCode();
+				hashCode = (hashCode * 397) ^ asyncAwait.GetHashCode();
+				hashCode = (hashCode * 397) ^ awaitInCatchFinally.GetHashCode();
+				hashCode = (hashCode * 397) ^ asyncEnumerator.GetHashCode();
+				hashCode = (hashCode * 397) ^ decimalConstants.GetHashCode();
+				hashCode = (hashCode * 397) ^ fixedBuffers.GetHashCode();
+				hashCode = (hashCode * 397) ^ stringConcat.GetHashCode();
+				hashCode = (hashCode * 397) ^ liftNullables.GetHashCode();
+				hashCode = (hashCode * 397) ^ nullPropagation.GetHashCode();
+				hashCode = (hashCode * 397) ^ automaticProperties.GetHashCode();
+				hashCode = (hashCode * 397) ^ getterOnlyAutomaticProperties.GetHashCode();
+				hashCode = (hashCode * 397) ^ automaticEvents.GetHashCode();
+				hashCode = (hashCode * 397) ^ usingStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ useEnhancedUsing.GetHashCode();
+				hashCode = (hashCode * 397) ^ alwaysUseBraces.GetHashCode();
+				hashCode = (hashCode * 397) ^ forEachStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ forEachWithGetEnumeratorExtension.GetHashCode();
+				hashCode = (hashCode * 397) ^ lockStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ switchStatementOnString.GetHashCode();
+				hashCode = (hashCode * 397) ^ sparseIntegerSwitch.GetHashCode();
+				hashCode = (hashCode * 397) ^ usingDeclarations.GetHashCode();
+				hashCode = (hashCode * 397) ^ extensionMethods.GetHashCode();
+				hashCode = (hashCode * 397) ^ queryExpressions.GetHashCode();
+				hashCode = (hashCode * 397) ^ useImplicitMethodGroupConversion.GetHashCode();
+				hashCode = (hashCode * 397) ^ alwaysCastTargetsOfExplicitInterfaceImplementationCalls.GetHashCode();
+				hashCode = (hashCode * 397) ^ alwaysQualifyMemberReferences.GetHashCode();
+				hashCode = (hashCode * 397) ^ alwaysShowEnumMemberValues.GetHashCode();
+				hashCode = (hashCode * 397) ^ useDebugSymbols.GetHashCode();
+				hashCode = (hashCode * 397) ^ arrayInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ objectCollectionInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ dictionaryInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ extensionMethodsInCollectionInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ useRefLocalsForAccurateOrderOfEvaluation.GetHashCode();
+				hashCode = (hashCode * 397) ^ refExtensionMethods.GetHashCode();
+				hashCode = (hashCode * 397) ^ stringInterpolation.GetHashCode();
+				hashCode = (hashCode * 397) ^ utf8StringLiterals.GetHashCode();
+				hashCode = (hashCode * 397) ^ unsignedRightShift.GetHashCode();
+				hashCode = (hashCode * 397) ^ checkedOperators.GetHashCode();
+				hashCode = (hashCode * 397) ^ showXmlDocumentation.GetHashCode();
+				hashCode = (hashCode * 397) ^ decompileMemberBodies.GetHashCode();
+				hashCode = (hashCode * 397) ^ useExpressionBodyForCalculatedGetterOnlyProperties.GetHashCode();
+				hashCode = (hashCode * 397) ^ outVariables.GetHashCode();
+				hashCode = (hashCode * 397) ^ discards.GetHashCode();
+				hashCode = (hashCode * 397) ^ introduceRefModifiersOnStructs.GetHashCode();
+				hashCode = (hashCode * 397) ^ introduceReadonlyAndInModifiers.GetHashCode();
+				hashCode = (hashCode * 397) ^ readOnlyMethods.GetHashCode();
+				hashCode = (hashCode * 397) ^ asyncUsingAndForEachStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ introduceUnmanagedConstraint.GetHashCode();
+				hashCode = (hashCode * 397) ^ stackAllocInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ patternBasedFixedStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ tupleTypes.GetHashCode();
+				hashCode = (hashCode * 397) ^ throwExpressions.GetHashCode();
+				hashCode = (hashCode * 397) ^ tupleConversions.GetHashCode();
+				hashCode = (hashCode * 397) ^ tupleComparisons.GetHashCode();
+				hashCode = (hashCode * 397) ^ namedArguments.GetHashCode();
+				hashCode = (hashCode * 397) ^ nonTrailingNamedArguments.GetHashCode();
+				hashCode = (hashCode * 397) ^ optionalArguments.GetHashCode();
+				hashCode = (hashCode * 397) ^ localFunctions.GetHashCode();
+				hashCode = (hashCode * 397) ^ deconstruction.GetHashCode();
+				hashCode = (hashCode * 397) ^ patternMatching.GetHashCode();
+				hashCode = (hashCode * 397) ^ staticLocalFunctions.GetHashCode();
+				hashCode = (hashCode * 397) ^ ranges.GetHashCode();
+				hashCode = (hashCode * 397) ^ nullableReferenceTypes.GetHashCode();
+				hashCode = (hashCode * 397) ^ assumeArrayLengthFitsIntoInt32.GetHashCode();
+				hashCode = (hashCode * 397) ^ introduceIncrementAndDecrement.GetHashCode();
+				hashCode = (hashCode * 397) ^ makeAssignmentExpressions.GetHashCode();
+				hashCode = (hashCode * 397) ^ removeDeadCode.GetHashCode();
+				hashCode = (hashCode * 397) ^ removeDeadStores.GetHashCode();
+				hashCode = (hashCode * 397) ^ forStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ doWhileStatement.GetHashCode();
+				hashCode = (hashCode * 397) ^ separateLocalVariableDeclarations.GetHashCode();
+				hashCode = (hashCode * 397) ^ aggressiveScalarReplacementOfAggregates.GetHashCode();
+				hashCode = (hashCode * 397) ^ aggressiveInlining.GetHashCode();
+				hashCode = (hashCode * 397) ^ alwaysUseGlobal.GetHashCode();
+				hashCode = (hashCode * 397) ^ removeEmptyDefaultConstructors.GetHashCode();
+				hashCode = (hashCode * 397) ^ showTokenAndRvaComments.GetHashCode();
+				hashCode = (hashCode * 397) ^ sortMembers.GetHashCode();
+				hashCode = (hashCode * 397) ^ forceShowAllMembers.GetHashCode();
+				hashCode = (hashCode * 397) ^ sortSystemUsingStatementsFirst.GetHashCode();
+				hashCode = (hashCode * 397) ^ maxArrayElements;
+				hashCode = (hashCode * 397) ^ maxStringLength;
+				hashCode = (hashCode * 397) ^ sortCustomAttributes.GetHashCode();
+				hashCode = (hashCode * 397) ^ useSourceCodeOrder.GetHashCode();
+				hashCode = (hashCode * 397) ^ allowFieldInitializers.GetHashCode();
+				hashCode = (hashCode * 397) ^ oneCustomAttributePerLine.GetHashCode();
+				hashCode = (hashCode * 397) ^ typeAddInternalModifier.GetHashCode();
+				hashCode = (hashCode * 397) ^ memberAddPrivateModifier.GetHashCode();
+				hashCode = (hashCode * 397) ^ hexadecimalNumbers.GetHashCode();
+				hashCode = (hashCode * 397) ^ sortSwitchCasesByILOffset.GetHashCode();
+				hashCode = (hashCode * 397) ^ insertParenthesesForReadability.GetHashCode();
+				//TODO: CSharpFormattingOptions
+				// ReSharper enable NonReadonlyMemberInGetHashCode
+				return hashCode;
 			}
 		}
+
 
 		public DecompilerSettings CopyTo(DecompilerSettings other) {
 			other.DecompilationObject0 = this.DecompilationObject0;
@@ -2329,32 +2467,114 @@ namespace ICSharpCode.Decompiler
 			other.DecompilationObject2 = this.DecompilationObject2;
 			other.DecompilationObject3 = this.DecompilationObject3;
 			other.DecompilationObject4 = this.DecompilationObject4;
+			other.NativeIntegers = this.NativeIntegers;
+			other.NumericIntPtr = this.NumericIntPtr;
+			other.CovariantReturns = this.CovariantReturns;
+			other.InitAccessors = this.InitAccessors;
+			other.RecordClasses = this.RecordClasses;
+			other.RecordStructs = this.RecordStructs;
+			other.WithExpressions = this.WithExpressions;
+			other.UsePrimaryConstructorSyntax = this.UsePrimaryConstructorSyntax;
+			other.FunctionPointers = this.FunctionPointers;
+			other.ScopedRef = this.ScopedRef;
+			other.RequiredMembers = this.RequiredMembers;
+			other.SwitchExpressions = this.SwitchExpressions;
+			other.FileScopedNamespaces = this.FileScopedNamespaces;
+			#pragma warning disable CS0618 // Type or member is obsolete
+			other.ParameterNullCheck = this.ParameterNullCheck;
+			#pragma warning restore CS0618 // Type or member is obsolete
 			other.AnonymousMethods = this.AnonymousMethods;
+			other.AnonymousTypes = this.AnonymousTypes;
+			other.UseLambdaSyntax = this.UseLambdaSyntax;
 			other.ExpressionTrees = this.ExpressionTrees;
 			other.YieldReturn = this.YieldReturn;
+			other.Dynamic = this.Dynamic;
 			other.AsyncAwait = this.AsyncAwait;
+			other.AwaitInCatchFinally = this.AwaitInCatchFinally;
+			other.AsyncEnumerator = this.AsyncEnumerator;
+			other.DecimalConstants = this.DecimalConstants;
+			other.FixedBuffers = this.FixedBuffers;
+			other.StringConcat = this.StringConcat;
+			other.LiftNullables = this.LiftNullables;
+			other.NullPropagation = this.NullPropagation;
 			other.AutomaticProperties = this.AutomaticProperties;
+			other.GetterOnlyAutomaticProperties = this.GetterOnlyAutomaticProperties;
 			other.AutomaticEvents = this.AutomaticEvents;
 			other.UsingStatement = this.UsingStatement;
+			other.UseEnhancedUsing = this.UseEnhancedUsing;
+			other.AlwaysUseBraces = this.AlwaysUseBraces;
 			other.ForEachStatement = this.ForEachStatement;
+			other.ForEachWithGetEnumeratorExtension = this.ForEachWithGetEnumeratorExtension;
 			other.LockStatement = this.LockStatement;
 			other.SwitchStatementOnString = this.SwitchStatementOnString;
+			other.SparseIntegerSwitch = this.SparseIntegerSwitch;
 			other.UsingDeclarations = this.UsingDeclarations;
+			other.ExtensionMethods = this.ExtensionMethods;
 			other.QueryExpressions = this.QueryExpressions;
+			other.UseImplicitMethodGroupConversion = this.UseImplicitMethodGroupConversion;
+			other.AlwaysCastTargetsOfExplicitInterfaceImplementationCalls = this.AlwaysCastTargetsOfExplicitInterfaceImplementationCalls;
+			other.AlwaysQualifyMemberReferences = this.AlwaysQualifyMemberReferences;
+			other.AlwaysShowEnumMemberValues = this.AlwaysShowEnumMemberValues;
 			other.UseDebugSymbols = this.UseDebugSymbols;
+			other.ArrayInitializers = this.ArrayInitializers;
 			other.ObjectOrCollectionInitializers = this.ObjectOrCollectionInitializers;
+			other.DictionaryInitializers = this.DictionaryInitializers;
+			other.ExtensionMethodsInCollectionInitializers = this.ExtensionMethodsInCollectionInitializers;
+			other.UseRefLocalsForAccurateOrderOfEvaluation = this.UseRefLocalsForAccurateOrderOfEvaluation;
+			other.RefExtensionMethods = this.RefExtensionMethods;
+			other.StringInterpolation = this.StringInterpolation;
+			other.Utf8StringLiterals = this.Utf8StringLiterals;
+			other.UnsignedRightShift = this.UnsignedRightShift;
+			other.CheckedOperators = this.CheckedOperators;
 			other.ShowXmlDocumentation = this.ShowXmlDocumentation;
+			other.DecompileMemberBodies = this.DecompileMemberBodies;
+			other.UseExpressionBodyForCalculatedGetterOnlyProperties = this.UseExpressionBodyForCalculatedGetterOnlyProperties;
+			other.OutVariables = this.OutVariables;
+			other.Discards = this.Discards;
+			other.IntroduceRefModifiersOnStructs = this.IntroduceRefModifiersOnStructs;
+			other.IntroduceReadonlyAndInModifiers = this.IntroduceReadonlyAndInModifiers;
+			other.ReadOnlyMethods = this.ReadOnlyMethods;
+			other.AsyncUsingAndForEachStatement = this.AsyncUsingAndForEachStatement;
+			other.IntroduceUnmanagedConstraint = this.IntroduceUnmanagedConstraint;
+			other.StackAllocInitializers = this.StackAllocInitializers;
+			other.PatternBasedFixedStatement = this.PatternBasedFixedStatement;
+			other.TupleTypes = this.TupleTypes;
+			other.ThrowExpressions = this.ThrowExpressions;
+			other.TupleConversions = this.TupleConversions;
+			other.TupleComparisons = this.TupleComparisons;
+			other.NamedArguments = this.NamedArguments;
+			other.NonTrailingNamedArguments = this.NonTrailingNamedArguments;
+			other.OptionalArguments = this.OptionalArguments;
+			other.LocalFunctions = this.LocalFunctions;
+			other.Deconstruction = this.Deconstruction;
+			other.PatternMatching = this.PatternMatching;
+			other.StaticLocalFunctions = this.StaticLocalFunctions;
+			other.Ranges = this.Ranges;
+			other.NullableReferenceTypes = this.NullableReferenceTypes;
+			other.AssumeArrayLengthFitsIntoInt32 = this.AssumeArrayLengthFitsIntoInt32;
 			other.IntroduceIncrementAndDecrement = this.IntroduceIncrementAndDecrement;
 			other.MakeAssignmentExpressions = this.MakeAssignmentExpressions;
+			other.RemoveDeadCode = this.RemoveDeadCode;
+			other.RemoveDeadStores = this.RemoveDeadStores;
+			other.ForStatement = this.ForStatement;
+			other.DoWhileStatement = this.DoWhileStatement;
+			other.SeparateLocalVariableDeclarations = this.SeparateLocalVariableDeclarations;
+			other.AggressiveScalarReplacementOfAggregates = this.AggressiveScalarReplacementOfAggregates;
+			other.AggressiveInlining = this.AggressiveInlining;
+			other.AlwaysUseGlobal = this.AlwaysUseGlobal;
+			other.RemoveEmptyDefaultConstructors = this.RemoveEmptyDefaultConstructors;
 			other.ShowTokenAndRvaComments = this.ShowTokenAndRvaComments;
 			other.SortMembers = this.SortMembers;
 			other.ForceShowAllMembers = this.ForceShowAllMembers;
 			other.SortSystemUsingStatementsFirst = this.SortSystemUsingStatementsFirst;
+			other.MaxArrayElements = this.MaxArrayElements;
 			other.MaxStringLength = this.MaxStringLength;
 			other.SortCustomAttributes = this.SortCustomAttributes;
 			other.UseSourceCodeOrder = this.UseSourceCodeOrder;
 			other.AllowFieldInitializers = this.AllowFieldInitializers;
 			other.OneCustomAttributePerLine = this.OneCustomAttributePerLine;
+			other.TypeAddInternalModifier = this.TypeAddInternalModifier;
+			other.MemberAddPrivateModifier = this.MemberAddPrivateModifier;
 			other.HexadecimalNumbers = this.HexadecimalNumbers;
 			other.SortSwitchCasesByILOffset = this.SortSwitchCasesByILOffset;
 			other.InsertParenthesesForReadability = this.InsertParenthesesForReadability;

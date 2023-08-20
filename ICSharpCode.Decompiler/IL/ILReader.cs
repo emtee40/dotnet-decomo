@@ -237,7 +237,7 @@ namespace ICSharpCode.Decompiler.IL
 
 		void InitParameterVariables()
 		{
-			parameterVariables = new ILVariable[GetPopCount(OpCode.Call, methodDef)];
+			parameterVariables = new ILVariable[methodDef.Parameters.Count];
 			int paramIndex = 0;
 			foreach (var p in methodDef.Parameters)
 				parameterVariables[paramIndex++] = CreateILVariable(p);
@@ -246,39 +246,25 @@ namespace ICSharpCode.Decompiler.IL
 
 		ILVariable CreateILVariable(Local v)
 		{
-			VariableKind kind = IsPinned(v.Type) ? VariableKind.PinnedLocal : VariableKind.Local;
+			var localTypeSig = dnlib.DotNet.Extensions.RemoveModifiers(v.Type);
 
-			IType localType = module.ResolveType(v.Type, genericContext);
-			if (kind == VariableKind.PinnedLocal && localType.SkipModifiers() is PinnedType pinnedType)
-				localType = pinnedType.ElementType;
+			VariableKind kind = localTypeSig.IsPinned ? VariableKind.PinnedLocal : VariableKind.Local;
 
-			ILVariable ilVar = new ILVariable(kind, localType, v.Index);
-			ilVar.OriginalVariable = v;
+			IType localType = module.ResolveType(localTypeSig, genericContext);
 
-			if (!UseDebugSymbols || v.Name == null)
-			{
-				ilVar.Name = "V_" + v.Index;
-				ilVar.HasGeneratedName = true;
-			}
-			else if (string.IsNullOrWhiteSpace(v.Name))
-			{
-				ilVar.Name = "V_" + v.Index;
-				ilVar.HasGeneratedName = true;
-			}
-			else
+			ILVariable ilVar = new ILVariable(kind, localType, v.Index) {
+				OriginalVariable = v
+			};
+			if (UseDebugSymbols && !string.IsNullOrWhiteSpace(v.Name))
 			{
 				ilVar.Name = v.Name;
 			}
-			return ilVar;
-		}
-
-		bool IsPinned(dnlib.DotNet.TypeSig type)
-		{
-			while (type is dnlib.DotNet.ModifierSig)
+			else
 			{
-				type = type.Next;
+				ilVar.Name = "V_" + v.Index;
+				ilVar.HasGeneratedName = true;
 			}
-			return type.IsPinned;
+			return ilVar;
 		}
 
 		ILVariable CreateILVariable(dnlib.DotNet.Parameter p)
@@ -1760,14 +1746,6 @@ namespace ICSharpCode.Decompiler.IL
 				return Push(call);
 			else
 				return call;
-		}
-
-		static int GetPopCount(OpCode callCode, dnlib.DotNet.IMethod methodReference)
-		{
-			int popCount = methodReference.MethodSig.Params.Count;
-			if (callCode != OpCode.NewObj && methodReference.MethodSig.HasThis)
-				popCount++;
-			return popCount;
 		}
 
 		ILInstruction Comparison(ComparisonKind kind, bool un = false)
